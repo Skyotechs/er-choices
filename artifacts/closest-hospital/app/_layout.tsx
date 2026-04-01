@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HospitalProvider } from "@/context/HospitalContext";
+import { ConsentGate } from "@/components/ConsentGate";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -51,7 +52,9 @@ export default function RootLayout() {
           <HospitalProvider>
             <GestureHandlerRootView>
               <KeyboardProvider>
-                <RootLayoutNav />
+                <ConsentGate>
+                  <RootLayoutNav />
+                </ConsentGate>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </HospitalProvider>
