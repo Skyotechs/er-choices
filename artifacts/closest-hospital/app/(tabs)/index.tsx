@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { HospitalCard } from "@/components/HospitalCard";
-import { CategoryFilter } from "@/components/CategoryFilter";
 import { MapSection } from "@/components/MapSection";
 import { NavigationSheet } from "@/components/NavigationSheet";
 import { EmptyState } from "@/components/EmptyState";
@@ -33,12 +32,10 @@ export default function HomeScreen() {
     locationPermission,
     serverError,
     filteredHospitals,
-    selectedCategory,
     isLoading,
     isRefreshing,
     requestLocationPermission,
     refresh,
-    setCategory,
   } = useHospital();
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
@@ -157,8 +154,6 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <CategoryFilter selected={selectedCategory} onSelect={setCategory} />
-
       <LiveStatusBanner />
 
     </View>
@@ -178,18 +173,8 @@ export default function HomeScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="hospital"
-              title={
-                selectedCategory === "All"
-                  ? "No Hospitals Found"
-                  : `No ${selectedCategory} Centers Nearby`
-              }
-              description={
-                selectedCategory === "All"
-                  ? "We couldn't find any hospitals near your location."
-                  : `No ${selectedCategory} specialty hospitals found nearby. Try selecting All hospitals.`
-              }
-              actionLabel={selectedCategory !== "All" ? "Show All Hospitals" : undefined}
-              onAction={selectedCategory !== "All" ? () => setCategory("All") : undefined}
+              title="No Hospitals Found"
+              description="We couldn't find any emergency rooms near your location."
             />
           }
           refreshControl={

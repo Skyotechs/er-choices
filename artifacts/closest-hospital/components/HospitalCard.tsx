@@ -6,23 +6,11 @@ import {
   TouchableOpacity,
   Platform,
 } from "react-native";
-import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
-import { Hospital, HospitalCategory } from "@/types/hospital";
+import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
-
-const CATEGORY_ICONS: Record<HospitalCategory, string> = {
-  All: "medical-bag",
-  Trauma: "ambulance",
-  Stroke: "brain",
-  Obstetrics: "baby-carriage",
-  Burn: "fire",
-  Pediatric: "baby",
-  Psychiatric: "head-side-brain",
-  Cardiac: "heartbeat",
-  Cancer: "ribbon",
-};
 
 interface HospitalCardProps {
   hospital: Hospital;
@@ -39,9 +27,6 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
     }
     onPress(hospital);
   }, [hospital, onPress]);
-
-  const primaryCategory = hospital.categories[0] ?? "All";
-  const iconName = CATEGORY_ICONS[primaryCategory] ?? "medical-bag";
 
   return (
     <TouchableOpacity
@@ -69,7 +54,7 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         ]}
       >
         <FontAwesome5
-          name={iconName}
+          name="hospital"
           size={20}
           color={colors.primary}
           solid
@@ -89,21 +74,6 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         >
           {hospital.address}, {hospital.city}, {hospital.state}
         </Text>
-        <View style={styles.tagsRow}>
-          {hospital.categories.slice(0, 3).map((cat) => (
-            <View
-              key={cat}
-              style={[
-                styles.tag,
-                { backgroundColor: colors.primary + "18", borderRadius: 6 },
-              ]}
-            >
-              <Text style={[styles.tagText, { color: colors.primary }]}>
-                {cat}
-              </Text>
-            </View>
-          ))}
-        </View>
       </View>
 
       <View style={styles.right}>
@@ -165,22 +135,6 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-  },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    marginTop: 2,
-  },
-  tag: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  tagText: {
-    fontSize: 10,
-    fontWeight: "600",
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.2,
   },
   right: {
     alignItems: "flex-end",
