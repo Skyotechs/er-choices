@@ -151,19 +151,19 @@ function render() {
     return;
   }
   list.innerHTML = filtered.map(r => {
-    const date = new Date(r.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const date = new Date(r.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const actions = r.status === 'pending' ? \`
       <button class="btn-resolve" onclick="resolve(\${r.id})">Mark Resolved</button>
       <button class="btn-dismiss" onclick="dismiss(\${r.id})">Dismiss</button>
     \` : '';
     return \`<div class="card" id="report-\${r.id}">
       <div class="card-header">
-        <div class="hospital-name">\${r.hospital_name}</div>
+        <div class="hospital-name">\${r.hospitalName}</div>
         <span class="status-pill status-\${r.status}">\${r.status}</span>
       </div>
-      <div class="issue-type">\${ISSUE_LABELS[r.issue_type] || r.issue_type}</div>
+      <div class="issue-type">\${ISSUE_LABELS[r.issueType] || r.issueType}</div>
       \${r.notes ? \`<div class="notes">"\${r.notes}"</div>\` : ''}
-      <div class="meta">OSM ID: \${r.osm_id} &nbsp;·&nbsp; Submitted \${date}</div>
+      <div class="meta">OSM ID: \${r.osmId} &nbsp;·&nbsp; Submitted \${date}</div>
       \${actions ? \`<div class="actions">\${actions}</div>\` : ''}
     </div>\`;
   }).join('');
