@@ -80,17 +80,14 @@ async function requestPermissionNative(): Promise<PermStatus> {
 /**
  * Derive which categories have at least one verified hospital in the list.
  * "All" is always available. A category is available only if at least one
- * hospital in the list was assigned that specialty from the verified map.
+ * hospital in the list has a non-empty `verifiedSpecialties` array that
+ * includes that category.
  */
-function computeAvailableCategories(
-  hospitals: Hospital[],
-  verifiedMap: Record<string, HospitalCategory[]>
-): HospitalCategory[] {
+function computeAvailableCategories(hospitals: Hospital[]): HospitalCategory[] {
   const verifiedSet = new Set<HospitalCategory>();
   for (const h of hospitals) {
-    const verified = verifiedMap[h.id];
-    if (verified && verified.length > 0) {
-      for (const cat of verified) verifiedSet.add(cat);
+    if (h.verifiedSpecialties) {
+      for (const cat of h.verifiedSpecialties) verifiedSet.add(cat);
     }
   }
   const available: HospitalCategory[] = ["All"];
@@ -117,7 +114,7 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
 
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedCategory, 10);
-  const availableCategories = computeAvailableCategories(allHospitals, verifiedSpecialtyMap);
+  const availableCategories = computeAvailableCategories(allHospitals);
 
   useEffect(() => {
     fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
@@ -125,6 +122,22 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
       setVerifiedSpecialtyMap(map);
     });
   }, []);
+
+  // Re-apply verified specialties if the map arrives after the hospital list was built.
+  // Uses functional setState so this effect doesn't need allHospitals as a dependency.
+  useEffect(() => {
+    if (Object.keys(verifiedSpecialtyMap).length === 0) return;
+    setAllHospitals((prev) => {
+      if (prev.length === 0) return prev;
+      return prev.map((h) => {
+        const verified = verifiedSpecialtyMap[h.id];
+        const hasVerified = Array.isArray(verified) && verified.length > 0;
+        return hasVerified
+          ? { ...h, categories: verified, verifiedSpecialties: verified }
+          : h;
+      });
+    });
+  }, [verifiedSpecialtyMap]);
 
   const loadHospitals = useCallback(async (coords: LocationCoords) => {
     setServerError(false);

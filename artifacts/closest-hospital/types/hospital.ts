@@ -21,6 +21,13 @@ export interface Hospital {
   phone?: string;
   website?: string;
   categories: HospitalCategory[];
+  /**
+   * Specialties confirmed from the verified CMS/admin data source.
+   * Undefined when no verified data exists for this hospital.
+   * Used by the specialty filter — only hospitals with verifiedSpecialties
+   * that include the selected category are shown in filtered results.
+   */
+  verifiedSpecialties?: HospitalCategory[];
   hospitalType?: string;
   distance?: number;
 }

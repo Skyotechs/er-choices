@@ -256,11 +256,11 @@ out center tags;
 
   return hospitals.map((h) => {
     const verifiedCategories = verifiedSpecialtyMap[h.id];
+    const hasVerified = Array.isArray(verifiedCategories) && verifiedCategories.length > 0;
     return {
       ...h,
-      categories: verifiedCategories && verifiedCategories.length > 0
-        ? verifiedCategories
-        : h.categories,
+      categories: hasVerified ? verifiedCategories : h.categories,
+      verifiedSpecialties: hasVerified ? verifiedCategories : undefined,
       distance: haversineDistance(latitude, longitude, h.latitude, h.longitude),
     };
   });
@@ -274,7 +274,9 @@ export function filterAndSortHospitals(
   const filtered =
     category === "All"
       ? hospitals
-      : hospitals.filter((h) => h.categories.includes(category));
+      : // Only include hospitals with verified specialty data that matches the filter.
+        // OSM-inferred categories are intentionally excluded from specialty-filtered results.
+        hospitals.filter((h) => h.verifiedSpecialties?.includes(category));
 
   return filtered
     .slice()
