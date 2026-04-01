@@ -99,13 +99,13 @@ export default function SettingsScreen() {
         <InfoRow
           icon={<MaterialIcons name="security" size={18} color={colors.primary} />}
           label="Privacy Policy"
-          onPress={() => Linking.openURL("https://example.com/privacy")}
+          onPress={() => Linking.openURL("https://www.skyotechs.com/erlegal")}
         />
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <InfoRow
           icon={<MaterialIcons name="description" size={18} color={colors.primary} />}
           label="Terms of Use"
-          onPress={() => Linking.openURL("https://example.com/terms")}
+          onPress={() => Linking.openURL("https://www.skyotechs.com/erlegal")}
         />
       </View>
 
@@ -117,13 +117,7 @@ export default function SettingsScreen() {
         <InfoRow
           icon={<MaterialIcons name="email" size={18} color={colors.primary} />}
           label="Contact Support"
-          onPress={() => Linking.openURL("mailto:support@closesthospital.app")}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <InfoRow
-          icon={<MaterialIcons name="star" size={18} color={colors.primary} />}
-          label="Rate the App"
-          onPress={() => Linking.openURL("https://apps.apple.com")}
+          onPress={() => Linking.openURL("mailto:support@erchoices.com")}
         />
       </View>
 
