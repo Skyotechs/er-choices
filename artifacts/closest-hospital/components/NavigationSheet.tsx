@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
+import { ReportModal } from "./ReportModal";
 
 interface NavigationSheetProps {
   hospital: Hospital | null;
@@ -35,6 +36,7 @@ export function NavigationSheet({
   onClose,
 }: NavigationSheetProps) {
   const colors = useColors();
+  const [reportVisible, setReportVisible] = useState(false);
 
   const openMap = useCallback(
     async (option: MapOption) => {
@@ -175,6 +177,19 @@ export function NavigationSheet({
           </TouchableOpacity>
         ))}
 
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <TouchableOpacity
+          style={styles.reportBtn}
+          onPress={() => setReportVisible(true)}
+          activeOpacity={0.7}
+        >
+          <FontAwesome5 name="flag" size={12} color={colors.mutedForeground} />
+          <Text style={[styles.reportText, { color: colors.mutedForeground }]}>
+            Report incorrect information
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.cancelBtn, { borderColor: colors.border, borderRadius: colors.radius }]}
           onPress={onClose}
@@ -185,6 +200,12 @@ export function NavigationSheet({
           </Text>
         </TouchableOpacity>
       </View>
+
+      <ReportModal
+        hospital={hospital}
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+      />
     </Modal>
   );
 }
@@ -276,6 +297,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontFamily: "Inter_500Medium",
+  },
+  reportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 4,
+  },
+  reportText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
   },
   cancelBtn: {
     marginHorizontal: 16,
