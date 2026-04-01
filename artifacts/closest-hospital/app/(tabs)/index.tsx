@@ -18,6 +18,7 @@ import { CategoryFilter } from "@/components/CategoryFilter";
 import { MapSection } from "@/components/MapSection";
 import { NavigationSheet } from "@/components/NavigationSheet";
 import { EmptyState } from "@/components/EmptyState";
+import { LiveStatusBanner } from "@/components/LiveStatusBanner";
 import { useHospital } from "@/context/HospitalContext";
 import { Hospital } from "@/types/hospital";
 
@@ -157,6 +158,8 @@ export default function HomeScreen() {
       </View>
 
       <CategoryFilter selected={selectedCategory} onSelect={setCategory} />
+
+      <LiveStatusBanner />
 
       <View style={styles.listHeader}>
         <Text style={[styles.listTitle, { color: colors.foreground }]}>
