@@ -44,6 +44,8 @@ router.get("/admin-ui", (_req, res) => {
     .btn-resolve:hover { background: #10b98133; }
     .btn-dismiss { padding: 6px 14px; background: transparent; color: #64748b; border: 1px solid #334155; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-dismiss:hover { background: #1e293b; color: #94a3b8; }
+    .btn-osm { padding: 6px 14px; background: transparent; color: #60a5fa; border: 1px solid #1e40af44; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-osm:hover { background: #1e40af22; }
     .empty { text-align: center; padding: 60px 20px; color: #475569; }
     #login-view, #dashboard-view { display: none; }
   </style>
@@ -83,6 +85,22 @@ router.get("/admin-ui", (_req, res) => {
 let secret = '';
 let allReports = [];
 let currentFilter = 'all';
+
+function osmEditUrl(osmId) {
+  // osmId format: "osm-node-12345" or "osm-way-12345"
+  const match = osmId.match(/^osm-(node|way|relation)-(\d+)$/);
+  if (!match) return null;
+  const [, type, id] = match;
+  return \`https://www.openstreetmap.org/edit?\${type}=\${id}\`;
+}
+
+function osmViewUrl(osmId) {
+  const match = osmId.match(/^osm-(node|way|relation)-(\d+)$/);
+  if (!match) return null;
+  const [, type, id] = match;
+  return \`https://www.openstreetmap.org/\${type}/\${id}\`;
+}
+
 const ISSUE_LABELS = {
   wrong_name: 'Wrong Name',
   wrong_address: 'Wrong Address',
@@ -152,10 +170,16 @@ function render() {
   }
   list.innerHTML = filtered.map(r => {
     const date = new Date(r.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const actions = r.status === 'pending' ? \`
-      <button class="btn-resolve" onclick="resolve(\${r.id})">Mark Resolved</button>
-      <button class="btn-dismiss" onclick="dismiss(\${r.id})">Dismiss</button>
-    \` : '';
+    const editUrl = osmEditUrl(r.osmId);
+    const viewUrl = osmViewUrl(r.osmId);
+    const osmLink = viewUrl ? \`<a href="\${viewUrl}" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none;">\${r.osmId}</a>\` : r.osmId;
+    const actions = \`
+      \${r.status === 'pending' ? \`
+        <button class="btn-resolve" onclick="resolve(\${r.id})">Mark Resolved</button>
+        <button class="btn-dismiss" onclick="dismiss(\${r.id})">Dismiss</button>
+      \` : ''}
+      \${editUrl ? \`<a class="btn-osm" href="\${editUrl}" target="_blank" rel="noopener">✏️ Fix on OpenStreetMap</a>\` : ''}
+    \`;
     return \`<div class="card" id="report-\${r.id}">
       <div class="card-header">
         <div class="hospital-name">\${r.hospitalName}</div>
@@ -163,8 +187,8 @@ function render() {
       </div>
       <div class="issue-type">\${ISSUE_LABELS[r.issueType] || r.issueType}</div>
       \${r.notes ? \`<div class="notes">"\${r.notes}"</div>\` : ''}
-      <div class="meta">OSM ID: \${r.osmId} &nbsp;·&nbsp; Submitted \${date}</div>
-      \${actions ? \`<div class="actions">\${actions}</div>\` : ''}
+      <div class="meta">OSM: \${osmLink} &nbsp;·&nbsp; Submitted \${date}</div>
+      <div class="actions">\${actions}</div>
     </div>\`;
   }).join('');
 }
