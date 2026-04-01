@@ -23,8 +23,9 @@
     "production": {
       "ios": {
         "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
+        "appleTeamId": "",
+        "language": "en-US",
+        "appName": "ER Chooser"
       }
     }
   }
