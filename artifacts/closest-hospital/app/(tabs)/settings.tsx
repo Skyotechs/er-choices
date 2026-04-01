@@ -164,7 +164,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
         <Text style={[styles.disclaimerText, { color: colors.mutedForeground }]}>
-          Closest Hospital is a navigational aid only. It does not provide medical
+          ER Chooser is a navigational aid only. It does not provide medical
           advice, triage direction, hospital destination authorization, or
           protocol replacement.{"\n\n"}
           Users must follow local EMS protocols, medical control directives,
@@ -177,7 +177,7 @@ export default function SettingsScreen() {
       </View>
 
       <Text style={[styles.copyright, { color: colors.mutedForeground }]}>
-        Closest Hospital v{appVersion} — Made for EMS professionals
+        ER Chooser v{appVersion} — Made for EMS professionals
       </Text>
     </ScrollView>
   );
