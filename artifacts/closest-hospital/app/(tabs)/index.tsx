@@ -30,6 +30,7 @@ export default function HomeScreen() {
     location,
     locationError,
     locationPermission,
+    serverError,
     filteredHospitals,
     selectedCategory,
     isLoading,
@@ -67,6 +68,28 @@ export default function HomeScreen() {
         <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
           Finding nearby hospitals...
         </Text>
+      </View>
+    );
+  }
+
+  if (serverError) {
+    return (
+      <View
+        style={[
+          styles.centered,
+          {
+            backgroundColor: colors.background,
+            paddingTop: insets.top,
+          },
+        ]}
+      >
+        <EmptyState
+          icon="wifi-slash"
+          title="Navigation Server Down"
+          description="The navigation server is currently down. Please try again later."
+          actionLabel="Retry"
+          onAction={refresh}
+        />
       </View>
     );
   }

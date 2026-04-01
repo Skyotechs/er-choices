@@ -1,5 +1,4 @@
 import { Hospital, HospitalCategory } from "@/types/hospital";
-import { MOCK_HOSPITALS } from "@/data/mockHospitals";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const SEARCH_RADIUS_METERS = 80000;
@@ -92,7 +91,7 @@ interface OverpassElement {
   tags?: Record<string, string>;
 }
 
-function mapOverpassElement(el: OverpassElement, index: number): Hospital | null {
+function mapOverpassElement(el: OverpassElement): Hospital | null {
   const tags = el.tags ?? {};
   const name = tags["name"] ?? tags["official_name"] ?? "";
   if (!name) return null;
@@ -121,12 +120,18 @@ function mapOverpassElement(el: OverpassElement, index: number): Hospital | null
   };
 }
 
+export class NavigationServerError extends Error {
+  constructor() {
+    super("Navigation server is currently down");
+    this.name = "NavigationServerError";
+  }
+}
+
 export async function fetchNearbyHospitals(
   latitude: number,
   longitude: number
 ): Promise<Hospital[]> {
-  try {
-    const query = `
+  const query = `
 [out:json][timeout:30];
 (
   node["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
@@ -136,47 +141,36 @@ export async function fetchNearbyHospitals(
 out center tags;
 `.trim();
 
+  let response: Response;
+  try {
     console.log("Querying Overpass API for nearby hospitals...");
-    const response = await fetch(OVERPASS_URL, {
+    response = await fetch(OVERPASS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `data=${encodeURIComponent(query)}`,
     });
-
-    if (!response.ok) {
-      console.warn("Overpass API error:", response.status);
-      return getMockHospitals(latitude, longitude);
-    }
-
-    const json = await response.json();
-    const elements: OverpassElement[] = json.elements ?? [];
-
-    const hospitals = elements
-      .map((el, i) => mapOverpassElement(el, i))
-      .filter((h): h is Hospital => h !== null);
-
-    if (hospitals.length === 0) {
-      console.warn("No hospitals found via Overpass, using demo data");
-      return getMockHospitals(latitude, longitude);
-    }
-
-    console.log(`Loaded ${hospitals.length} hospitals from OpenStreetMap`);
-    return addDistances(hospitals, latitude, longitude);
-  } catch (error) {
-    console.warn("Overpass fetch failed, using demo data:", error);
-    return getMockHospitals(latitude, longitude);
+  } catch {
+    throw new NavigationServerError();
   }
-}
 
-function getMockHospitals(latitude: number, longitude: number): Hospital[] {
-  return addDistances([...MOCK_HOSPITALS], latitude, longitude);
-}
+  if (!response.ok) {
+    console.warn("Overpass API returned status:", response.status);
+    throw new NavigationServerError();
+  }
 
-function addDistances(
-  hospitals: Hospital[],
-  latitude: number,
-  longitude: number
-): Hospital[] {
+  let json: { elements?: OverpassElement[] };
+  try {
+    json = await response.json();
+  } catch {
+    throw new NavigationServerError();
+  }
+
+  const hospitals = (json.elements ?? [])
+    .map(mapOverpassElement)
+    .filter((h): h is Hospital => h !== null);
+
+  console.log(`Loaded ${hospitals.length} hospitals from OpenStreetMap`);
+
   return hospitals.map((h) => ({
     ...h,
     distance: haversineDistance(latitude, longitude, h.latitude, h.longitude),
@@ -188,14 +182,10 @@ export function filterAndSortHospitals(
   category: HospitalCategory,
   limit = 10
 ): Hospital[] {
-  let filtered: Hospital[];
-
-  if (category === "All") {
-    filtered = hospitals;
-  } else {
-    filtered = hospitals.filter((h) => h.categories.includes(category));
-    if (filtered.length === 0) return [];
-  }
+  const filtered =
+    category === "All"
+      ? hospitals
+      : hospitals.filter((h) => h.categories.includes(category));
 
   return filtered
     .slice()

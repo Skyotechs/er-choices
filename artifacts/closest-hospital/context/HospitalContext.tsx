@@ -10,6 +10,7 @@ import { Hospital, HospitalCategory } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
   filterAndSortHospitals,
+  NavigationServerError,
 } from "@/services/hospitalService";
 
 interface LocationCoords {
@@ -23,6 +24,7 @@ interface HospitalContextValue {
   location: LocationCoords | null;
   locationError: string | null;
   locationPermission: PermStatus;
+  serverError: boolean;
   allHospitals: Hospital[];
   filteredHospitals: Hospital[];
   selectedCategory: HospitalCategory;
@@ -79,10 +81,12 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     useState<HospitalCategory>("All");
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [serverError, setServerError] = useState(false);
 
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedCategory, 10);
 
   const loadHospitals = useCallback(async (coords: LocationCoords) => {
+    setServerError(false);
     try {
       const hospitals = await fetchNearbyHospitals(
         coords.latitude,
@@ -90,7 +94,14 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
       );
       setAllHospitals(hospitals);
     } catch (err) {
-      console.error("Failed to fetch hospitals:", err);
+      if (err instanceof NavigationServerError) {
+        setServerError(true);
+        setAllHospitals([]);
+      } else {
+        console.error("Unexpected hospital fetch error:", err);
+        setServerError(true);
+        setAllHospitals([]);
+      }
     }
   }, []);
 
@@ -166,6 +177,7 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
         location,
         locationError,
         locationPermission,
+        serverError,
         allHospitals,
         filteredHospitals,
         selectedCategory,
