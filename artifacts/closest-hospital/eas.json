@@ -22,8 +22,6 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "",
-        "appleTeamId": "",
         "language": "en-US",
         "appName": "ER Chooser"
       }
