@@ -57,15 +57,12 @@ export default function HomeScreen() {
   const headerHeight =
     Platform.OS === "web" ? 67 : 0;
 
-  if (isLoading) {
+  if (isLoading || isRefreshing) {
     return (
       <View
         style={[styles.centered, { backgroundColor: colors.background }]}
       >
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-          Finding nearby hospitals...
-        </Text>
       </View>
     );
   }
@@ -233,11 +230,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
     padding: 24,
-  },
-  loadingText: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    marginTop: 8,
   },
   mapContainer: {
     width: "100%",
