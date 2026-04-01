@@ -165,7 +165,9 @@ function logout() {
 async function showDashboard() {
   document.getElementById('login-view').style.display = 'none';
   document.getElementById('dashboard-view').style.display = 'block';
-  await Promise.all([loadReports(), loadSpecialtyMap()]);
+  // Fetch specialties first so checkboxes are pre-populated when reports render.
+  await loadSpecialtyMap();
+  await loadReports();
 }
 
 async function loadReports() {
