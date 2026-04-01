@@ -60,15 +60,31 @@ function haversineDistance(
 
 // Names containing any of these phrases are excluded from results entirely
 const EXCLUDE_NAME_PHRASES = [
+  // Urgent / non-ER care
   "urgent care",
   "primary care",
   "walk-in",
   "walk in clinic",
+  "immediate care",
+  "express care",
+  "minute clinic",
+  "retail clinic",
+  // Access / community health centres (not full ERs)
+  "access center",
+  "access centre",
+  "health access",
+  "community health center",
+  "community health centre",
+  "federally qualified health",
+  "fqhc",
+  "neighborhood health",
+  // Wellness / elective
   "wellness",
   "fertility center",
   "fertility clinic",
   "outpatient surgery center",
   "surgery center",
+  // Non-medical
   "acupuncture",
   "chiropractic",
   "dialysis",
@@ -233,9 +249,6 @@ export async function fetchNearbyHospitals(
   node["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
   way["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
   relation["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
-  node["amenity"="hospital"]["emergency"!="no"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
-  way["amenity"="hospital"]["emergency"!="no"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
-  relation["amenity"="hospital"]["emergency"!="no"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
 );
 out center tags;
 `.trim();
