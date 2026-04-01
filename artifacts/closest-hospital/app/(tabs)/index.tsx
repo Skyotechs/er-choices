@@ -18,6 +18,7 @@ import { MapSection } from "@/components/MapSection";
 import { NavigationSheet } from "@/components/NavigationSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { LiveStatusBanner } from "@/components/LiveStatusBanner";
+import { CategoryFilter } from "@/components/CategoryFilter";
 import { useHospital } from "@/context/HospitalContext";
 import { Hospital } from "@/types/hospital";
 
@@ -32,10 +33,13 @@ export default function HomeScreen() {
     locationPermission,
     serverError,
     filteredHospitals,
+    selectedCategory,
+    availableCategories,
     isLoading,
     isRefreshing,
     requestLocationPermission,
     refresh,
+    setCategory,
   } = useHospital();
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
@@ -155,6 +159,13 @@ export default function HomeScreen() {
 
       <LiveStatusBanner />
 
+      {availableCategories.length > 1 && (
+        <CategoryFilter
+          selected={selectedCategory}
+          onSelect={setCategory}
+          availableCategories={availableCategories}
+        />
+      )}
     </View>
   );
 

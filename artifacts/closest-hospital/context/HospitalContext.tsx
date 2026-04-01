@@ -3,15 +3,19 @@ import React, {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useRef,
 } from "react";
 import { Platform } from "react-native";
-import { Hospital, HospitalCategory } from "@/types/hospital";
+import { Hospital, HospitalCategory, CATEGORIES } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
+  fetchVerifiedSpecialtyMap,
   filterAndSortHospitals,
   NavigationServerError,
 } from "@/services/hospitalService";
+
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
 interface LocationCoords {
   latitude: number;
@@ -28,6 +32,7 @@ interface HospitalContextValue {
   allHospitals: Hospital[];
   filteredHospitals: Hospital[];
   selectedCategory: HospitalCategory;
+  availableCategories: HospitalCategory[];
   isLoading: boolean;
   isRefreshing: boolean;
   requestLocationPermission: () => Promise<void>;
@@ -72,6 +77,29 @@ async function requestPermissionNative(): Promise<PermStatus> {
   return status as PermStatus;
 }
 
+/**
+ * Derive which categories have at least one verified hospital in the list.
+ * "All" is always available. A category is available only if at least one
+ * hospital in the list was assigned that specialty from the verified map.
+ */
+function computeAvailableCategories(
+  hospitals: Hospital[],
+  verifiedMap: Record<string, HospitalCategory[]>
+): HospitalCategory[] {
+  const verifiedSet = new Set<HospitalCategory>();
+  for (const h of hospitals) {
+    const verified = verifiedMap[h.id];
+    if (verified && verified.length > 0) {
+      for (const cat of verified) verifiedSet.add(cat);
+    }
+  }
+  const available: HospitalCategory[] = ["All"];
+  for (const cat of CATEGORIES) {
+    if (cat !== "All" && verifiedSet.has(cat)) available.push(cat);
+  }
+  return available;
+}
+
 export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -82,15 +110,29 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [serverError, setServerError] = useState(false);
+  const [verifiedSpecialtyMap, setVerifiedSpecialtyMap] = useState<
+    Record<string, HospitalCategory[]>
+  >({});
+
+  const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
 
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedCategory, 10);
+  const availableCategories = computeAvailableCategories(allHospitals, verifiedSpecialtyMap);
+
+  useEffect(() => {
+    fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
+      verifiedMapRef.current = map;
+      setVerifiedSpecialtyMap(map);
+    });
+  }, []);
 
   const loadHospitals = useCallback(async (coords: LocationCoords) => {
     setServerError(false);
     try {
       const hospitals = await fetchNearbyHospitals(
         coords.latitude,
-        coords.longitude
+        coords.longitude,
+        verifiedMapRef.current
       );
       setAllHospitals(hospitals);
     } catch (err) {
@@ -181,6 +223,7 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
         allHospitals,
         filteredHospitals,
         selectedCategory,
+        availableCategories,
         isLoading,
         isRefreshing,
         requestLocationPermission,

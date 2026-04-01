@@ -19,8 +19,8 @@ router.get("/admin-ui", (_req, res) => {
     .login { max-width: 380px; margin: 80px auto; padding: 32px; background: #1e293b; border-radius: 12px; border: 1px solid #334155; }
     .login h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
     .login p { font-size: 13px; color: #94a3b8; margin-bottom: 24px; }
-    input { width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #f1f5f9; font-size: 14px; margin-bottom: 12px; outline: none; }
-    input:focus { border-color: #c0392b; }
+    input[type="password"] { width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #f1f5f9; font-size: 14px; margin-bottom: 12px; outline: none; }
+    input[type="password"]:focus { border-color: #c0392b; }
     button { width: 100%; padding: 10px; background: #c0392b; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
     button:hover { background: #a93226; }
     .error { color: #f87171; font-size: 13px; margin-top: 8px; }
@@ -39,15 +39,30 @@ router.get("/admin-ui", (_req, res) => {
     .issue-type { display: inline-block; background: #1e40af22; color: #93c5fd; border: 1px solid #1e40af44; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
     .notes { font-size: 13px; color: #94a3b8; margin-top: 8px; line-height: 1.5; }
     .meta { font-size: 12px; color: #475569; margin-top: 8px; }
-    .actions { display: flex; gap: 8px; margin-top: 12px; }
-    .btn-resolve { padding: 6px 14px; background: #10b98122; color: #34d399; border: 1px solid #10b98144; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .btn-resolve { padding: 6px 14px; background: #10b98122; color: #34d399; border: 1px solid #10b98144; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; width: auto; }
     .btn-resolve:hover { background: #10b98133; }
-    .btn-dismiss { padding: 6px 14px; background: transparent; color: #64748b; border: 1px solid #334155; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-dismiss { padding: 6px 14px; background: transparent; color: #64748b; border: 1px solid #334155; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; width: auto; }
     .btn-dismiss:hover { background: #1e293b; color: #94a3b8; }
-    .btn-osm { padding: 6px 14px; background: transparent; color: #60a5fa; border: 1px solid #1e40af44; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-osm { padding: 6px 14px; background: transparent; color: #60a5fa; border: 1px solid #1e40af44; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; width: auto; }
     .btn-osm:hover { background: #1e40af22; }
     .empty { text-align: center; padding: 60px 20px; color: #475569; }
     #login-view, #dashboard-view { display: none; }
+
+    /* Specialty editor */
+    .specialty-editor { margin-top: 14px; padding: 14px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; }
+    .specialty-editor h4 { font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+    .specialty-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .specialty-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .specialty-check input[type="checkbox"] { width: 15px; height: 15px; accent-color: #c0392b; cursor: pointer; margin: 0; }
+    .specialty-check span { font-size: 13px; color: #cbd5e1; }
+    .specialty-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-save-spec { padding: 6px 16px; background: #c0392b; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; width: auto; }
+    .btn-save-spec:hover { background: #a93226; }
+    .btn-save-spec:disabled { background: #475569; cursor: not-allowed; }
+    .spec-status { font-size: 12px; color: #94a3b8; }
+    .spec-status.ok { color: #34d399; }
+    .spec-status.err { color: #f87171; }
   </style>
 </head>
 <body>
@@ -85,9 +100,11 @@ router.get("/admin-ui", (_req, res) => {
 let secret = '';
 let allReports = [];
 let currentFilter = 'all';
+let specialtyMap = {}; // osmId → string[]
+
+const ALL_SPECIALTIES = ['Trauma', 'Cardiac', 'Stroke', 'Pediatric', 'Burn', 'Obstetrics', 'Psychiatric', 'Cancer'];
 
 function osmEditUrl(osmId) {
-  // osmId format: "osm-node-12345" or "osm-way-12345"
   const match = osmId.match(/^osm-(node|way|relation)-(\d+)$/);
   if (!match) return null;
   const [, type, id] = match;
@@ -110,6 +127,13 @@ const ISSUE_LABELS = {
   wrong_specialty: 'Wrong Specialty',
   other: 'Other',
 };
+
+async function loadSpecialtyMap() {
+  try {
+    const res = await fetch('/api/specialties');
+    if (res.ok) specialtyMap = await res.json();
+  } catch {}
+}
 
 function init() {
   const saved = sessionStorage.getItem('admin_secret');
@@ -141,7 +165,7 @@ function logout() {
 async function showDashboard() {
   document.getElementById('login-view').style.display = 'none';
   document.getElementById('dashboard-view').style.display = 'block';
-  await loadReports();
+  await Promise.all([loadReports(), loadSpecialtyMap()]);
 }
 
 async function loadReports() {
@@ -156,6 +180,26 @@ function setFilter(f, btn) {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   render();
+}
+
+function specialtyEditorHtml(reportId, osmId) {
+  const current = specialtyMap[osmId] || [];
+  const checkboxes = ALL_SPECIALTIES.map(s => {
+    const checked = current.includes(s) ? 'checked' : '';
+    return \`<label class="specialty-check">
+      <input type="checkbox" id="spec-\${reportId}-\${s}" value="\${s}" \${checked} />
+      <span>\${s}</span>
+    </label>\`;
+  }).join('');
+
+  return \`<div class="specialty-editor" id="spec-editor-\${reportId}">
+    <h4>Verified Specialties</h4>
+    <div class="specialty-grid">\${checkboxes}</div>
+    <div class="specialty-actions">
+      <button class="btn-save-spec" id="spec-save-\${reportId}" onclick="saveSpecialties('\${osmId}', \${reportId})">Save &amp; Resolve</button>
+      <span class="spec-status" id="spec-status-\${reportId}"></span>
+    </div>
+  </div>\`;
 }
 
 function render() {
@@ -173,13 +217,16 @@ function render() {
     const editUrl = osmEditUrl(r.osmId);
     const viewUrl = osmViewUrl(r.osmId);
     const osmLink = viewUrl ? \`<a href="\${viewUrl}" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none;">\${r.osmId}</a>\` : r.osmId;
+    const isPending = r.status === 'pending';
+    const isWrongSpecialty = r.issueType === 'wrong_specialty';
     const actions = \`
-      \${r.status === 'pending' ? \`
+      \${isPending ? \`
         <button class="btn-resolve" onclick="resolve(\${r.id})">Mark Resolved</button>
         <button class="btn-dismiss" onclick="dismiss(\${r.id})">Dismiss</button>
       \` : ''}
       \${editUrl ? \`<a class="btn-osm" href="\${editUrl}" target="_blank" rel="noopener">✏️ Fix on OpenStreetMap</a>\` : ''}
     \`;
+    const editor = (isPending && isWrongSpecialty) ? specialtyEditorHtml(r.id, r.osmId) : '';
     return \`<div class="card" id="report-\${r.id}">
       <div class="card-header">
         <div class="hospital-name">\${r.hospitalName}</div>
@@ -188,9 +235,42 @@ function render() {
       <div class="issue-type">\${ISSUE_LABELS[r.issueType] || r.issueType}</div>
       \${r.notes ? \`<div class="notes">"\${r.notes}"</div>\` : ''}
       <div class="meta">OSM: \${osmLink} &nbsp;·&nbsp; Submitted \${date}</div>
+      \${editor}
       <div class="actions">\${actions}</div>
     </div>\`;
   }).join('');
+}
+
+async function saveSpecialties(osmId, reportId) {
+  const btn = document.getElementById(\`spec-save-\${reportId}\`);
+  const status = document.getElementById(\`spec-status-\${reportId}\`);
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  status.className = 'spec-status';
+
+  const selected = ALL_SPECIALTIES.filter(s => {
+    const el = document.getElementById(\`spec-\${reportId}-\${s}\`);
+    return el && el.checked;
+  });
+
+  try {
+    const res = await fetch(\`/api/admin/specialties/\${encodeURIComponent(osmId)}\`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secret },
+      body: JSON.stringify({ specialties: selected }),
+    });
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    const data = await res.json();
+    specialtyMap[osmId] = data.specialties ?? selected;
+    status.textContent = '✓ Saved';
+    status.className = 'spec-status ok';
+    await fetch(\`/api/admin/reports/\${reportId}/resolve\`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + secret } });
+    await loadReports();
+  } catch (err) {
+    status.textContent = 'Error saving. Try again.';
+    status.className = 'spec-status err';
+    btn.disabled = false;
+  }
 }
 
 async function resolve(id) {

@@ -27,6 +27,8 @@ const CATEGORY_ICONS: Record<HospitalCategory, { lib: "fa5" | "mci"; name: strin
 interface CategoryFilterProps {
   selected: HospitalCategory;
   onSelect: (category: HospitalCategory) => void;
+  /** Subset of CATEGORIES to display (always includes "All"). Falls back to all CATEGORIES if omitted. */
+  availableCategories?: HospitalCategory[];
 }
 
 function CategoryChip({
@@ -92,8 +94,9 @@ function CategoryChip({
   );
 }
 
-export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
+export function CategoryFilter({ selected, onSelect, availableCategories }: CategoryFilterProps) {
   const colors = useColors();
+  const displayCategories = availableCategories ?? CATEGORIES;
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -103,7 +106,7 @@ export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
         contentContainerStyle={styles.scrollContent}
         bounces={true}
       >
-        {CATEGORIES.map((category) => (
+        {displayCategories.map((category) => (
           <CategoryChip
             key={category}
             category={category}

@@ -3,6 +3,21 @@ import { Hospital, HospitalCategory } from "@/types/hospital";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const SEARCH_RADIUS_METERS = 80000;
 
+/** Fetch the verified specialty map from the API server. Never throws. */
+export async function fetchVerifiedSpecialtyMap(
+  apiBase: string
+): Promise<Record<string, HospitalCategory[]>> {
+  try {
+    const res = await fetch(`${apiBase}/specialties`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return {};
+    const data = await res.json();
+    if (typeof data !== "object" || Array.isArray(data)) return {};
+    return data as Record<string, HospitalCategory[]>;
+  } catch {
+    return {};
+  }
+}
+
 function haversineDistance(
   lat1: number,
   lon1: number,
@@ -187,7 +202,8 @@ export class NavigationServerError extends Error {
 
 export async function fetchNearbyHospitals(
   latitude: number,
-  longitude: number
+  longitude: number,
+  verifiedSpecialtyMap: Record<string, HospitalCategory[]> = {}
 ): Promise<Hospital[]> {
   const query = `
 [out:json][timeout:30];
@@ -238,10 +254,16 @@ out center tags;
 
   console.log(`Loaded ${hospitals.length} hospitals from OpenStreetMap`);
 
-  return hospitals.map((h) => ({
-    ...h,
-    distance: haversineDistance(latitude, longitude, h.latitude, h.longitude),
-  }));
+  return hospitals.map((h) => {
+    const verifiedCategories = verifiedSpecialtyMap[h.id];
+    return {
+      ...h,
+      categories: verifiedCategories && verifiedCategories.length > 0
+        ? verifiedCategories
+        : h.categories,
+      distance: haversineDistance(latitude, longitude, h.latitude, h.longitude),
+    };
+  });
 }
 
 export function filterAndSortHospitals(
