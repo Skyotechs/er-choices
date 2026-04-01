@@ -321,9 +321,16 @@ function toOsmHospitals(elements: OverpassElement[]): OsmHospital[] {
 /**
  * Match OSM hospitals to CMS records using distance + name similarity.
  *
- * Distance threshold: 2 km (wider than ~500m because CMS coordinates are ZIP
- * centroids, not the exact building address). Name score threshold: ≥ 0.35.
- * The combined score weights name similarity 70% and proximity 30%.
+ * **Distance threshold: 2 km** (wider than the spec's ~500m) — rationale:
+ * CMS coordinates are ZIP code centroids derived from the `zip_code` field via
+ * zippopotam.us, which can be 1–3 km from the actual building address. A strict
+ * 500m cutoff would reject valid matches. The runtime `matchOsmToCms()` export
+ * (used by the Task 2 API) restores the ~500m threshold because it operates on
+ * exact OSM coordinates received live from the device.
+ *
+ * Expected false-positive rate: low — the 0.35 name-score gate filters most
+ * geography collisions. Post-import QA is advised for low-score matches
+ * (combined < 0.5) via a direct DB query or the admin dashboard.
  *
  * Already-matched CMS IDs are excluded to preserve one-to-one mapping.
  */

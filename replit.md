@@ -104,7 +104,8 @@ Reports submitted by users about hospital data issues. Fields: `id`, `osmId`, `h
 CMS Care Compare hospital baseline data. Populated by running `pnpm --filter @workspace/api-server run import-cms`.
 - **Source**: CMS Hospital General Information dataset (`xubh-q36u`) — 5,426 hospitals
 - **Fields**: `id`, `osmId` (nullable, filled lazily at query time), `cmsId`, `hospitalName`, `state`, `latitude`, `longitude` (null — CMS dataset has no coordinates), `specialties` (JSONB array, e.g. `["Trauma","Cardiac"]`), `emergencyServices`, `source`, `verified`, `updatedAt`
-- **OSM matching**: Done lazily at `/api/specialties` (Task 2) using name + state similarity via `matchOsmToCms()` in `artifacts/api-server/scripts/import-cms-hospitals.ts`
+- **OSM matching**: Done in two stages — (1) batch at import time in Phase 2 of `import-cms-hospitals.ts` using 2km distance + name similarity (2km because CMS coordinates are ZIP centroids, not exact building addresses); (2) refined at runtime in the Task 2 API via `matchOsmToCms()` which uses a strict 500m threshold with exact OSM coordinates.
+- **QA note**: False-positive matches (combined score < 0.5) can be reviewed via `SELECT * FROM hospital_specialties WHERE osm_id IS NOT NULL ORDER BY updated_at DESC` and corrected through the admin dashboard (Task 2).
 
 ## Import Scripts
 
