@@ -94,3 +94,18 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+
+## Database Schema
+
+### `hospital_reports`
+Reports submitted by users about hospital data issues. Fields: `id`, `osmId`, `hospitalName`, `issueType`, `notes`, `status`, `submittedAt`, `resolvedAt`.
+
+### `hospital_specialties`
+CMS Care Compare hospital baseline data. Populated by running `pnpm --filter @workspace/api-server run import-cms`.
+- **Source**: CMS Hospital General Information dataset (`xubh-q36u`) — 5,426 hospitals
+- **Fields**: `id`, `osmId` (nullable, filled lazily at query time), `cmsId`, `hospitalName`, `state`, `latitude`, `longitude` (null — CMS dataset has no coordinates), `specialties` (JSONB array, e.g. `["Trauma","Cardiac"]`), `emergencyServices`, `source`, `verified`, `updatedAt`
+- **OSM matching**: Done lazily at `/api/specialties` (Task 2) using name + state similarity via `matchOsmToCms()` in `artifacts/api-server/scripts/import-cms-hospitals.ts`
+
+## Import Scripts
+
+- `pnpm --filter @workspace/api-server run import-cms` — Fetches and upserts all CMS Hospital General Information records into `hospital_specialties`. Safe to re-run (idempotent via `ON CONFLICT DO UPDATE`).
