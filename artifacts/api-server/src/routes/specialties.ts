@@ -69,9 +69,9 @@ router.get("/specialties", async (_req, res) => {
 
     const result: Record<string, string[]> = {};
     for (const [osmId, { specialties }] of map) {
-      if (specialties.length > 0) {
-        result[osmId] = specialties;
-      }
+      // Include even empty arrays: an empty verified record means "admin cleared
+      // specialties" — the presence of the key is authoritative, not the length.
+      result[osmId] = specialties;
     }
 
     res.json(result);

@@ -255,8 +255,10 @@ out center tags;
   console.log(`Loaded ${hospitals.length} hospitals from OpenStreetMap`);
 
   return hospitals.map((h) => {
-    const verifiedCategories = verifiedSpecialtyMap[h.id];
-    const hasVerified = Array.isArray(verifiedCategories) && verifiedCategories.length > 0;
+    // Key presence is authoritative — an empty verified array means "admin cleared
+    // specialties" and must not fall back to OSM inference for filtering purposes.
+    const hasVerified = h.id in verifiedSpecialtyMap;
+    const verifiedCategories: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
     return {
       ...h,
       categories: hasVerified ? verifiedCategories : h.categories,

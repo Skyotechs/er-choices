@@ -125,13 +125,14 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
 
   // Re-apply verified specialties if the map arrives after the hospital list was built.
   // Uses functional setState so this effect doesn't need allHospitals as a dependency.
+  // Key presence is authoritative: an empty verified array must override OSM inference.
   useEffect(() => {
     if (Object.keys(verifiedSpecialtyMap).length === 0) return;
     setAllHospitals((prev) => {
       if (prev.length === 0) return prev;
       return prev.map((h) => {
-        const verified = verifiedSpecialtyMap[h.id];
-        const hasVerified = Array.isArray(verified) && verified.length > 0;
+        const hasVerified = h.id in verifiedSpecialtyMap;
+        const verified: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
         return hasVerified
           ? { ...h, categories: verified, verifiedSpecialties: verified }
           : h;
