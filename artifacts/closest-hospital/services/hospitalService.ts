@@ -43,16 +43,39 @@ const EXCLUDE_NAME_PHRASES = [
   "veterinary",
   "vet clinic",
   "animal hospital",
+  // Rehab / non-emergency facilities
+  "rehab",
+  "rehabilitation",
+  "substance abuse",
+  "detox",
+  "recovery center",
+  "addiction",
+  "behavioral health",
+  "mental health center",
+  "nursing home",
+  "assisted living",
+  "long term care",
+  "skilled nursing",
+  "hospice",
+  "gastroenterology",
+  "endoscopy",
+  "imaging center",
+  "radiology",
+  "infusion center",
 ];
 
 function isExcluded(name: string, tags: Record<string, string>): boolean {
   const n = name.toLowerCase();
   if (EXCLUDE_NAME_PHRASES.some((phrase) => n.includes(phrase))) return true;
-  // OSM tag-based exclusions
+
+  // OSM tag-based exclusions — non-ER specialities
   const speciality = (tags["healthcare:speciality"] ?? "").toLowerCase();
-  if (speciality === "acupuncture" || speciality === "dentistry" || speciality === "chiropractic") {
-    return true;
-  }
+  const nonErSpecialities = [
+    "acupuncture", "dentistry", "chiropractic", "gastroenterology",
+    "ophthalmology", "dermatology", "radiology", "rehabilitation",
+  ];
+  if (nonErSpecialities.some((s) => speciality === s)) return true;
+
   return false;
 }
 
@@ -151,7 +174,7 @@ function mapOverpassElement(el: OverpassElement): Hospital | null {
     phone: tags["phone"] ?? tags["contact:phone"],
     website: tags["website"] ?? tags["contact:website"],
     categories: inferCategories(name, tags),
-    hospitalType: tags["emergency"] === "yes" ? "Emergency Care" : "General Hospital",
+    hospitalType: "Emergency Room",
   };
 }
 
@@ -169,9 +192,9 @@ export async function fetchNearbyHospitals(
   const query = `
 [out:json][timeout:30];
 (
-  node["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
-  way["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
-  relation["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  node["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  way["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  relation["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
 );
 out center tags;
 `.trim();
