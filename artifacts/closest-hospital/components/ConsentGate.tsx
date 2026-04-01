@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   BackHandler,
   Platform,
+  ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -67,11 +68,14 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
         transparent={false}
         statusBarTranslucent
       >
-        <View
-          style={[
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
             styles.screen,
             { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 },
           ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
           <View style={styles.iconRow}>
             <View style={styles.iconBadge}>
@@ -85,17 +89,16 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Before You Continue</Text>
             <Text style={styles.cardBody}>
-              By using ER Choices you agree to our{" "}
+              ER Choices uses your device's precise location only while the app is in use to show nearby hospitals and open navigation. ER Choices does not store your location.{"\n\n"}
+              ER Choices is an informational aid only and does not provide medical advice, destination authorization, or emergency dispatch functionality. It does not supersede local EMS protocols, medical control, OEM/regional routing directives, hospital diversion instructions, physician orders, dispatch instructions, employer SOPs/SOGs, payer or transport authorization rules, or applicable law. Use only as a convenience tool and verify all destination decisions independently.{"\n\n"}
+              By tapping <Text style={styles.bold}>I Agree</Text> you confirm you have read and agree to our{" "}
               <Text
                 style={styles.link}
                 onPress={() => Linking.openURL(LEGAL_URL)}
               >
-                Terms of Service, End User License Agreement (EULA), and Privacy
-                Policy
+                Terms of Service, EULA &amp; Privacy Policy
               </Text>
-              .{"\n\n"}
-              ER Choices is a navigational aid only. It does not replace medical
-              control, local EMS protocols, or agency policy.
+              .
             </Text>
           </View>
 
@@ -124,7 +127,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               View Terms of Service, EULA &amp; Privacy Policy
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </Modal>
     </>
   );
@@ -137,8 +140,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  screen: {
+  scrollView: {
     flex: 1,
+    backgroundColor: "#0d1b2e",
+  },
+  screen: {
+    flexGrow: 1,
     backgroundColor: "#0d1b2e",
     alignItems: "center",
     paddingHorizontal: 28,
@@ -195,6 +202,10 @@ const styles = StyleSheet.create({
     color: "#c0392b",
     fontFamily: "Inter_500Medium",
     textDecorationLine: "underline",
+  },
+  bold: {
+    fontFamily: "Inter_600SemiBold",
+    color: "#ccddee",
   },
   agreeBtn: {
     width: "100%",
