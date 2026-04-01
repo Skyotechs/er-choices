@@ -19,22 +19,22 @@ interface StateConfig {
 
 const STATE_CONFIGS: Record<string, StateConfig> = {
   PA: {
-    label: "PA Live Diversion",
+    label: "Pennsylvania Live Status",
     description: "pamedic.org",
     url: "https://www.pamedic.org",
   },
   NJ: {
-    label: "NJ ED Diversion",
+    label: "New Jersey Live Status",
     description: "njdivert.juvare.com",
     url: "https://njdivert.juvare.com/",
   },
   MD: {
-    label: "MD ED Advisory",
+    label: "Maryland Live Status",
     description: "edas.miemss.org",
     url: "https://edas.miemss.org/dashboard",
   },
   CT: {
-    label: "CT Boarding Status",
+    label: "Connecticut Live Status",
     description: "overnight-boarding.ctacep.org",
     url: "https://overnight-boarding.ctacep.org/hospitals/?peerGroup=large",
   },
