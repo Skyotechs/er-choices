@@ -27,6 +27,9 @@ export type HospitalReport = typeof hospitalReports.$inferSelect;
  * Verified hospital specialty data sourced from CMS Care Compare
  * or manually set by an admin. osmId is populated after matching
  * the CMS record to an OpenStreetMap hospital node at query time.
+ *
+ * needsAdminReview: jsonb array of designation strings that could not be
+ * sourced from any public dataset and require manual admin verification.
  */
 export const hospitalSpecialties = pgTable("hospital_specialties", {
   id: serial("id").primaryKey(),
@@ -40,8 +43,28 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
   emergencyServices: boolean("emergency_services").notNull().default(false),
   source: text("source").notNull().default("cms"),
   verified: boolean("verified").notNull().default(true),
+  needsAdminReview: jsonb("needs_admin_review").notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type HospitalSpecialty = typeof hospitalSpecialties.$inferSelect;
 export type InsertHospitalSpecialty = typeof hospitalSpecialties.$inferInsert;
+
+/**
+ * Canonical list of all 16 specialty designations recognized by the system.
+ * This table is the single source of truth for valid designation strings.
+ * Seeded on startup; never deleted at runtime.
+ */
+export const specialtyDefinitions = pgTable("specialty_definitions", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  label: text("label").notNull(),
+  category: text("category").notNull(),
+  cmsField: text("cms_field"),
+  sourceable: boolean("sourceable").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SpecialtyDefinition = typeof specialtyDefinitions.$inferSelect;
+export type InsertSpecialtyDefinition = typeof specialtyDefinitions.$inferInsert;
