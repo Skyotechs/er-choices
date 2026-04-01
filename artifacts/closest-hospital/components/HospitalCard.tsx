@@ -5,8 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Linking,
 } from "react-native";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
@@ -47,20 +48,6 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         </Text>
       </View>
 
-      <View
-        style={[
-          styles.iconContainer,
-          { backgroundColor: colors.primary + "15", borderRadius: colors.radius - 4 },
-        ]}
-      >
-        <FontAwesome5
-          name="hospital"
-          size={20}
-          color={colors.primary}
-          solid
-        />
-      </View>
-
       <View style={styles.info}>
         <Text
           style={[styles.name, { color: colors.foreground }]}
@@ -74,6 +61,20 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         >
           {hospital.address}, {hospital.city}, {hospital.state}
         </Text>
+        {hospital.phone ? (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              Linking.openURL(`tel:${hospital.phone}`);
+            }}
+            activeOpacity={0.6}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Text style={[styles.phone, { color: colors.primary }]}>
+              {hospital.phone}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.right}>
@@ -115,13 +116,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
   },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
   info: {
     flex: 1,
     gap: 3,
@@ -135,6 +129,11 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
+  },
+  phone: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    marginTop: 1,
   },
   right: {
     alignItems: "flex-end",
