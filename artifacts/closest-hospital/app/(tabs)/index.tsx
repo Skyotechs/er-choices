@@ -1,0 +1,323 @@
+import React, { useState, useCallback, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Platform,
+  ActivityIndicator,
+  RefreshControl,
+  Linking,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useColors } from "@/hooks/useColors";
+import { HospitalCard } from "@/components/HospitalCard";
+import { CategoryFilter } from "@/components/CategoryFilter";
+import { MapSection } from "@/components/MapSection";
+import { NavigationSheet } from "@/components/NavigationSheet";
+import { EmptyState } from "@/components/EmptyState";
+import { useHospital } from "@/context/HospitalContext";
+import { Hospital } from "@/types/hospital";
+
+const MAP_HEIGHT = 220;
+
+export default function HomeScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const {
+    location,
+    locationError,
+    locationPermission,
+    filteredHospitals,
+    selectedCategory,
+    isLoading,
+    isRefreshing,
+    requestLocationPermission,
+    refresh,
+    setCategory,
+  } = useHospital();
+
+  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
+  const [navSheetVisible, setNavSheetVisible] = useState(false);
+
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  const handleHospitalPress = useCallback((hospital: Hospital) => {
+    setSelectedHospital(hospital);
+    setNavSheetVisible(true);
+  }, []);
+
+  const handleCloseNavSheet = useCallback(() => {
+    setNavSheetVisible(false);
+  }, []);
+
+  const headerHeight =
+    Platform.OS === "web" ? 67 : 0;
+
+  if (isLoading) {
+    return (
+      <View
+        style={[styles.centered, { backgroundColor: colors.background }]}
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+          Finding your location...
+        </Text>
+      </View>
+    );
+  }
+
+  if (locationError || locationPermission === "denied") {
+    return (
+      <View
+        style={[
+          styles.centered,
+          {
+            backgroundColor: colors.background,
+            paddingTop: headerHeight + insets.top,
+          },
+        ]}
+      >
+        <EmptyState
+          icon="map-marker-slash"
+          title="Location Required"
+          description="Closest Hospital needs your location to find nearby hospitals. Please grant location access to continue."
+          actionLabel="Enable Location"
+          onAction={async () => {
+            if (Platform.OS !== "web") {
+              await Linking.openSettings();
+            } else {
+              await requestLocationPermission();
+            }
+          }}
+        />
+        {Platform.OS === "web" && (
+          <TouchableOpacity
+            style={[
+              styles.retryBtn,
+              { backgroundColor: colors.muted, borderRadius: colors.radius },
+            ]}
+            onPress={requestLocationPermission}
+          >
+            <Text style={[styles.retryText, { color: colors.foreground }]}>
+              Try Again
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
+
+  const ListHeader = (
+    <View>
+      <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
+        <MapSection
+          latitude={location?.latitude ?? null}
+          longitude={location?.longitude ?? null}
+          hospitals={filteredHospitals}
+          onHospitalPress={handleHospitalPress}
+        />
+        <TouchableOpacity
+          style={[
+            styles.refreshBtn,
+            { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius - 4 },
+          ]}
+          onPress={refresh}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="my-location" size={18} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <CategoryFilter selected={selectedCategory} onSelect={setCategory} />
+
+      <View style={styles.listHeader}>
+        <Text style={[styles.listTitle, { color: colors.foreground }]}>
+          {selectedCategory === "All" ? "Nearest Hospitals" : `${selectedCategory} Centers`}
+        </Text>
+        <Text style={[styles.listCount, { color: colors.mutedForeground }]}>
+          {filteredHospitals.length > 0
+            ? `Top ${filteredHospitals.length}`
+            : "None found"}
+        </Text>
+      </View>
+
+      {!process.env.EXPO_PUBLIC_API_NINJAS_KEY && (
+        <View
+          style={[
+            styles.demoBanner,
+            {
+              backgroundColor: colors.warning + "22",
+              borderColor: colors.warning + "55",
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Ionicons name="information-circle" size={16} color={colors.warning} />
+          <Text style={[styles.demoText, { color: colors.warning }]}>
+            Demo mode — add your API Ninjas key for live hospital data
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? headerHeight : 0 },
+      ]}
+    >
+      {filteredHospitals.length === 0 && !isLoading && location ? (
+        <FlatList
+          data={[]}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={
+            <EmptyState
+              icon="hospital"
+              title={
+                selectedCategory === "All"
+                  ? "No Hospitals Found"
+                  : `No ${selectedCategory} Centers Nearby`
+              }
+              description={
+                selectedCategory === "All"
+                  ? "We couldn't find any hospitals near your location."
+                  : `No ${selectedCategory} specialty hospitals found nearby. Try selecting All hospitals.`
+              }
+              actionLabel={selectedCategory !== "All" ? "Show All Hospitals" : undefined}
+              onAction={selectedCategory !== "All" ? () => setCategory("All") : undefined}
+            />
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={colors.primary}
+            />
+          }
+          keyExtractor={() => "empty"}
+          renderItem={() => null}
+        />
+      ) : (
+        <FlatList
+          data={filteredHospitals}
+          ListHeaderComponent={ListHeader}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <HospitalCard
+              hospital={item}
+              index={index}
+              onPress={handleHospitalPress}
+            />
+          )}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={colors.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      <NavigationSheet
+        hospital={selectedHospital}
+        visible={navSheetVisible}
+        onClose={handleCloseNavSheet}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    marginTop: 8,
+  },
+  mapContainer: {
+    width: "100%",
+    position: "relative",
+  },
+  refreshBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  listHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.3,
+  },
+  listCount: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+  listContent: {
+    paddingTop: 4,
+  },
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+  },
+  demoText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+  },
+  retryBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  retryText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+});

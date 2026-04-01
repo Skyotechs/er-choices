@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "eJ_roaMON7HGEVxARQAhC"
+uri = "file://artifacts/closest-hospital/assets/images/icon.png"
+type = "image"
+title = "closest hospital app icon"

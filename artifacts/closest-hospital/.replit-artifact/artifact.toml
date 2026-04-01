@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Closest Hospital"
+version = "1.0.0"
+id = "artifacts/closest-hospital"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 22183
+
+[services.development]
+run = "pnpm --filter @workspace/closest-hospital run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/closest-hospital", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/closest-hospital", "run", "serve" ]
+
+[services.env]
+PORT = "22183"
+BASE_PATH = "/"

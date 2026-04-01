@@ -1,0 +1,192 @@
+Build an iOS-first mobile app for first responders called “Closest Hospital” that helps EMTs, paramedics, and other responders quickly identify the nearest appropriate hospital based on the patient’s needs. The app should be designed for iPhone first, with architecture that can later be reused for Android. Use React Native with Expo for the first version so it can later be adapted for Android, or SwiftUI if native iOS is strongly preferred, but prioritize fast, stable iOS delivery and clean Apple App Store compliance.
+
+Core concept:
+The user opens the app and immediately sees their current GPS location on a map. Below the map, the app displays the 10 closest hospitals in order from closest to furthest. The user can filter hospitals by specialty/capability using a horizontal sliding category menu above the hospital list. Tapping a hospital opens external navigation in Apple Maps, Google Maps, Waze, or the device’s default navigation option. Navigation itself must happen outside our app to keep the product simple.
+
+Target users:
+EMS professionals, first responders, transport coordinators, and field personnel who need quick situational awareness of nearby hospitals.
+
+Main requirements:
+
+1. Home screen layout
+- Top area: app title/header
+- Main map section showing:
+  - user’s live location
+  - nearby hospitals as map pins
+- Under the map:
+  - a horizontally scrollable filter bar with these categories:
+    - All
+    - Trauma
+    - Stroke
+    - Obstetrics
+    - Burn
+    - Pediatric
+    - Psychiatric
+    - Cardiac
+    - Cancer
+- Under the filter bar:
+  - a vertically scrollable list of the 10 closest hospitals
+  - each hospital card should show:
+    - hospital name
+    - hospital type/capability
+    - full address
+    - distance from user
+- Sort list automatically from nearest to farthest
+- Selecting a hospital card should present “Open in Maps” options and launch external navigation
+
+2. Functional behavior
+- Request user location permission on first launch with a clear explanation of why it is needed
+- Use live/current location to calculate distance to hospitals
+- Show only the nearest 10 hospitals matching the selected filter
+- If “All” is selected, show all hospitals regardless of specialty
+- If a specialty is selected, prioritize hospitals tagged with that specialty
+- Calculate distance accurately using geolocation
+- Allow pull-to-refresh or refresh button to re-check location and nearby hospitals
+- If no hospitals are available for a selected specialty, show a clear fallback message and optionally show the nearest general hospitals
+
+3. Hospital data structure
+Each hospital record should include:
+- id
+- hospital name
+- address
+- city
+- state
+- zip
+- latitude
+- longitude
+- hospital type/capabilities as tags
+- phone number if available
+- website if available
+
+4. Navigation handoff
+When the user taps a hospital:
+- show an action sheet or modal with:
+  - Open in Apple Maps
+  - Open in Google Maps
+  - Open in Waze
+  - Cancel
+- If one of those apps is not installed, gracefully fall back to available map apps
+- Do not build turn-by-turn navigation inside the app
+
+5. UI/UX expectations
+- Clean, fast, no clutter
+- Professional EMS/public safety feel
+- Large touch targets for field use
+- High contrast design
+- Easy readability outdoors
+- Minimal steps from launch to destination choice
+- Smooth loading states, empty states, and error states
+- Responsive layout for different iPhone sizes
+
+6. Suggested technical stack
+Preferred:
+- React Native + Expo
+- TypeScript
+- react-native-maps
+- expo-location
+- open map deep links for Apple Maps / Google Maps / Waze
+- lightweight local JSON seed hospital dataset for demo mode
+- optional API-ready architecture so live hospital data can be added later
+
+Alternative:
+- SwiftUI native iOS if needed, but structure code so Android version can later be rebuilt consistently
+
+7. Data handling
+For the first version:
+- seed the app with a realistic mock hospital dataset in JSON
+- include multiple hospital types/capabilities per hospital where relevant
+- structure the data layer so it can later be swapped with a live API or backend
+- include a service file for hospital search, filtering, and distance sorting
+
+8. App screens
+Build these screens:
+- Splash / launch screen
+- Home screen with map, category slider, and hospital list
+- Optional hospital detail bottom sheet or modal
+- Settings/info screen with:
+  - permission explanation
+  - disclaimer
+  - app version
+  - support/contact placeholder
+
+9. Compliance and legal considerations
+Make the app store-ready for Apple App Store and future Google Play release:
+- include a disclaimer that this tool assists with hospital lookup and routing handoff, but does not provide medical advice, triage direction, destination authorization, or protocol replacement
+- clarify that users must follow local EMS protocols, medical control, agency policy, and regional destination requirements
+- do not market the app as guaranteeing the best destination
+- include privacy-conscious handling of location data
+- do not store precise location unless absolutely necessary
+- if location is only used in-session, state that clearly
+- build a placeholder privacy policy screen and terms/disclaimer screen
+- make permission prompts compliant and user-friendly
+- no misleading claims
+- no copyrighted map misuse
+- no references implying government endorsement unless explicitly provided
+
+10. App logic details
+- On launch:
+  - request location permission
+  - center map on user
+  - load nearby hospitals
+  - compute straight-line distance first
+- Filter logic:
+  - selecting a category updates both map pins and list
+- List logic:
+  - nearest 10 hospitals only
+  - sorted ascending by distance
+- Tap logic:
+  - opens external map app chooser
+- Error handling:
+  - if location permission denied, show manual explanation and a button to open device settings
+  - if map fails to load, show fallback list mode
+  - if dataset is empty, show helpful placeholder
+
+11. Code quality requirements
+- clean, modular, production-style code
+- comments where needed
+- separate components, screens, hooks, types, and services
+- use TypeScript interfaces for hospital data
+- organize files clearly
+- create reusable components for:
+  - hospital card
+  - category slider
+  - map section
+  - action sheet / navigation launcher
+- include sample assets/icons placeholders
+- include instructions for local run and App Store build
+
+12. Deliverables
+Generate:
+- full source code
+- clean folder structure
+- mock hospital dataset
+- setup instructions for Replit and local testing
+- iOS run instructions
+- notes for later Android expansion
+- placeholder App Store metadata:
+  - app name
+  - subtitle
+  - short description
+  - privacy summary
+  - disclaimer text
+
+13. Future-ready architecture
+Even though this version is iOS-first, structure the app so we can later add:
+- Android support
+- hospital status integration
+- specialty availability updates
+- regional EMS protocol filters
+- favorites/recent hospitals
+- offline cached hospital list
+- hospital phone call shortcut
+- county or state filtering
+
+14. Important implementation note
+Do not overbuild. Keep version 1 focused on:
+- current location
+- top 10 closest hospitals
+- category filtering
+- map display
+- external navigation handoff
+
+Please generate the project in a polished, professional, App Store-ready way with a strong emphasis on reliability, clarity, simple UI, and first responder usability.
