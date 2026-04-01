@@ -161,17 +161,6 @@ export default function HomeScreen() {
 
       <LiveStatusBanner />
 
-      <View style={styles.listHeader}>
-        <Text style={[styles.listTitle, { color: colors.foreground }]}>
-          {selectedCategory === "All" ? "Nearest Hospitals" : `${selectedCategory} Centers`}
-        </Text>
-        <Text style={[styles.listCount, { color: colors.mutedForeground }]}>
-          {filteredHospitals.length > 0
-            ? `Top ${filteredHospitals.length}`
-            : "None found"}
-        </Text>
-      </View>
-
     </View>
   );
 
@@ -283,24 +272,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  listHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -0.3,
-  },
-  listCount: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
   },
   listContent: {
     paddingTop: 4,
