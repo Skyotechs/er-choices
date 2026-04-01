@@ -115,6 +115,34 @@ router.get("/admin-ui", (_req, res) => {
     .btn-modal-save:disabled { background: #475569; cursor: not-allowed; }
     .btn-modal-cancel { padding: 8px 16px; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; font-size: 13px; cursor: pointer; width: auto; }
     .btn-modal-cancel:hover { background: #0f172a; }
+    /* Hospital editor tab */
+    .hosp-search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .hosp-search-row input[type="text"] { flex: 1; padding: 10px 14px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #f1f5f9; font-size: 14px; outline: none; }
+    .hosp-search-row input[type="text"]:focus { border-color: #c0392b; }
+    .btn-search { padding: 10px 18px; background: #334155; color: #f1f5f9; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: auto; }
+    .btn-search:hover { background: #475569; }
+    .hosp-results { margin-bottom: 16px; }
+    .hosp-result-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+    .hosp-result-item:hover { border-color: #c0392b; }
+    .hosp-result-item.selected { border-color: #c0392b; background: #1a0a0a; }
+    .hosp-result-name { font-size: 14px; font-weight: 600; color: #f1f5f9; }
+    .hosp-result-meta { font-size: 12px; color: #475569; margin-top: 2px; }
+    .hosp-override-badge { font-size: 10px; font-weight: 700; color: #fbbf24; background: #f59e0b22; border: 1px solid #f59e0b44; padding: 2px 6px; border-radius: 99px; white-space: nowrap; }
+    .hosp-edit-form { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-top: 4px; }
+    .hosp-edit-form h4 { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-row input[type="text"], .form-row input[type="number"] { width: 100%; padding: 10px 14px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; color: #f1f5f9; font-size: 14px; outline: none; }
+    .form-row input[type="text"]:focus, .form-row input[type="number"]:focus { border-color: #c0392b; }
+    .form-hint { font-size: 11px; color: #475569; margin-top: 4px; }
+    .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 20px; }
+    .btn-save-hosp { padding: 8px 20px; background: #c0392b; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; width: auto; }
+    .btn-save-hosp:hover { background: #a93226; }
+    .btn-save-hosp:disabled { background: #475569; cursor: not-allowed; }
+    .hosp-save-status { font-size: 13px; color: #94a3b8; }
+    .hosp-save-status.ok { color: #34d399; }
+    .hosp-save-status.err { color: #f87171; }
+    .no-results { font-size: 14px; color: #475569; padding: 20px 0; text-align: center; }
   </style>
 </head>
 <body>
@@ -141,6 +169,7 @@ router.get("/admin-ui", (_req, res) => {
     <div class="nav-tabs">
       <button class="nav-tab active" id="tab-reports" onclick="switchTab('reports')">Hospital Reports</button>
       <button class="nav-tab" id="tab-gaps" onclick="switchTab('gaps')">Specialty Gaps</button>
+      <button class="nav-tab" id="tab-hospitals" onclick="switchTab('hospitals')">Edit Hospital Data</button>
     </div>
 
     <!-- Reports tab -->
@@ -162,6 +191,17 @@ router.get("/admin-ui", (_req, res) => {
         <input class="gaps-search" id="gaps-search" type="text" placeholder="Search hospitals or designations…" oninput="renderGaps()" />
       </div>
       <div id="gaps-list"><div class="gaps-loading">Loading specialty gaps…</div></div>
+    </div>
+
+    <!-- Edit Hospital Data tab -->
+    <div id="view-hospitals" style="display:none">
+      <div class="hosp-search-row">
+        <input type="text" id="hosp-search-input" placeholder="Search by hospital name…" onkeydown="if(event.key==='Enter')searchHospitals()" />
+        <button class="btn-search" onclick="searchHospitals()">Search</button>
+      </div>
+      <div id="hosp-search-status" style="font-size:13px;color:#475569;margin-bottom:8px;"></div>
+      <div class="hosp-results" id="hosp-results"></div>
+      <div id="hosp-edit-panel"></div>
     </div>
   </div>
 </div>
@@ -267,6 +307,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('view-reports').style.display = tab === 'reports' ? '' : 'none';
   document.getElementById('view-gaps').style.display = tab === 'gaps' ? '' : 'none';
+  document.getElementById('view-hospitals').style.display = tab === 'hospitals' ? '' : 'none';
   if (tab === 'gaps' && !gapsData) loadGaps();
 }
 
@@ -645,6 +686,140 @@ document.addEventListener('click', function(e) {
   const desigId = header.dataset.desigId;
   if (desigId) toggleDesig(desigId);
 });
+
+/* ============================================================
+   HOSPITAL EDITOR TAB
+   ============================================================ */
+let hospSearchResults = [];
+let selectedHosp = null;
+
+async function searchHospitals() {
+  const q = document.getElementById('hosp-search-input').value.trim();
+  if (!q || q.length < 2) { return; }
+  const status = document.getElementById('hosp-search-status');
+  const results = document.getElementById('hosp-results');
+  const panel = document.getElementById('hosp-edit-panel');
+  status.textContent = 'Searching…';
+  results.innerHTML = '';
+  panel.innerHTML = '';
+  selectedHosp = null;
+  try {
+    const res = await fetch(\`/api/admin/hospitals/search?q=\${encodeURIComponent(q)}\`, {
+      headers: { Authorization: 'Bearer ' + secret },
+    });
+    if (!res.ok) { status.textContent = 'Error: ' + res.status; return; }
+    hospSearchResults = await res.json();
+    status.textContent = hospSearchResults.length === 0 ? '' : hospSearchResults.length + ' hospital(s) found';
+    renderHospResults();
+  } catch (err) {
+    status.textContent = 'Search failed. Try again.';
+  }
+}
+
+function renderHospResults() {
+  const results = document.getElementById('hosp-results');
+  if (hospSearchResults.length === 0) {
+    results.innerHTML = '<div class="no-results">No hospitals found. Try a different search.</div>';
+    return;
+  }
+  results.innerHTML = hospSearchResults.map((h, i) => {
+    const badge = h.hasAdminOverride ? '<span class="hosp-override-badge">Admin Override</span>' : '';
+    const coordStr = (h.latitude != null && h.longitude != null)
+      ? \`\${Number(h.latitude).toFixed(5)}, \${Number(h.longitude).toFixed(5)}\`
+      : 'No coordinates';
+    const phoneStr = h.phone || 'No phone';
+    return \`<div class="hosp-result-item" id="hosp-item-\${i}" onclick="selectHospital(\${i})">
+      <div>
+        <div class="hosp-result-name">\${escHtml(h.name)}</div>
+        <div class="hosp-result-meta">\${escHtml(h.osmId)} &nbsp;·&nbsp; \${escHtml(phoneStr)} &nbsp;·&nbsp; \${escHtml(coordStr)}</div>
+      </div>
+      \${badge}
+    </div>\`;
+  }).join('');
+}
+
+function selectHospital(idx) {
+  document.querySelectorAll('.hosp-result-item').forEach(el => el.classList.remove('selected'));
+  const item = document.getElementById(\`hosp-item-\${idx}\`);
+  if (item) item.classList.add('selected');
+  selectedHosp = hospSearchResults[idx];
+  renderHospEditForm();
+}
+
+function renderHospEditForm() {
+  const panel = document.getElementById('hosp-edit-panel');
+  if (!selectedHosp) { panel.innerHTML = ''; return; }
+  const h = selectedHosp;
+  panel.innerHTML = \`<div class="hosp-edit-form">
+    <h4>Editing: \${escHtml(h.name)}</h4>
+    <div class="form-row">
+      <label>Phone Number</label>
+      <input type="text" id="edit-phone" value="\${escAttr(h.phone || '')}" placeholder="+1 (555) 000-0000" />
+      <div class="form-hint">Leave blank to clear the override and fall back to OSM data.</div>
+    </div>
+    <div class="form-row">
+      <label>Latitude</label>
+      <input type="number" id="edit-lat" step="any" value="\${h.latitude != null ? h.latitude : ''}" placeholder="e.g. 37.77493" />
+    </div>
+    <div class="form-row">
+      <label>Longitude</label>
+      <input type="number" id="edit-lon" step="any" value="\${h.longitude != null ? h.longitude : ''}" placeholder="e.g. -122.41942" />
+      <div class="form-hint">Leave latitude or longitude blank to clear the coordinate override.</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-save-hosp" id="hosp-save-btn" onclick="saveHospitalOverride()">Save Changes</button>
+      <span class="hosp-save-status" id="hosp-save-status"></span>
+    </div>
+  </div>\`;
+}
+
+async function saveHospitalOverride() {
+  if (!selectedHosp) return;
+  const btn = document.getElementById('hosp-save-btn');
+  const status = document.getElementById('hosp-save-status');
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  status.className = 'hosp-save-status';
+
+  const phoneVal = document.getElementById('edit-phone').value.trim();
+  const latVal = document.getElementById('edit-lat').value.trim();
+  const lonVal = document.getElementById('edit-lon').value.trim();
+
+  const body = {
+    phone: phoneVal || null,
+    latitude: latVal !== '' ? parseFloat(latVal) : null,
+    longitude: lonVal !== '' ? parseFloat(lonVal) : null,
+  };
+
+  try {
+    const res = await fetch(\`/api/admin/hospitals/\${encodeURIComponent(selectedHosp.osmId)}\`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secret },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Server error ' + res.status);
+    }
+    const data = await res.json();
+    selectedHosp.phone = data.phone;
+    selectedHosp.latitude = data.latitude;
+    selectedHosp.longitude = data.longitude;
+    selectedHosp.hasAdminOverride = true;
+    const idx = hospSearchResults.findIndex(h => h.osmId === selectedHosp.osmId);
+    if (idx !== -1) hospSearchResults[idx] = { ...selectedHosp };
+    renderHospResults();
+    selectHospital(idx !== -1 ? idx : 0);
+    const newStatus = document.getElementById('hosp-save-status');
+    if (newStatus) { newStatus.textContent = '✓ Saved successfully'; newStatus.className = 'hosp-save-status ok'; }
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    status.className = 'hosp-save-status err';
+  } finally {
+    const saveBtn = document.getElementById('hosp-save-btn');
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
 
 init();
 </script>

@@ -11,8 +11,10 @@ import { Hospital, HospitalCategory, CATEGORIES } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
   fetchVerifiedSpecialtyMap,
+  fetchHospitalOverrides,
   filterAndSortHospitals,
   NavigationServerError,
+  type HospitalOverride,
 } from "@/services/hospitalService";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -110,8 +112,12 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [verifiedSpecialtyMap, setVerifiedSpecialtyMap] = useState<
     Record<string, HospitalCategory[]>
   >({});
+  const [hospitalOverrideMap, setHospitalOverrideMap] = useState<
+    Record<string, HospitalOverride>
+  >({});
 
   const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
+  const overrideMapRef = useRef<Record<string, HospitalOverride>>({});
 
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedCategory, 10);
   const availableCategories = computeAvailableCategories(allHospitals);
@@ -120,6 +126,10 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
       verifiedMapRef.current = map;
       setVerifiedSpecialtyMap(map);
+    });
+    fetchHospitalOverrides(API_BASE).then((map) => {
+      overrideMapRef.current = map;
+      setHospitalOverrideMap(map);
     });
   }, []);
 
@@ -140,13 +150,32 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     });
   }, [verifiedSpecialtyMap]);
 
+  // Re-apply admin overrides (phone/GPS) if they arrive after the hospital list.
+  useEffect(() => {
+    if (Object.keys(hospitalOverrideMap).length === 0) return;
+    setAllHospitals((prev) => {
+      if (prev.length === 0) return prev;
+      return prev.map((h) => {
+        const override = hospitalOverrideMap[h.id];
+        if (!override) return h;
+        return {
+          ...h,
+          phone: override.phone ?? h.phone,
+          latitude: override.latitude ?? h.latitude,
+          longitude: override.longitude ?? h.longitude,
+        };
+      });
+    });
+  }, [hospitalOverrideMap]);
+
   const loadHospitals = useCallback(async (coords: LocationCoords) => {
     setServerError(false);
     try {
       const hospitals = await fetchNearbyHospitals(
         coords.latitude,
         coords.longitude,
-        verifiedMapRef.current
+        verifiedMapRef.current,
+        overrideMapRef.current
       );
       setAllHospitals(hospitals);
     } catch (err) {

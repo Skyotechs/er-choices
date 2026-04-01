@@ -18,6 +18,27 @@ export async function fetchVerifiedSpecialtyMap(
   }
 }
 
+export interface HospitalOverride {
+  phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** Fetch admin-set overrides for hospital phone/GPS. Never throws. */
+export async function fetchHospitalOverrides(
+  apiBase: string
+): Promise<Record<string, HospitalOverride>> {
+  try {
+    const res = await fetch(`${apiBase}/hospital-overrides`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return {};
+    const data = await res.json();
+    if (typeof data !== "object" || Array.isArray(data)) return {};
+    return data as Record<string, HospitalOverride>;
+  } catch {
+    return {};
+  }
+}
+
 function haversineDistance(
   lat1: number,
   lon1: number,
@@ -203,7 +224,8 @@ export class NavigationServerError extends Error {
 export async function fetchNearbyHospitals(
   latitude: number,
   longitude: number,
-  verifiedSpecialtyMap: Record<string, HospitalCategory[]> = {}
+  verifiedSpecialtyMap: Record<string, HospitalCategory[]> = {},
+  hospitalOverrideMap: Record<string, HospitalOverride> = {}
 ): Promise<Hospital[]> {
   const query = `
 [out:json][timeout:30];
@@ -259,11 +281,21 @@ out center tags;
     // specialties" and must not fall back to OSM inference for filtering purposes.
     const hasVerified = h.id in verifiedSpecialtyMap;
     const verifiedCategories: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
+
+    // Apply admin-set overrides for phone and GPS coordinates.
+    const override = hospitalOverrideMap[h.id];
+    const finalLat = override?.latitude ?? h.latitude;
+    const finalLon = override?.longitude ?? h.longitude;
+    const finalPhone = override !== undefined ? (override.phone ?? h.phone) : h.phone;
+
     return {
       ...h,
+      phone: finalPhone,
+      latitude: finalLat,
+      longitude: finalLon,
       categories: hasVerified ? verifiedCategories : h.categories,
       verifiedSpecialties: hasVerified ? verifiedCategories : undefined,
-      distance: haversineDistance(latitude, longitude, h.latitude, h.longitude),
+      distance: haversineDistance(latitude, longitude, finalLat, finalLon),
     };
   });
 }

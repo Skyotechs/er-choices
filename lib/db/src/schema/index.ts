@@ -68,3 +68,19 @@ export const specialtyDefinitions = pgTable("specialty_definitions", {
 
 export type SpecialtyDefinition = typeof specialtyDefinitions.$inferSelect;
 export type InsertSpecialtyDefinition = typeof specialtyDefinitions.$inferInsert;
+
+/**
+ * Admin-sourced overrides for hospital phone, latitude, and longitude.
+ * These values take priority over OSM source data when present.
+ */
+export const hospitalOverrides = pgTable("hospital_overrides", {
+  id: serial("id").primaryKey(),
+  osmId: text("osm_id").notNull().unique(),
+  phone: text("phone"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type HospitalOverride = typeof hospitalOverrides.$inferSelect;
+export type InsertHospitalOverride = typeof hospitalOverrides.$inferInsert;
