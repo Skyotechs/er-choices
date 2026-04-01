@@ -2,7 +2,7 @@ import { Router } from "express";
 
 const router = Router();
 
-router.get("/admin", (_req, res) => {
+router.get("/admin-ui", (_req, res) => {
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html>
 <html lang="en">
