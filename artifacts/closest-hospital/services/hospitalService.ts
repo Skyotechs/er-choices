@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { Hospital, HospitalCategory, ApiNinjasHospital } from "@/types/hospital";
 import { MOCK_HOSPITALS } from "@/data/mockHospitals";
 
@@ -94,37 +95,91 @@ function mapApiHospital(apiHosp: ApiNinjasHospital, index: number): Hospital {
   };
 }
 
+async function reverseGeocode(
+  latitude: number,
+  longitude: number
+): Promise<{ city: string; state: string } | null> {
+  try {
+    if (Platform.OS !== "web") {
+      const Location = require("expo-location");
+      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (results && results.length > 0) {
+        const r = results[0];
+        const city = r.city || r.subregion || r.district || "";
+        const state = r.region || "";
+        if (city && state) return { city, state };
+      }
+    } else {
+      // On web, use a free reverse geocoding service
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`;
+      const res = await fetch(url, { headers: { "Accept-Language": "en" } });
+      if (res.ok) {
+        const data = await res.json();
+        const city =
+          data.address?.city ||
+          data.address?.town ||
+          data.address?.village ||
+          data.address?.county ||
+          "";
+        const state = data.address?.state || "";
+        if (city && state) return { city, state };
+      }
+    }
+  } catch (err) {
+    console.warn("Reverse geocode failed:", err);
+  }
+  return null;
+}
+
 export async function fetchNearbyHospitals(
   latitude: number,
   longitude: number
 ): Promise<Hospital[]> {
   if (!API_KEY) {
+    console.log("No API key set, using demo data");
     return getMockHospitals(latitude, longitude);
   }
 
   try {
-    const url = `${API_BASE}?lat=${latitude}&lon=${longitude}&limit=20`;
+    // Reverse geocode to get city/state since the API requires them
+    const location = await reverseGeocode(latitude, longitude);
+    if (!location) {
+      console.warn("Could not determine city/state, using demo data");
+      return getMockHospitals(latitude, longitude);
+    }
+
+    const { city, state } = location;
+    console.log(`Fetching hospitals for ${city}, ${state}`);
+
+    // API Ninjas hospitals endpoint uses city/state parameters
+    const params = new URLSearchParams({
+      city,
+      state,
+      limit: "25",
+    });
+    const url = `${API_BASE}?${params.toString()}`;
     const response = await fetch(url, {
-      headers: {
-        "X-Api-Key": API_KEY,
-      },
+      headers: { "X-Api-Key": API_KEY },
     });
 
     if (!response.ok) {
-      console.warn("API Ninjas returned non-OK:", response.status);
+      const body = await response.text().catch(() => "");
+      console.warn(`API Ninjas error ${response.status}:`, body);
       return getMockHospitals(latitude, longitude);
     }
 
     const data: ApiNinjasHospital[] = await response.json();
 
     if (!Array.isArray(data) || data.length === 0) {
+      console.warn("API returned empty results, using demo data");
       return getMockHospitals(latitude, longitude);
     }
 
+    console.log(`Loaded ${data.length} hospitals from API`);
     const hospitals = data.map(mapApiHospital);
     return addDistances(hospitals, latitude, longitude);
   } catch (error) {
-    console.warn("Hospital API fetch failed, using mock data:", error);
+    console.warn("Hospital API fetch failed, using demo data:", error);
     return getMockHospitals(latitude, longitude);
   }
 }
