@@ -25,19 +25,6 @@ export interface Hospital {
   distance?: number;
 }
 
-export interface ApiNinjasHospital {
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip_code?: string;
-  latitude: number;
-  longitude: number;
-  phone?: string;
-  website?: string;
-  country?: string;
-  is_emergency_care?: boolean;
-}
 
 export const CATEGORIES: HospitalCategory[] = [
   "All",

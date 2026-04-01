@@ -11,7 +11,7 @@ import {
   Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { HospitalCard } from "@/components/HospitalCard";
 import { CategoryFilter } from "@/components/CategoryFilter";
@@ -65,7 +65,7 @@ export default function HomeScreen() {
       >
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-          Finding your location...
+          Finding nearby hospitals...
         </Text>
       </View>
     );
@@ -146,23 +146,6 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      {!process.env.EXPO_PUBLIC_API_NINJAS_KEY && (
-        <View
-          style={[
-            styles.demoBanner,
-            {
-              backgroundColor: colors.warning + "22",
-              borderColor: colors.warning + "55",
-              borderRadius: colors.radius,
-            },
-          ]}
-        >
-          <Ionicons name="information-circle" size={16} color={colors.warning} />
-          <Text style={[styles.demoText, { color: colors.warning }]}>
-            Demo mode — add your API Ninjas key for live hospital data
-          </Text>
-        </View>
-      )}
     </View>
   );
 
@@ -295,21 +278,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: 4,
-  },
-  demoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-  },
-  demoText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    flex: 1,
   },
   retryBtn: {
     paddingHorizontal: 20,

@@ -1,9 +1,8 @@
-import { Platform } from "react-native";
-import { Hospital, HospitalCategory, ApiNinjasHospital } from "@/types/hospital";
+import { Hospital, HospitalCategory } from "@/types/hospital";
 import { MOCK_HOSPITALS } from "@/data/mockHospitals";
 
-const API_KEY = process.env.EXPO_PUBLIC_API_NINJAS_KEY;
-const API_BASE = "https://api.api-ninjas.com/v1/hospitals";
+const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const SEARCH_RADIUS_METERS = 80000;
 
 function haversineDistance(
   lat1: number,
@@ -24,49 +23,55 @@ function haversineDistance(
   return R * c;
 }
 
-function inferCategories(hospital: ApiNinjasHospital): HospitalCategory[] {
-  const name = hospital.name?.toLowerCase() ?? "";
+function inferCategories(name: string, tags: Record<string, string>): HospitalCategory[] {
+  const n = name.toLowerCase();
+  const specialty = (tags["healthcare:speciality"] ?? tags["speciality"] ?? "").toLowerCase();
+  const combined = `${n} ${specialty}`;
   const categories: HospitalCategory[] = [];
 
-  if (
-    name.includes("children") ||
-    name.includes("pediatric") ||
-    name.includes("kids")
-  ) {
+  if (combined.includes("child") || combined.includes("pediatric") || combined.includes("kids")) {
     categories.push("Pediatric");
   }
-  if (name.includes("burn") || name.includes("regional medical")) {
+  if (combined.includes("burn")) {
     categories.push("Burn");
   }
   if (
-    name.includes("trauma") ||
-    name.includes("memorial") ||
-    name.includes("regional medical") ||
-    name.includes("general")
+    combined.includes("trauma") ||
+    combined.includes("memorial") ||
+    combined.includes("regional") ||
+    combined.includes("general") ||
+    tags["trauma"] === "yes"
   ) {
     categories.push("Trauma");
   }
   if (
-    name.includes("heart") ||
-    name.includes("cardiac") ||
-    name.includes("cardiovascular")
+    combined.includes("heart") ||
+    combined.includes("cardiac") ||
+    combined.includes("cardiovascular") ||
+    combined.includes("cardio")
   ) {
     categories.push("Cardiac");
   }
-  if (name.includes("cancer") || name.includes("oncology")) {
+  if (combined.includes("cancer") || combined.includes("oncology")) {
     categories.push("Cancer");
   }
-  if (name.includes("maternity") || name.includes("women")) {
+  if (
+    combined.includes("matern") ||
+    combined.includes("women") ||
+    combined.includes("obstetric") ||
+    combined.includes("birth")
+  ) {
     categories.push("Obstetrics");
   }
   if (
-    name.includes("psychiatric") ||
-    name.includes("behavioral") ||
-    name.includes("mental")
+    combined.includes("psychiatric") ||
+    combined.includes("behavioral") ||
+    combined.includes("mental") ||
+    combined.includes("psych")
   ) {
     categories.push("Psychiatric");
   }
-  if (name.includes("stroke") || name.includes("neuro")) {
+  if (combined.includes("stroke") || combined.includes("neuro")) {
     categories.push("Stroke");
   }
 
@@ -78,108 +83,87 @@ function inferCategories(hospital: ApiNinjasHospital): HospitalCategory[] {
   return categories;
 }
 
-function mapApiHospital(apiHosp: ApiNinjasHospital, index: number): Hospital {
-  return {
-    id: `api-${index}-${apiHosp.latitude}-${apiHosp.longitude}`,
-    name: apiHosp.name,
-    address: apiHosp.address ?? "",
-    city: apiHosp.city ?? "",
-    state: apiHosp.state ?? "",
-    zip: apiHosp.zip_code ?? "",
-    latitude: apiHosp.latitude,
-    longitude: apiHosp.longitude,
-    phone: apiHosp.phone,
-    website: apiHosp.website,
-    categories: inferCategories(apiHosp),
-    hospitalType: apiHosp.is_emergency_care ? "Emergency Care" : "General Hospital",
-  };
+interface OverpassElement {
+  type: "node" | "way" | "relation";
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
 }
 
-async function reverseGeocode(
-  latitude: number,
-  longitude: number
-): Promise<{ city: string; state: string } | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const Location = require("expo-location");
-      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
-      if (results && results.length > 0) {
-        const r = results[0];
-        const city = r.city || r.subregion || r.district || "";
-        const state = r.region || "";
-        if (city && state) return { city, state };
-      }
-    } else {
-      // On web, use a free reverse geocoding service
-      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`;
-      const res = await fetch(url, { headers: { "Accept-Language": "en" } });
-      if (res.ok) {
-        const data = await res.json();
-        const city =
-          data.address?.city ||
-          data.address?.town ||
-          data.address?.village ||
-          data.address?.county ||
-          "";
-        const state = data.address?.state || "";
-        if (city && state) return { city, state };
-      }
-    }
-  } catch (err) {
-    console.warn("Reverse geocode failed:", err);
-  }
-  return null;
+function mapOverpassElement(el: OverpassElement, index: number): Hospital | null {
+  const tags = el.tags ?? {};
+  const name = tags["name"] ?? tags["official_name"] ?? "";
+  if (!name) return null;
+
+  const lat = el.lat ?? el.center?.lat;
+  const lon = el.lon ?? el.center?.lon;
+  if (lat === undefined || lon === undefined) return null;
+
+  const street = tags["addr:street"] ?? "";
+  const housenumber = tags["addr:housenumber"] ?? "";
+  const address = housenumber ? `${housenumber} ${street}` : street;
+
+  return {
+    id: `osm-${el.type}-${el.id}`,
+    name,
+    address,
+    city: tags["addr:city"] ?? "",
+    state: tags["addr:state"] ?? "",
+    zip: tags["addr:postcode"] ?? "",
+    latitude: lat,
+    longitude: lon,
+    phone: tags["phone"] ?? tags["contact:phone"],
+    website: tags["website"] ?? tags["contact:website"],
+    categories: inferCategories(name, tags),
+    hospitalType: tags["emergency"] === "yes" ? "Emergency Care" : "General Hospital",
+  };
 }
 
 export async function fetchNearbyHospitals(
   latitude: number,
   longitude: number
 ): Promise<Hospital[]> {
-  if (!API_KEY) {
-    console.log("No API key set, using demo data");
-    return getMockHospitals(latitude, longitude);
-  }
-
   try {
-    // Reverse geocode to get city/state since the API requires them
-    const location = await reverseGeocode(latitude, longitude);
-    if (!location) {
-      console.warn("Could not determine city/state, using demo data");
-      return getMockHospitals(latitude, longitude);
-    }
+    const query = `
+[out:json][timeout:30];
+(
+  node["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  way["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  relation["amenity"="hospital"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+);
+out center tags;
+`.trim();
 
-    const { city, state } = location;
-    console.log(`Fetching hospitals for ${city}, ${state}`);
-
-    // API Ninjas hospitals endpoint uses city/state parameters
-    const params = new URLSearchParams({
-      city,
-      state,
-      limit: "25",
-    });
-    const url = `${API_BASE}?${params.toString()}`;
-    const response = await fetch(url, {
-      headers: { "X-Api-Key": API_KEY },
+    console.log("Querying Overpass API for nearby hospitals...");
+    const response = await fetch(OVERPASS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=${encodeURIComponent(query)}`,
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      console.warn(`API Ninjas error ${response.status}:`, body);
+      console.warn("Overpass API error:", response.status);
       return getMockHospitals(latitude, longitude);
     }
 
-    const data: ApiNinjasHospital[] = await response.json();
+    const json = await response.json();
+    const elements: OverpassElement[] = json.elements ?? [];
 
-    if (!Array.isArray(data) || data.length === 0) {
-      console.warn("API returned empty results, using demo data");
+    const hospitals = elements
+      .map((el, i) => mapOverpassElement(el, i))
+      .filter((h): h is Hospital => h !== null);
+
+    if (hospitals.length === 0) {
+      console.warn("No hospitals found via Overpass, using demo data");
       return getMockHospitals(latitude, longitude);
     }
 
-    console.log(`Loaded ${data.length} hospitals from API`);
-    const hospitals = data.map(mapApiHospital);
+    console.log(`Loaded ${hospitals.length} hospitals from OpenStreetMap`);
     return addDistances(hospitals, latitude, longitude);
   } catch (error) {
-    console.warn("Hospital API fetch failed, using demo data:", error);
+    console.warn("Overpass fetch failed, using demo data:", error);
     return getMockHospitals(latitude, longitude);
   }
 }
@@ -210,10 +194,7 @@ export function filterAndSortHospitals(
     filtered = hospitals;
   } else {
     filtered = hospitals.filter((h) => h.categories.includes(category));
-
-    if (filtered.length === 0) {
-      return [];
-    }
+    if (filtered.length === 0) return [];
   }
 
   return filtered
