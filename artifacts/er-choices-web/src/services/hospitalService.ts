@@ -160,6 +160,9 @@ export async function fetchNearbyHospitals(
   node["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
   way["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
   relation["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  node["amenity"="hospital"]["emergency"!="no"]["healthcare"!="clinic"]["healthcare"!="doctor"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  way["amenity"="hospital"]["emergency"!="no"]["healthcare"!="clinic"]["healthcare"!="doctor"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  relation["amenity"="hospital"]["emergency"!="no"]["healthcare"!="clinic"]["healthcare"!="doctor"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
 );
 out center tags;
 `.trim();
