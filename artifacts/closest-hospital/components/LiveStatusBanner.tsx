@@ -1,10 +1,11 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -14,7 +15,6 @@ interface StateConfig {
   label: string;
   description: string;
   url: string;
-  icon: string;
 }
 
 const STATE_CONFIGS: Record<string, StateConfig> = {
@@ -22,53 +22,65 @@ const STATE_CONFIGS: Record<string, StateConfig> = {
     label: "PA Live Diversion",
     description: "pamedic.org",
     url: "https://www.pamedic.org",
-    icon: "broadcast-tower",
   },
   NJ: {
     label: "NJ ED Diversion",
     description: "njdivert.juvare.com",
     url: "https://njdivert.juvare.com/",
-    icon: "broadcast-tower",
   },
   MD: {
     label: "MD ED Advisory",
     description: "edas.miemss.org",
     url: "https://edas.miemss.org/dashboard",
-    icon: "broadcast-tower",
   },
   CT: {
     label: "CT Boarding Status",
     description: "overnight-boarding.ctacep.org",
     url: "https://overnight-boarding.ctacep.org/hospitals/?peerGroup=large",
-    icon: "broadcast-tower",
   },
 };
 
-function detectState(states: string[]): string | null {
-  if (!states.length) return null;
-  const counts: Record<string, number> = {};
-  for (const s of states) {
-    const upper = s.toUpperCase().trim();
-    if (upper) counts[upper] = (counts[upper] ?? 0) + 1;
+const STATE_NAME_TO_ABBR: Record<string, string> = {
+  "new jersey": "NJ",
+  "pennsylvania": "PA",
+  "maryland": "MD",
+  "connecticut": "CT",
+};
+
+async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+      { headers: { "User-Agent": "ERChooser/1.0" } }
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const stateName: string = (data?.address?.state ?? "").toLowerCase().trim();
+    return STATE_NAME_TO_ABBR[stateName] ?? null;
+  } catch {
+    return null;
   }
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  if (!top) return null;
-  const state = top[0];
-  return STATE_CONFIGS[state] ? state : null;
 }
 
 export function LiveStatusBanner() {
   const colors = useColors();
-  const { allHospitals } = useHospital();
+  const { location } = useHospital();
+  const [stateCode, setStateCode] = useState<string | null | "loading">("loading");
 
-  const detectedState = useMemo(
-    () => detectState(allHospitals.map((h) => h.state)),
-    [allHospitals]
-  );
+  useEffect(() => {
+    if (!location) return;
+    let cancelled = false;
+    setStateCode("loading");
+    reverseGeocode(location.latitude, location.longitude).then((code) => {
+      if (!cancelled) setStateCode(code);
+    });
+    return () => { cancelled = true; };
+  }, [location?.latitude, location?.longitude]);
 
-  if (!detectedState) return null;
+  if (!location || stateCode === "loading" || stateCode === null) return null;
 
-  const config = STATE_CONFIGS[detectedState];
+  const config = STATE_CONFIGS[stateCode];
+  if (!config) return null;
 
   return (
     <TouchableOpacity
@@ -86,11 +98,7 @@ export function LiveStatusBanner() {
     >
       <View style={[styles.accent, { backgroundColor: colors.primary }]} />
       <View style={styles.iconWrap}>
-        <FontAwesome5
-          name={config.icon as any}
-          size={14}
-          color={colors.primary}
-        />
+        <FontAwesome5 name="broadcast-tower" size={14} color={colors.primary} />
       </View>
       <View style={styles.body}>
         <Text style={[styles.label, { color: colors.foreground }]}>
@@ -101,14 +109,8 @@ export function LiveStatusBanner() {
         </Text>
       </View>
       <View style={styles.action}>
-        <Text style={[styles.actionText, { color: colors.primary }]}>
-          View
-        </Text>
-        <MaterialIcons
-          name="open-in-new"
-          size={13}
-          color={colors.primary}
-        />
+        <Text style={[styles.actionText, { color: colors.primary }]}>View</Text>
+        <MaterialIcons name="open-in-new" size={13} color={colors.primary} />
       </View>
     </TouchableOpacity>
   );
