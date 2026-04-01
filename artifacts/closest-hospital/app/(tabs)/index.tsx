@@ -42,7 +42,9 @@ export default function HomeScreen() {
   const [navSheetVisible, setNavSheetVisible] = useState(false);
 
   useEffect(() => {
-    requestLocationPermission();
+    if (!isLoading && !location) {
+      requestLocationPermission();
+    }
   }, []);
 
   const handleHospitalPress = useCallback((hospital: Hospital) => {

@@ -7,10 +7,13 @@ import {
   TouchableOpacity,
   Linking,
   ActivityIndicator,
+  BackHandler,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useHospital } from "@/context/HospitalContext";
 
 const CONSENT_KEY = "er_choices_consent_v1";
 const LEGAL_URL = "https://www.skyotechs.com/erlegal";
@@ -18,16 +21,33 @@ const LEGAL_URL = "https://www.skyotechs.com/erlegal";
 export function ConsentGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "required" | "agreed">("loading");
   const insets = useSafeAreaInsets();
+  const { requestLocationPermission, isLoading, location } = useHospital();
 
   useEffect(() => {
     AsyncStorage.getItem(CONSENT_KEY).then((val) => {
-      setStatus(val === "agreed" ? "agreed" : "required");
+      if (val === "agreed") {
+        setStatus("agreed");
+        if (!isLoading && !location) {
+          requestLocationPermission();
+        }
+      } else {
+        setStatus("required");
+      }
     });
   }, []);
 
   const handleAgree = async () => {
     await AsyncStorage.setItem(CONSENT_KEY, "agreed");
     setStatus("agreed");
+    requestLocationPermission();
+  };
+
+  const handleDecline = () => {
+    if (Platform.OS === "android") {
+      BackHandler.exitApp();
+    } else {
+      BackHandler.exitApp();
+    }
   };
 
   if (status === "loading") {
@@ -88,8 +108,17 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.declineBtn}
+            onPress={handleDecline}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.declineBtnText}>Decline</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={() => Linking.openURL(LEGAL_URL)}
             activeOpacity={0.7}
+            style={{ marginTop: 20 }}
           >
             <Text style={styles.legalLink}>
               View Terms of Service, EULA &amp; Privacy Policy
@@ -173,7 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: "#c0392b",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -185,6 +214,20 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: "#ffffff",
     letterSpacing: 0.3,
+  },
+  declineBtn: {
+    width: "100%",
+    backgroundColor: "#1e3352",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2a4a6e",
+  },
+  declineBtnText: {
+    fontSize: 16,
+    fontFamily: "Inter_500Medium",
+    color: "#8899aa",
   },
   legalLink: {
     fontSize: 12,
