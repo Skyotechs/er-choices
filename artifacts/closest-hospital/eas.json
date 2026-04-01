@@ -23,7 +23,7 @@
     "production": {
       "ios": {
         "language": "en-US",
-        "appName": "ER Chooser"
+        "appName": "ER Choices"
       }
     }
   }

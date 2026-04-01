@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ER Chooser",
+    "name": "ER Choices",
     "slug": "closest-hospital",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,7 +18,7 @@
       "bundleIdentifier": "com.erchooser.app",
       "buildNumber": "2",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "ER Chooser uses your location to find the nearest hospitals and calculate distances. Your location is only used during your current session.",
+        "NSLocationWhenInUseUsageDescription": "ER Choices uses your location to find the nearest hospitals and calculate distances. Your location is only used during your current session.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -45,7 +45,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "ER Chooser uses your location to find the nearest hospitals and calculate distances."
+          "locationWhenInUsePermission": "ER Choices uses your location to find the nearest hospitals and calculate distances."
         }
       ]
     ],

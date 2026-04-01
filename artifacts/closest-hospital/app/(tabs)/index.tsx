@@ -103,7 +103,7 @@ export default function HomeScreen() {
         <EmptyState
           icon="map-marker-slash"
           title="Location Required"
-          description="ER Chooser needs your location to find nearby hospitals. Please grant location access to continue."
+          description="ER Choices needs your location to find nearby hospitals. Please grant location access to continue."
           actionLabel="Enable Location"
           onAction={async () => {
             if (Platform.OS !== "web") {
