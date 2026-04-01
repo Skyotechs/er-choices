@@ -31,4 +31,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-ADMIN_SECRET = "4aa18d8608be54b45d55de5bc7309321"
+ADMIN_SECRET = "lobster7654$"
