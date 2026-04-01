@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.erchooser.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "ER Chooser uses your location to find the nearest hospitals and calculate distances. Your location is only used during your current session."
+        "NSLocationWhenInUseUsageDescription": "ER Chooser uses your location to find the nearest hospitals and calculate distances. Your location is only used during your current session.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
