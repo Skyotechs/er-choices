@@ -22,64 +22,97 @@ function haversineDistance(
   return R * c;
 }
 
+// Names containing any of these phrases are excluded from results entirely
+const EXCLUDE_NAME_PHRASES = [
+  "urgent care",
+  "primary care",
+  "walk-in",
+  "walk in clinic",
+  "wellness",
+  "fertility center",
+  "fertility clinic",
+  "outpatient surgery center",
+  "surgery center",
+  "acupuncture",
+  "chiropractic",
+  "dialysis",
+  "pharmacy",
+  "dental",
+  "dentistry",
+  "optical",
+  "veterinary",
+  "vet clinic",
+  "animal hospital",
+];
+
+function isExcluded(name: string, tags: Record<string, string>): boolean {
+  const n = name.toLowerCase();
+  if (EXCLUDE_NAME_PHRASES.some((phrase) => n.includes(phrase))) return true;
+  // OSM tag-based exclusions
+  const speciality = (tags["healthcare:speciality"] ?? "").toLowerCase();
+  if (speciality === "acupuncture" || speciality === "dentistry" || speciality === "chiropractic") {
+    return true;
+  }
+  return false;
+}
+
+// Map OSM healthcare:speciality values to our HospitalCategory
+const OSM_SPECIALITY_MAP: Array<{ keywords: string[]; category: HospitalCategory }> = [
+  { keywords: ["cardio", "cardiovascular", "heart"], category: "Cardiac" },
+  { keywords: ["neurology", "neurosurgery", "stroke", "neuro"], category: "Stroke" },
+  { keywords: ["paediatric", "pediatric", "child", "children"], category: "Pediatric" },
+  { keywords: ["psychiatry", "psychology", "mental_health", "behavioral"], category: "Psychiatric" },
+  { keywords: ["oncology", "cancer"], category: "Cancer" },
+  { keywords: ["obstetric", "gynaecology", "gynecology", "maternity", "women"], category: "Obstetrics" },
+  { keywords: ["burns", "burn"], category: "Burn" },
+  { keywords: ["trauma", "emergency"], category: "Trauma" },
+];
+
 function inferCategories(name: string, tags: Record<string, string>): HospitalCategory[] {
   const n = name.toLowerCase();
-  const specialty = (tags["healthcare:speciality"] ?? tags["speciality"] ?? "").toLowerCase();
-  const combined = `${n} ${specialty}`;
-  const categories: HospitalCategory[] = [];
+  // OSM structured tag — can be semicolon-separated list
+  const osmSpecialities = (tags["healthcare:speciality"] ?? "")
+    .toLowerCase()
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  if (combined.includes("child") || combined.includes("pediatric") || combined.includes("kids")) {
-    categories.push("Pediatric");
+  const categories = new Set<HospitalCategory>();
+
+  // 1. Match against OSM speciality tags (most reliable)
+  for (const spec of osmSpecialities) {
+    for (const { keywords, category } of OSM_SPECIALITY_MAP) {
+      if (keywords.some((kw) => spec.includes(kw))) {
+        categories.add(category);
+      }
+    }
   }
-  if (combined.includes("burn")) {
-    categories.push("Burn");
-  }
+
+  // 2. Name-based keyword matching as fallback / supplement
+  if (n.includes("child") || n.includes("pediatric") || n.includes("kids")) categories.add("Pediatric");
+  if (n.includes("burn")) categories.add("Burn");
+  if (n.includes("heart") || n.includes("cardiac") || n.includes("cardio")) categories.add("Cardiac");
+  if (n.includes("cancer") || n.includes("oncology")) categories.add("Cancer");
+  if (n.includes("matern") || n.includes("obstetric")) categories.add("Obstetrics");
+  if (n.includes("psychiatric") || n.includes("behavioral") || n.includes("mental")) categories.add("Psychiatric");
+  if (n.includes("stroke") || n.includes("neuro")) categories.add("Stroke");
   if (
-    combined.includes("trauma") ||
-    combined.includes("memorial") ||
-    combined.includes("regional") ||
-    combined.includes("general") ||
+    n.includes("trauma") ||
+    n.includes("regional") ||
+    n.includes("memorial") ||
+    n.includes("general") ||
     tags["trauma"] === "yes"
   ) {
-    categories.push("Trauma");
-  }
-  if (
-    combined.includes("heart") ||
-    combined.includes("cardiac") ||
-    combined.includes("cardiovascular") ||
-    combined.includes("cardio")
-  ) {
-    categories.push("Cardiac");
-  }
-  if (combined.includes("cancer") || combined.includes("oncology")) {
-    categories.push("Cancer");
-  }
-  if (
-    combined.includes("matern") ||
-    combined.includes("women") ||
-    combined.includes("obstetric") ||
-    combined.includes("birth")
-  ) {
-    categories.push("Obstetrics");
-  }
-  if (
-    combined.includes("psychiatric") ||
-    combined.includes("behavioral") ||
-    combined.includes("mental") ||
-    combined.includes("psych")
-  ) {
-    categories.push("Psychiatric");
-  }
-  if (combined.includes("stroke") || combined.includes("neuro")) {
-    categories.push("Stroke");
+    categories.add("Trauma");
   }
 
-  if (categories.length === 0) {
-    categories.push("Trauma");
-    categories.push("Cardiac");
+  // 3. Default: a general hospital covers Trauma + Cardiac
+  if (categories.size === 0) {
+    categories.add("Trauma");
+    categories.add("Cardiac");
   }
 
-  return categories;
+  return Array.from(categories);
 }
 
 interface OverpassElement {
@@ -99,6 +132,8 @@ function mapOverpassElement(el: OverpassElement): Hospital | null {
   const lat = el.lat ?? el.center?.lat;
   const lon = el.lon ?? el.center?.lon;
   if (lat === undefined || lon === undefined) return null;
+
+  if (isExcluded(name, tags)) return null;
 
   const street = tags["addr:street"] ?? "";
   const housenumber = tags["addr:housenumber"] ?? "";
