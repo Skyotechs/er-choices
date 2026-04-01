@@ -195,6 +195,9 @@ export async function fetchNearbyHospitals(
   node["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
   way["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
   relation["amenity"="hospital"]["emergency"="yes"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  node["amenity"="hospital"]["emergency"!="no"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  way["amenity"="hospital"]["emergency"!="no"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
+  relation["amenity"="hospital"]["emergency"!="no"](around:${SEARCH_RADIUS_METERS},${latitude},${longitude});
 );
 out center tags;
 `.trim();
@@ -223,7 +226,13 @@ out center tags;
     throw new NavigationServerError();
   }
 
+  const seen = new Set<number>();
   const hospitals = (json.elements ?? [])
+    .filter((el) => {
+      if (seen.has(el.id)) return false;
+      seen.add(el.id);
+      return true;
+    })
     .map(mapOverpassElement)
     .filter((h): h is Hospital => h !== null);
 
