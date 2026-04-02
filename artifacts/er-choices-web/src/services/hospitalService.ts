@@ -212,7 +212,10 @@ export function filterAndSortHospitals(
 ): Hospital[] {
   const filtered = category === "All"
     ? hospitals
-    : hospitals.filter((h) => h.verifiedSpecialties?.includes(category));
+    : hospitals.filter((h) => {
+        const specialties = h.verifiedSpecialties ?? h.categories;
+        return specialties.includes(category);
+      });
   return filtered.slice().sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)).slice(0, limit);
 }
 

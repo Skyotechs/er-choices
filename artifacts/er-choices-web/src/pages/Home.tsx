@@ -105,7 +105,7 @@ export function Home() {
         </button>
       </div>
 
-      {availableCategories.length > 1 && (
+      {availableCategories.length > 0 && (
         <CategoryFilter
           selected={selectedCategory}
           onSelect={setCategory}

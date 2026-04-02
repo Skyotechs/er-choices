@@ -49,15 +49,16 @@ async function getLocationWeb(): Promise<LocationCoords> {
 }
 
 function computeAvailableCategories(hospitals: Hospital[]): HospitalCategory[] {
-  const verifiedSet = new Set<HospitalCategory>();
+  const catSet = new Set<HospitalCategory>();
   for (const h of hospitals) {
-    if (h.verifiedSpecialties) {
-      for (const cat of h.verifiedSpecialties) verifiedSet.add(cat);
+    const specialties = h.verifiedSpecialties ?? h.categories;
+    for (const cat of specialties) {
+      if (cat !== "All") catSet.add(cat);
     }
   }
   const available: HospitalCategory[] = ["All"];
   for (const cat of CATEGORIES) {
-    if (cat !== "All" && verifiedSet.has(cat)) available.push(cat);
+    if (cat !== "All" && catSet.has(cat)) available.push(cat);
   }
   return available;
 }
