@@ -32,3 +32,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 ADMIN_SECRET = "lobster7654$"
+EXPO_PUBLIC_DOMAIN = "erchoice.replit.app"
