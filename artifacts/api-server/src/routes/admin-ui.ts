@@ -165,6 +165,24 @@ router.get("/admin-ui", (_req, res) => {
     <span class="badge-warning" id="gaps-badge" style="display:none">...</span>
     <button onclick="logout()" style="width:auto;padding:6px 14px;margin-left:auto;background:#334155;font-size:13px;border-radius:6px;">Sign Out</button>
   </div>
+
+  <!-- DB Seed Banner — shown when hospital_specialties table is empty -->
+  <div id="seed-banner" style="display:none;background:#7c2d12;border-bottom:1px solid #9a3412;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <span style="font-size:13px;color:#fed7aa;flex:1;min-width:200px;">
+      ⚠️ <strong>Production database is empty.</strong> Hospital specialty data has not been imported yet.
+    </span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="seed-btn" onclick="startSeed()" style="width:auto;padding:6px 16px;background:#c2410c;font-size:13px;border-radius:6px;border:1px solid #ea580c;">
+        Import CMS Data (~15 min)
+      </button>
+      <button onclick="checkSeedStatus()" style="width:auto;padding:6px 12px;background:#334155;font-size:13px;border-radius:6px;">
+        Refresh Status
+      </button>
+      <span id="seed-status-text" style="font-size:12px;color:#fdba74;"></span>
+    </div>
+  </div>
+  <div id="seed-log-box" style="display:none;background:#0f172a;border-bottom:1px solid #334155;padding:12px 24px;font-family:monospace;font-size:11px;color:#94a3b8;max-height:120px;overflow-y:auto;white-space:pre-wrap;"></div>
+
   <div class="main">
     <div class="nav-tabs">
       <button class="nav-tab active" id="tab-reports" onclick="switchTab('reports')">Hospital Reports</button>
@@ -290,9 +308,86 @@ function logout() {
 async function showDashboard() {
   document.getElementById('login-view').style.display = 'none';
   document.getElementById('dashboard-view').style.display = 'block';
-  await Promise.all([loadSpecialtyMap(), loadCanonicalDesignations()]);
+  await Promise.all([loadSpecialtyMap(), loadCanonicalDesignations(), checkSeedStatus()]);
   await loadReports();
   loadGaps();
+}
+
+async function checkSeedStatus() {
+  try {
+    const res = await fetch('/api/admin/seed/status', { headers: { Authorization: 'Bearer ' + secret } });
+    if (!res.ok) return;
+    const data = await res.json();
+    const banner = document.getElementById('seed-banner');
+    const statusText = document.getElementById('seed-status-text');
+    const logBox = document.getElementById('seed-log-box');
+    const seedBtn = document.getElementById('seed-btn');
+
+    if (data.hospitalCount === 0 || data.status === 'running') {
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+
+    if (data.status === 'running') {
+      statusText.textContent = 'Import running… ' + (data.startedAt ? 'started ' + new Date(data.startedAt).toLocaleTimeString() : '');
+      seedBtn.disabled = true;
+      seedBtn.textContent = 'Running…';
+      if (data.recentLog) {
+        logBox.style.display = 'block';
+        logBox.textContent = data.recentLog;
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+      setTimeout(checkSeedStatus, 10000);
+    } else if (data.status === 'done') {
+      statusText.textContent = '✓ Import complete! ' + data.hospitalCount + ' hospitals loaded.';
+      seedBtn.disabled = false;
+      seedBtn.textContent = 'Re-run Import';
+      if (data.recentLog) {
+        logBox.style.display = 'block';
+        logBox.textContent = data.recentLog;
+      }
+    } else if (data.status === 'error') {
+      statusText.textContent = '✗ Import failed. Check logs below.';
+      seedBtn.disabled = false;
+      seedBtn.textContent = 'Retry Import';
+      if (data.recentLog) {
+        logBox.style.display = 'block';
+        logBox.textContent = data.recentLog;
+      }
+    } else {
+      statusText.textContent = data.hospitalCount > 0
+        ? data.hospitalCount + ' hospitals in database.'
+        : 'No hospital data found.';
+      seedBtn.disabled = false;
+      seedBtn.textContent = 'Import CMS Data (~15 min)';
+    }
+  } catch (err) {
+    console.warn('Seed status check failed:', err);
+  }
+}
+
+async function startSeed() {
+  const btn = document.getElementById('seed-btn');
+  const statusText = document.getElementById('seed-status-text');
+  btn.disabled = true;
+  statusText.textContent = 'Starting import…';
+  try {
+    const res = await fetch('/api/admin/seed', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + secret },
+    });
+    const data = await res.json();
+    statusText.textContent = data.message || 'Started.';
+    if (data.status === 'started' || data.status === 'running') {
+      setTimeout(checkSeedStatus, 3000);
+    } else {
+      btn.disabled = false;
+    }
+  } catch {
+    statusText.textContent = 'Failed to start import.';
+    btn.disabled = false;
+  }
 }
 
 async function loadReports() {

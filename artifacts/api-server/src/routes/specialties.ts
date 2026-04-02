@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, hospitalSpecialties, specialtyDefinitions } from "@workspace/db";
-import { isNotNull, eq, sql } from "drizzle-orm";
+import { isNotNull, eq, sql, count } from "drizzle-orm";
+import { spawn } from "child_process";
 
 const router = Router();
 
@@ -596,6 +597,70 @@ router.put("/admin/specialties/:osmId", requireAdmin, async (req, res) => {
     console.error("PUT /api/admin/specialties error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+/**
+ * In-memory seed state (resets on server restart — that's fine for admin use).
+ */
+let seedStatus: "idle" | "running" | "done" | "error" = "idle";
+let seedStartedAt: Date | null = null;
+let seedLog: string[] = [];
+
+/**
+ * GET /api/admin/seed/status
+ * Returns current seed job status and recent log lines.
+ */
+router.get("/admin/seed/status", requireAdmin, async (_req, res) => {
+  try {
+    const [row] = await db.select({ n: count() }).from(hospitalSpecialties);
+    const hospitalCount = Number(row?.n ?? 0);
+    res.json({
+      status: seedStatus,
+      startedAt: seedStartedAt,
+      hospitalCount,
+      recentLog: seedLog.slice(-30).join(""),
+    });
+  } catch {
+    res.json({ status: seedStatus, startedAt: seedStartedAt, hospitalCount: 0, recentLog: seedLog.slice(-30).join("") });
+  }
+});
+
+/**
+ * POST /api/admin/seed
+ * Triggers the CMS hospital import in the background.
+ * Safe to call multiple times — import script uses upserts.
+ */
+router.post("/admin/seed", requireAdmin, async (_req, res) => {
+  if (seedStatus === "running") {
+    return res.json({ status: "running", message: "Import already in progress." });
+  }
+
+  seedStatus = "running";
+  seedStartedAt = new Date();
+  seedLog = ["[seed] Starting CMS hospital import…\n"];
+
+  const proc = spawn(
+    "pnpm",
+    ["--filter", "@workspace/api-server", "run", "import-cms"],
+    { cwd: "/home/runner/workspace", stdio: ["ignore", "pipe", "pipe"] }
+  );
+
+  proc.stdout?.on("data", (chunk: Buffer) => {
+    const line = chunk.toString();
+    seedLog.push(line);
+    if (seedLog.length > 500) seedLog = seedLog.slice(-400);
+  });
+  proc.stderr?.on("data", (chunk: Buffer) => {
+    const line = chunk.toString();
+    seedLog.push(line);
+    if (seedLog.length > 500) seedLog = seedLog.slice(-400);
+  });
+  proc.on("close", (code: number | null) => {
+    seedStatus = code === 0 ? "done" : "error";
+    seedLog.push(`[seed] Process exited with code ${code}\n`);
+  });
+
+  res.json({ status: "started", message: "CMS import started in background. This takes 10–20 minutes. Refresh status to monitor progress." });
 });
 
 export default router;
