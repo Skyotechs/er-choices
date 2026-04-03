@@ -4,6 +4,7 @@ import reportsRouter from "./reports";
 import specialtiesRouter from "./specialties";
 import adminUiRouter from "./admin-ui";
 import adminHospitalsRouter from "./admin-hospitals";
+import hospitalsRouter from "./hospitals";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(reportsRouter);
 router.use(specialtiesRouter);
 router.use(adminUiRouter);
 router.use(adminHospitalsRouter);
+router.use(hospitalsRouter);
 
 export default router;

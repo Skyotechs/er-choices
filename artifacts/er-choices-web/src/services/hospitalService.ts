@@ -2,6 +2,11 @@ import { Hospital, HospitalCategory } from "@/types/hospital";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const SEARCH_RADIUS_METERS = 80000;
+const SEARCH_RADIUS_MILES = 50;
+
+const API_BASE = import.meta.env.VITE_API_BASE
+  ? (import.meta.env.VITE_API_BASE as string).replace(/\/$/, "")
+  : `${window.location.origin}/api`;
 
 function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
@@ -29,7 +34,7 @@ function haversineDistance(
   lat2: number,
   lon2: number
 ): number {
-  const R = 3958.8;
+  const R = 3959;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -38,93 +43,74 @@ function haversineDistance(
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-const EXCLUDE_NAME_PHRASES = [
-  // Urgent / non-ER care
-  "urgent care", "primary care", "walk-in", "walk in clinic",
-  "immediate care", "express care", "minute clinic", "retail clinic",
-  // Access / community health centres (not full ERs)
-  "access center", "access centre", "health access",
-  "community health center", "community health centre",
-  "federally qualified health", "fqhc", "neighborhood health",
-  // Wellness / elective
-  "wellness", "fertility center", "fertility clinic",
-  "outpatient surgery center", "surgery center",
-  // Non-medical
-  "acupuncture", "chiropractic", "dialysis", "pharmacy", "dental", "dentistry",
-  "optical", "veterinary", "vet clinic", "animal hospital",
-  // Rehab / non-emergency facilities
-  "rehab", "rehabilitation", "substance abuse", "detox", "recovery center",
-  "addiction", "behavioral health", "mental health center", "nursing home",
-  "assisted living", "long term care", "skilled nursing", "hospice",
-  "gastroenterology", "endoscopy", "imaging center", "radiology", "infusion center",
-];
-
-function isExcluded(name: string, tags: Record<string, string>): boolean {
-  const n = name.toLowerCase();
-  if (EXCLUDE_NAME_PHRASES.some((phrase) => n.includes(phrase))) return true;
-  const speciality = (tags["healthcare:speciality"] ?? "").toLowerCase();
-  const nonErSpecialities = ["acupuncture", "dentistry", "chiropractic", "gastroenterology",
-    "ophthalmology", "dermatology", "radiology", "rehabilitation"];
-  if (nonErSpecialities.some((s) => speciality === s)) return true;
-  return false;
-}
-
-const OSM_SPECIALITY_MAP: Array<{ keywords: string[]; category: HospitalCategory }> = [
-  { keywords: ["cardio", "cardiovascular", "heart"], category: "Cardiac" },
-  { keywords: ["neurology", "neurosurgery", "stroke", "neuro"], category: "Stroke" },
-  { keywords: ["paediatric", "pediatric", "child", "children"], category: "Pediatric" },
-  { keywords: ["psychiatry", "psychology", "mental_health", "behavioral"], category: "Psychiatric" },
-  { keywords: ["oncology", "cancer"], category: "Cancer" },
-  { keywords: ["obstetric", "gynaecology", "gynecology", "maternity", "women"], category: "Obstetrics" },
-  { keywords: ["burns", "burn"], category: "Burn" },
-  { keywords: ["trauma", "emergency"], category: "Trauma" },
-  { keywords: ["hazmat", "decontamination", "hazardous"], category: "HazMat" },
-];
-
-function inferCategories(name: string, tags: Record<string, string>): HospitalCategory[] {
-  const n = name.toLowerCase();
-  const osmSpecialities = (tags["healthcare:speciality"] ?? "")
-    .toLowerCase().split(";").map((s) => s.trim()).filter(Boolean);
-  const categories = new Set<HospitalCategory>();
-  for (const spec of osmSpecialities) {
-    for (const { keywords, category } of OSM_SPECIALITY_MAP) {
-      if (keywords.some((kw) => spec.includes(kw))) categories.add(category);
-    }
-  }
-  if (n.includes("child") || n.includes("pediatric") || n.includes("kids")) categories.add("Pediatric");
-  if (n.includes("burn")) categories.add("Burn");
-  if (n.includes("heart") || n.includes("cardiac") || n.includes("cardio")) categories.add("Cardiac");
-  if (n.includes("cancer") || n.includes("oncology")) categories.add("Cancer");
-  if (n.includes("matern") || n.includes("obstetric")) categories.add("Obstetrics");
-  if (n.includes("psychiatric") || n.includes("behavioral") || n.includes("mental")) categories.add("Psychiatric");
-  if (n.includes("stroke") || n.includes("neuro")) categories.add("Stroke");
-  if (n.includes("trauma") || n.includes("regional") || n.includes("memorial") ||
-      n.includes("general") || tags["trauma"] === "yes") categories.add("Trauma");
-  if (categories.size === 0) { categories.add("Trauma"); categories.add("Cardiac"); }
-  return Array.from(categories);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 interface OverpassElement {
-  type: "node" | "way" | "relation";
   id: number;
+  type: "node" | "way" | "relation";
   lat?: number;
   lon?: number;
   center?: { lat: number; lon: number };
   tags?: Record<string, string>;
 }
 
+function inferCategories(name: string, tags: Record<string, string>): HospitalCategory[] {
+  const cats: HospitalCategory[] = [];
+  const lower = name.toLowerCase();
+  const healthcare = tags["healthcare:speciality"] ?? tags["healthcare"] ?? "";
+  if (
+    lower.includes("trauma") ||
+    tags["trauma"] === "yes" ||
+    tags["trauma:level"] !== undefined
+  )
+    cats.push("Trauma");
+  if (
+    lower.includes("stroke") ||
+    healthcare.includes("neurology") ||
+    healthcare.includes("stroke")
+  )
+    cats.push("Stroke");
+  if (lower.includes("burn")) cats.push("Burn");
+  if (
+    lower.includes("children") ||
+    lower.includes("pediatric") ||
+    lower.includes("kids") ||
+    healthcare.includes("paediatric") ||
+    healthcare.includes("pediatric")
+  )
+    cats.push("Pediatric");
+  if (
+    lower.includes("cardiac") ||
+    lower.includes("heart") ||
+    healthcare.includes("cardiology")
+  )
+    cats.push("Cardiac");
+  if (
+    lower.includes("maternity") ||
+    lower.includes("obstetric") ||
+    lower.includes("women") ||
+    healthcare.includes("obstetrics") ||
+    healthcare.includes("gynaecology")
+  )
+    cats.push("Obstetrics");
+  if (
+    lower.includes("psychiatric") ||
+    lower.includes("behavioral") ||
+    lower.includes("mental")
+  )
+    cats.push("Psychiatric");
+  if (lower.includes("cancer") || lower.includes("oncol")) cats.push("Cancer");
+  return cats;
+}
+
 function mapOverpassElement(el: OverpassElement): Hospital | null {
-  const tags = el.tags ?? {};
-  const name = tags["name"] ?? tags["official_name"] ?? "";
-  if (!name) return null;
   const lat = el.lat ?? el.center?.lat;
   const lon = el.lon ?? el.center?.lon;
-  if (lat === undefined || lon === undefined) return null;
-  if (isExcluded(name, tags)) return null;
+  if (!lat || !lon) return null;
+
+  const tags = el.tags ?? {};
+  const name = tags["name"] ?? tags["official_name"] ?? "Hospital";
   const street = tags["addr:street"] ?? "";
   const housenumber = tags["addr:housenumber"] ?? "";
   const address = housenumber ? `${housenumber} ${street}` : street;
@@ -149,11 +135,76 @@ export class NavigationServerError extends Error {
   }
 }
 
+interface CmsHospitalRow {
+  id: string;
+  name: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  distance: number;
+  categories: string[];
+  phone: string | null;
+}
+
+async function fetchNearbyHospitalsCms(
+  latitude: number,
+  longitude: number
+): Promise<Hospital[] | null> {
+  try {
+    const url = `${API_BASE}/hospitals/nearby?lat=${latitude}&lon=${longitude}&radius=${SEARCH_RADIUS_MILES}`;
+    const res = await fetchWithTimeout(url, 10000);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.hospitals || !Array.isArray(data.hospitals)) return null;
+    if (data.hospitals.length === 0) return null;
+
+    return (data.hospitals as CmsHospitalRow[]).map((h) => ({
+      id: h.id,
+      name: h.name,
+      address: "",
+      city: "",
+      state: h.state,
+      zip: "",
+      latitude: h.latitude,
+      longitude: h.longitude,
+      phone: h.phone ?? undefined,
+      website: undefined,
+      categories: (h.categories as HospitalCategory[]).length > 0
+        ? (h.categories as HospitalCategory[])
+        : ([] as HospitalCategory[]),
+      hospitalType: "Emergency Room",
+      verifiedSpecialties: h.categories.length > 0
+        ? (h.categories as HospitalCategory[])
+        : undefined,
+      distance: h.distance,
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchNearbyHospitals(
   latitude: number,
   longitude: number,
   verifiedSpecialtyMap: Record<string, HospitalCategory[]> = {}
 ): Promise<Hospital[]> {
+  // Try the CMS database on Railway first — fast, reliable, verified data
+  const cmsHospitals = await fetchNearbyHospitalsCms(latitude, longitude);
+
+  if (cmsHospitals && cmsHospitals.length > 0) {
+    return cmsHospitals.map((h) => {
+      const hasVerified = h.id in verifiedSpecialtyMap;
+      const verifiedCategories: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
+      return {
+        ...h,
+        categories: hasVerified ? verifiedCategories : h.categories,
+        verifiedSpecialties: hasVerified ? verifiedCategories : h.verifiedSpecialties,
+        distance: h.distance ?? haversineDistance(latitude, longitude, h.latitude, h.longitude),
+      };
+    });
+  }
+
+  // Fall back to OpenStreetMap Overpass API
   const query = `
 [out:json][timeout:30];
 (
