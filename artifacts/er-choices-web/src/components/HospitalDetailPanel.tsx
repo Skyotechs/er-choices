@@ -17,8 +17,18 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
 
   if (!hospital) return null;
 
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${hospital.latitude},${hospital.longitude}&travelmode=driving`;
-  const appleMapsUrl = `https://maps.apple.com/?daddr=${hospital.latitude},${hospital.longitude}&dirflg=d`;
+  const fullAddress = [hospital.address, hospital.city, hospital.state, hospital.zip]
+    .filter(Boolean)
+    .join(", ");
+
+  const googleMapsUrl = fullAddress
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddress)}&travelmode=driving`
+    : `https://www.google.com/maps/dir/?api=1&destination=${hospital.latitude},${hospital.longitude}&travelmode=driving`;
+
+  const appleMapsUrl = fullAddress
+    ? `https://maps.apple.com/?daddr=${encodeURIComponent(fullAddress)}&dirflg=d`
+    : `https://maps.apple.com/?daddr=${hospital.latitude},${hospital.longitude}&dirflg=d`;
+
   const wazeUrl = `https://waze.com/ul?ll=${hospital.latitude},${hospital.longitude}&navigate=yes`;
 
   return (
