@@ -166,10 +166,10 @@ router.get("/admin-ui", (_req, res) => {
     <button onclick="logout()" style="width:auto;padding:6px 14px;margin-left:auto;background:#334155;font-size:13px;border-radius:6px;">Sign Out</button>
   </div>
 
-  <!-- DB Seed Banner — shown when hospital_specialties table is empty -->
-  <div id="seed-banner" style="display:none;background:#7c2d12;border-bottom:1px solid #9a3412;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-    <span style="font-size:13px;color:#fed7aa;flex:1;min-width:200px;">
-      ⚠️ <strong>Production database is empty.</strong> Hospital specialty data has not been imported yet.
+  <!-- DB Seed Banner — always visible so admins can re-import at any time -->
+  <div id="seed-banner" style="display:none;background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <span style="font-size:13px;color:#cbd5e1;flex:1;min-width:200px;" id="seed-banner-text">
+      🏥 CMS hospital data import
     </span>
     <div style="display:flex;gap:8px;align-items:center;">
       <button id="seed-btn" onclick="startSeed()" style="width:auto;padding:6px 16px;background:#c2410c;font-size:13px;border-radius:6px;border:1px solid #ea580c;">
@@ -323,14 +323,13 @@ async function checkSeedStatus() {
     const logBox = document.getElementById('seed-log-box');
     const seedBtn = document.getElementById('seed-btn');
 
-    if (data.hospitalCount === 0 || data.status === 'running') {
-      banner.style.display = 'flex';
-    } else {
-      banner.style.display = 'none';
-    }
+    // Always show the banner so re-import is accessible at any time
+    banner.style.display = 'flex';
+    const bannerText = document.getElementById('seed-banner-text');
 
     if (data.status === 'running') {
-      statusText.textContent = 'Import running… ' + (data.startedAt ? 'started ' + new Date(data.startedAt).toLocaleTimeString() : '');
+      bannerText.textContent = '⏳ Import running…' + (data.startedAt ? ' started ' + new Date(data.startedAt).toLocaleTimeString() : '');
+      statusText.textContent = '';
       seedBtn.disabled = true;
       seedBtn.textContent = 'Running…';
       if (data.recentLog) {
@@ -340,7 +339,8 @@ async function checkSeedStatus() {
       }
       setTimeout(checkSeedStatus, 10000);
     } else if (data.status === 'done') {
-      statusText.textContent = '✓ Import complete! ' + data.hospitalCount + ' hospitals loaded.';
+      bannerText.textContent = '🏥 ' + data.hospitalCount + ' hospitals in database';
+      statusText.textContent = '';
       seedBtn.disabled = false;
       seedBtn.textContent = 'Re-run Import';
       if (data.recentLog) {
@@ -348,7 +348,8 @@ async function checkSeedStatus() {
         logBox.textContent = data.recentLog;
       }
     } else if (data.status === 'error') {
-      statusText.textContent = '✗ Import failed. Check logs below.';
+      bannerText.textContent = '✗ Last import failed — check log below';
+      statusText.textContent = '';
       seedBtn.disabled = false;
       seedBtn.textContent = 'Retry Import';
       if (data.recentLog) {
@@ -356,11 +357,12 @@ async function checkSeedStatus() {
         logBox.textContent = data.recentLog;
       }
     } else {
-      statusText.textContent = data.hospitalCount > 0
-        ? data.hospitalCount + ' hospitals in database.'
-        : 'No hospital data found.';
+      bannerText.textContent = data.hospitalCount > 0
+        ? '🏥 ' + data.hospitalCount + ' hospitals in database'
+        : '⚠️ Database empty — import CMS data to get started';
+      statusText.textContent = '';
       seedBtn.disabled = false;
-      seedBtn.textContent = 'Import CMS Data (~15 min)';
+      seedBtn.textContent = data.hospitalCount > 0 ? 'Re-run Import' : 'Import CMS Data (~15 min)';
       if (data.recentLog) {
         logBox.style.display = 'block';
         logBox.textContent = data.recentLog;
