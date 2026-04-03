@@ -172,10 +172,9 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     setServerError(false);
     try {
       const hospitals = await fetchNearbyHospitals(
+        API_BASE,
         coords.latitude,
         coords.longitude,
-        verifiedMapRef.current,
-        overrideMapRef.current
       );
       setAllHospitals(hospitals);
     } catch (err) {

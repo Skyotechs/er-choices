@@ -59,7 +59,7 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
           style={[styles.address, { color: colors.mutedForeground }]}
           numberOfLines={1}
         >
-          {hospital.address}, {hospital.city}, {hospital.state}
+          {[hospital.address, hospital.city, hospital.state].filter(Boolean).join(", ")}
         </Text>
         {hospital.phone ? (
           <TouchableOpacity

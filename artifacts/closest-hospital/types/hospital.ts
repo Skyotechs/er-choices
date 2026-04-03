@@ -12,10 +12,10 @@ export type HospitalCategory =
 export interface Hospital {
   id: string;
   name: string;
-  address: string;
-  city: string;
+  address?: string;
+  city?: string;
   state: string;
-  zip: string;
+  zip?: string;
   latitude: number;
   longitude: number;
   phone?: string;

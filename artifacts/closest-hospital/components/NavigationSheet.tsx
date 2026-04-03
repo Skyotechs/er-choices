@@ -122,7 +122,7 @@ export function NavigationSheet({
             {hospital.name}
           </Text>
           <Text style={[styles.hospitalAddress, { color: colors.mutedForeground }]}>
-            {hospital.address}, {hospital.city}, {hospital.state}
+            {[hospital.address, hospital.city, hospital.state].filter(Boolean).join(", ")}
           </Text>
           {hospital.distance != null && (
             <View style={styles.distanceBadge}>

@@ -68,7 +68,7 @@ export function MapSection({
               longitude: hospital.longitude,
             }}
             title={hospital.name}
-            description={`${hospital.city}, ${hospital.state}`}
+            description={hospital.city ? `${hospital.city}, ${hospital.state}` : hospital.state}
             pinColor={colors.mapPin}
             onCalloutPress={() => onHospitalPress(hospital)}
           />
