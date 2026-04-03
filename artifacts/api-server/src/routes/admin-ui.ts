@@ -142,6 +142,13 @@ router.get("/admin-ui", (_req, res) => {
     .hosp-save-status { font-size: 13px; color: #94a3b8; }
     .hosp-save-status.ok { color: #34d399; }
     .hosp-save-status.err { color: #f87171; }
+    .hosp-edit-section-title { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.9px; margin-bottom: 12px; }
+    .hosp-edit-divider { border: none; border-top: 1px solid #1e293b; margin: 20px 0; }
+    .hosp-spec-groups { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+    .hosp-spec-group { min-width: 150px; }
+    .hosp-spec-cat { font-size: 11px; font-weight: 700; color: #c0392b; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
+    .hosp-spec-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #cbd5e1; margin-bottom: 5px; cursor: pointer; line-height: 1.3; }
+    .hosp-spec-check input[type="checkbox"] { accent-color: #c0392b; width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; }
     .no-results { font-size: 14px; color: #475569; padding: 20px 0; text-align: center; }
   </style>
 </head>
@@ -246,6 +253,25 @@ let specialtyMap = {};
 let gapsData = null;
 
 const ALL_SPECIALTIES = ['Trauma', 'Cardiac', 'Stroke', 'Pediatric', 'Burn', 'Obstetrics', 'Psychiatric', 'Cancer'];
+
+const ALL_16_DESIGNATIONS = [
+  { key: 'Trauma - Adult Level 1 & 2',          label: 'Adult Level 1 & 2',          category: 'Trauma' },
+  { key: 'Trauma - Adult Level 3',               label: 'Adult Level 3',               category: 'Trauma' },
+  { key: 'Trauma - Adult Level 4',               label: 'Adult Level 4',               category: 'Trauma' },
+  { key: 'Trauma - Pediatric Level 1',           label: 'Pediatric Level 1',           category: 'Trauma' },
+  { key: 'Trauma - Pediatric Level 2',           label: 'Pediatric Level 2',           category: 'Trauma' },
+  { key: 'Stroke - Comprehensive Center',        label: 'Comprehensive Center',        category: 'Stroke' },
+  { key: 'Stroke - Thrombectomy Capable Center', label: 'Thrombectomy Capable Center', category: 'Stroke' },
+  { key: 'Stroke - Primary Center',              label: 'Primary Center',              category: 'Stroke' },
+  { key: 'Stroke - Acute Ready Center',          label: 'Acute Ready Center',          category: 'Stroke' },
+  { key: 'Cardiac - PCI Capable',                label: 'PCI Capable',                 category: 'Cardiac' },
+  { key: 'Burn Center - Adult',                  label: 'Burn Center – Adult',         category: 'Burn' },
+  { key: 'Burn Center - Pediatric',              label: 'Burn Center – Pediatric',     category: 'Burn' },
+  { key: 'Pediatric Care',                       label: 'Pediatric Care',              category: 'Pediatric' },
+  { key: 'Obstetrics',                           label: 'Obstetrics',                  category: 'Obstetrics' },
+  { key: 'Behavioral Health',                    label: 'Behavioral Health',           category: 'Psychiatric' },
+  { key: 'HazMat/Decontamination',              label: 'HazMat / Decontamination',   category: 'HazMat' },
+];
 
 function osmEditUrl(osmId) {
   const match = osmId.match(/^osm-(node|way|relation)-(\d+)$/);
@@ -859,8 +885,29 @@ function renderHospEditForm() {
   const coordHint = isCmsOnly
     ? 'Saved directly to CMS record. Leave blank to clear.'
     : 'Leave blank to clear the coordinate override.';
+
+  // Build specialty checkboxes grouped by category
+  const currentSpecialties = h.specialties || [];
+  const categories = [...new Set(ALL_16_DESIGNATIONS.map(d => d.category))];
+  const specGroupsHtml = categories.map(cat => {
+    const items = ALL_16_DESIGNATIONS.filter(d => d.category === cat);
+    const checks = items.map(d => {
+      const checked = currentSpecialties.includes(d.key) ? 'checked' : '';
+      return \`<label class="hosp-spec-check">
+        <input type="checkbox" name="hosp-spec" value="\${escAttr(d.key)}" \${checked} />
+        <span>\${escHtml(d.label)}</span>
+      </label>\`;
+    }).join('');
+    return \`<div class="hosp-spec-group">
+      <div class="hosp-spec-cat">\${escHtml(cat)}</div>
+      \${checks}
+    </div>\`;
+  }).join('');
+
   panel.innerHTML = \`<div class="hosp-edit-form">
     <h4>Editing: \${escHtml(h.name)}</h4>
+
+    <div class="hosp-edit-section-title">Contact &amp; Location</div>
     <div class="form-row">
       <label>Phone Number</label>
       <input type="text" id="edit-phone" value="\${escAttr(h.phone || '')}" placeholder="+1 (555) 000-0000" />
@@ -876,8 +923,18 @@ function renderHospEditForm() {
       <div class="form-hint">\${coordHint}</div>
     </div>
     <div class="form-actions">
-      <button class="btn-save-hosp" id="hosp-save-btn" onclick="saveHospitalOverride()">Save Changes</button>
+      <button class="btn-save-hosp" id="hosp-save-btn" onclick="saveHospitalOverride()">Save Contact / Location</button>
       <span class="hosp-save-status" id="hosp-save-status"></span>
+    </div>
+
+    <div class="hosp-edit-divider"></div>
+
+    <div class="hosp-edit-section-title">Specialties</div>
+    <div class="form-hint" style="margin-bottom:12px;">Check all designations confirmed present. Unchecked items will be marked absent. Changes are saved as admin-verified.</div>
+    <div class="hosp-spec-groups">\${specGroupsHtml}</div>
+    <div class="form-actions">
+      <button class="btn-save-hosp" id="hosp-spec-save-btn" onclick="saveHospitalSpecialties()">Save Specialties</button>
+      <span class="hosp-save-status" id="hosp-spec-save-status"></span>
     </div>
   </div>\`;
 }
@@ -931,6 +988,42 @@ async function saveHospitalOverride() {
   } finally {
     const saveBtn = document.getElementById('hosp-save-btn');
     if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function saveHospitalSpecialties() {
+  if (!selectedHosp) return;
+  const btn = document.getElementById('hosp-spec-save-btn');
+  const status = document.getElementById('hosp-spec-save-status');
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  status.className = 'hosp-save-status';
+
+  const checked = Array.from(document.querySelectorAll('input[name="hosp-spec"]:checked')).map(el => el.value);
+
+  try {
+    const res = await fetch(\`/api/admin/specialty-gaps/\${selectedHosp.id}/resolve-all\`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secret },
+      body: JSON.stringify({ specialties: checked }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Server error ' + res.status);
+    }
+    const data = await res.json();
+    selectedHosp.specialties = data.specialties;
+    const key = selectedHosp.osmId || selectedHosp.cmsId;
+    const idx = hospSearchResults.findIndex(h => (h.osmId || h.cmsId) === key);
+    if (idx !== -1) hospSearchResults[idx] = { ...selectedHosp };
+    const newStatus = document.getElementById('hosp-spec-save-status');
+    if (newStatus) { newStatus.textContent = '✓ Saved successfully'; newStatus.className = 'hosp-save-status ok'; }
+  } catch (err) {
+    const errStatus = document.getElementById('hosp-spec-save-status');
+    if (errStatus) { errStatus.textContent = 'Error: ' + err.message; errStatus.className = 'hosp-save-status err'; }
+  } finally {
+    const specBtn = document.getElementById('hosp-spec-save-btn');
+    if (specBtn) specBtn.disabled = false;
   }
 }
 

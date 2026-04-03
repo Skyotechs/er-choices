@@ -63,12 +63,14 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   try {
     const rows = await db
       .select({
+        id: hospitalSpecialties.id,
         cmsId: hospitalSpecialties.cmsId,
         osmId: hospitalSpecialties.osmId,
         hospitalName: hospitalSpecialties.hospitalName,
         cmsPhone: hospitalSpecialties.phone,
         latitude: hospitalSpecialties.latitude,
         longitude: hospitalSpecialties.longitude,
+        specialties: hospitalSpecialties.specialties,
       })
       .from(hospitalSpecialties)
       .where(ilike(hospitalSpecialties.hospitalName, `%${q}%`))
@@ -106,12 +108,14 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
     const merged = unique.slice(0, 20).map((r) => {
       const override = r.osmId ? overrideMap[r.osmId] : undefined;
       return {
+        id: r.id,
         cmsId: r.cmsId,
         osmId: r.osmId ?? null,
         name: r.hospitalName,
         phone: override?.phone ?? r.cmsPhone ?? null,
         latitude: override?.latitude ?? r.latitude ?? null,
         longitude: override?.longitude ?? r.longitude ?? null,
+        specialties: (r.specialties as string[]) ?? [],
         hasAdminOverride: !!override,
       };
     });
