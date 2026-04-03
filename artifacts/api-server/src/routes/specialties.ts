@@ -701,7 +701,11 @@ router.post("/admin/seed", requireAdmin, async (_req, res) => {
   const logFd = fs.openSync(IMPORT_LOG_FILE, "a");
 
   const root = findWorkspaceRoot();
-  const tsxBin = path.join(root, "node_modules/.bin/tsx");
+  // tsx is a devDep of @workspace/api-server so pnpm keeps it in that package's
+  // own node_modules; fall back to root node_modules for safety.
+  const tsxInPkg = path.join(root, "artifacts/api-server/node_modules/.bin/tsx");
+  const tsxInRoot = path.join(root, "node_modules/.bin/tsx");
+  const tsxBin = fs.existsSync(tsxInPkg) ? tsxInPkg : tsxInRoot;
   const scriptFile = path.join(root, "artifacts/api-server/scripts/import-cms-hospitals.ts");
 
   const proc = spawn(

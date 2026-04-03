@@ -361,6 +361,10 @@ async function checkSeedStatus() {
         : 'No hospital data found.';
       seedBtn.disabled = false;
       seedBtn.textContent = 'Import CMS Data (~15 min)';
+      if (data.recentLog) {
+        logBox.style.display = 'block';
+        logBox.textContent = data.recentLog;
+      }
     }
   } catch (err) {
     console.warn('Seed status check failed:', err);
