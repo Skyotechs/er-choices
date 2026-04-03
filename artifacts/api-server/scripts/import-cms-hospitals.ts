@@ -369,10 +369,37 @@ async function importCms(): Promise<{ imported: number; geocoded: number; skippe
           state: sql`EXCLUDED.state`,
           zip: sql`EXCLUDED.zip`,
           phone: sql`EXCLUDED.phone`,
-          specialties: sql`EXCLUDED.specialties`,
-          needsAdminReview: sql`EXCLUDED.needs_admin_review`,
+          // Merge fresh CMS specialties with any admin-confirmed designations so
+          // admin edits survive re-imports. Admin-sourced entries are identified
+          // by source = 'admin' in the existing designation_sources JSONB column.
+          specialties: sql`(
+            SELECT COALESCE(array_agg(DISTINCT d ORDER BY d), ARRAY[]::text[])
+            FROM (
+              SELECT unnest(EXCLUDED.specialties) AS d
+              UNION
+              SELECT key
+              FROM jsonb_each_text(${hospitalSpecialties.designationSources})
+              WHERE value = 'admin'
+            ) sub
+          )`,
+          // Remove from the fresh review list any designation already confirmed by admin.
+          needsAdminReview: sql`(
+            SELECT COALESCE(array_agg(d ORDER BY d), ARRAY[]::text[])
+            FROM unnest(EXCLUDED.needs_admin_review) AS d
+            WHERE d NOT IN (
+              SELECT key
+              FROM jsonb_each_text(${hospitalSpecialties.designationSources})
+              WHERE value = 'admin'
+            )
+          )`,
           emergencyServices: sql`EXCLUDED.emergency_services`,
           updatedAt: sql`EXCLUDED.updated_at`,
+          // Preserve all existing admin-sourced provenance entries; refresh the rest.
+          designationSources: sql`EXCLUDED.designation_sources || (
+            SELECT COALESCE(jsonb_object_agg(key, value), '{}'::jsonb)
+            FROM jsonb_each_text(${hospitalSpecialties.designationSources})
+            WHERE value = 'admin'
+          )`,
         },
       });
       imported += chunk.length;
