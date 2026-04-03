@@ -26,7 +26,7 @@ In the API service's **Variables** tab, add the following:
 | Variable | Value | Notes |
 |---|---|---|
 | `NODE_ENV` | `production` | Enables production logging |
-| `ADMIN_SECRET` | *(your admin password)* | Protects the admin dashboard (currently `lobster7654$`) |
+| `ADMIN_SECRET` | *(set a strong unique value)* | Protects the admin dashboard |
 | `SESSION_SECRET` | *(a long random string)* | Used for cookie session signing |
 | `CORS_ORIGINS` | `https://erchoice.replit.app,https://YOUR_CUSTOM_DOMAIN` | Comma-separated list of allowed origins — no trailing slashes. Update if you add more domains. |
 
