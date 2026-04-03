@@ -100,6 +100,8 @@ router.get("/admin-ui", (_req, res) => {
     .gaps-search { flex: 1; min-width: 200px; padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f1f5f9; font-size: 13px; outline: none; }
     .gaps-search:focus { border-color: #c0392b; }
     .gaps-search::placeholder { color: #475569; }
+    .gaps-state-select { padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f1f5f9; font-size: 13px; outline: none; min-width: 140px; cursor: pointer; }
+    .gaps-state-select:focus { border-color: #c0392b; }
     .source-tag { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
     .source-cms { background: #1e40af22; color: #93c5fd; border: 1px solid #1e40af44; }
     .source-admin { background: #7c3aed22; color: #c4b5fd; border: 1px solid #7c3aed44; }
@@ -218,6 +220,9 @@ router.get("/admin-ui", (_req, res) => {
       <div class="gaps-summary" id="gaps-summary"></div>
       <div class="gaps-filter">
         <input class="gaps-search" id="gaps-search" type="text" placeholder="Search hospitals or designations…" oninput="renderGaps()" />
+        <select class="gaps-state-select" id="gaps-state-select" onchange="renderGaps()">
+          <option value="">All States</option>
+        </select>
       </div>
       <div id="gaps-list"><div class="gaps-loading">Loading specialty gaps…</div></div>
     </div>
@@ -592,6 +597,16 @@ function renderGaps() {
   const searchQuery = (document.getElementById('gaps-search').value || '').toLowerCase();
   const byDesig = gapsData.byDesignation;
 
+  // Populate state dropdown with distinct states from current gap data
+  const stateSelectEl = document.getElementById('gaps-state-select');
+  const currentStateValue = stateSelectEl.value;
+  const allStates = [...new Set(
+    Object.values(byDesig).flatMap(hospitals => hospitals.map(h => h.state || '').filter(Boolean))
+  )].sort();
+  stateSelectEl.innerHTML = '<option value="">All States</option>' +
+    allStates.map(s => \`<option value="\${escAttr(s)}"\${s === currentStateValue ? ' selected' : ''}>\${escHtml(s)}</option>\`).join('');
+  const selectedState = stateSelectEl.value;
+
   const listEl = document.getElementById('gaps-list');
 
   if (Object.keys(byDesig).length === 0) {
@@ -603,6 +618,7 @@ function renderGaps() {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([designation, hospitals]) => {
       const filteredHospitals = hospitals.filter(h => {
+        if (selectedState && (h.state || '') !== selectedState) return false;
         if (!searchQuery) return true;
         return h.hospitalName.toLowerCase().includes(searchQuery)
           || designation.toLowerCase().includes(searchQuery)
