@@ -90,10 +90,10 @@ export async function fetchNearbyHospitals(
     return {
       id: h.id,
       name: h.name,
-      address: "",
-      city: "",
+      address: h.address ?? "",
+      city: h.city ?? "",
       state: h.state,
-      zip: "",
+      zip: h.zip ?? "",
       latitude: h.latitude,
       longitude: h.longitude,
       phone: h.phone ?? undefined,
