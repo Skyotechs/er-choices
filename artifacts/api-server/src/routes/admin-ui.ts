@@ -54,7 +54,9 @@ router.get("/admin-ui", (_req, res) => {
     .btn-osm { padding: 6px 14px; background: transparent; color: #60a5fa; border: 1px solid #1e40af44; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; width: auto; }
     .btn-osm:hover { background: #1e40af22; }
     .empty { text-align: center; padding: 60px 20px; color: #475569; }
-    #login-view, #dashboard-view { display: none; }
+    #login-view { display: block; }
+    #dashboard-view { display: none; }
+    #js-error-banner { display: none; position: fixed; top: 0; left: 0; right: 0; background: #dc2626; color: #fff; padding: 12px 20px; font-size: 13px; z-index: 9999; white-space: pre-wrap; word-break: break-all; }
     /* Specialty editor */
     .specialty-editor { margin-top: 14px; padding: 14px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; }
     .specialty-editor h4 { font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
@@ -153,6 +155,8 @@ router.get("/admin-ui", (_req, res) => {
   </style>
 </head>
 <body>
+<div id="js-error-banner"></div>
+<script>window.onerror=function(msg,src,line,col,err){var b=document.getElementById('js-error-banner');if(b){b.style.display='block';b.textContent='JS Error: '+msg+' ('+(src||'')+(line?':'+line:'')+')';}return false;};</script>
 
 <div id="login-view">
   <div class="login">
@@ -307,7 +311,6 @@ async function loadSpecialtyMap() {
 function init() {
   const saved = sessionStorage.getItem('admin_secret');
   if (saved) { secret = saved; showDashboard(); }
-  else { document.getElementById('login-view').style.display = 'block'; }
   document.getElementById('secret-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 }
 
