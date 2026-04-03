@@ -1657,13 +1657,10 @@ async function runSamhsaBehavioralHealthImport(): Promise<{
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-async function run() {
+/** Exported for the admin API endpoint — runs the full import without closing the shared pool. */
+export async function runImport(): Promise<void> {
   const { imported, geocoded, skipped } = await importCms();
   const { matched, unmatched, enrichedFromOsm } = await runOsmMatchingPass();
-  // Phase 3 (legacy HRSA, source="hrsa") is superseded by Phase 4 (ACS, source="acs").
-  // Phase 3 is skipped here so all trauma flags are resolved with the "acs" provenance tag
-  // by Phase 4 (which uses the same HRSA data with an added proximity gate).
-  // runSupplementaryDataPull() remains available for targeted manual re-runs if needed.
   const { hrsaRecords: acsHrsa, resolved: acsResolved, stillFlagged: afterAcs } =
     await runAcsTraumaImport();
   const { abaRecords, resolved: abaResolved, stillFlagged: afterAba } =
@@ -1672,8 +1669,6 @@ async function run() {
     await runJointCommissionStrokeImport();
   const { ipfRecords, resolved: samhsaResolved, stillFlagged } =
     await runSamhsaBehavioralHealthImport();
-
-  await pool.end();
 
   console.log("\n=== Import Summary ===");
   console.log(`  CMS records upserted              : ${imported}`);
@@ -1694,6 +1689,11 @@ async function run() {
   console.log(`  CMS IPF records (Phase 7)         : ${ipfRecords}`);
   console.log(`  Behavioral health (source=cms-ipf): ${samhsaResolved}`);
   console.log(`  Still flagged for admin review    : ${stillFlagged}`);
+}
+
+async function run() {
+  await runImport();
+  await pool.end();
   console.log("\nSource tags applied (per-designation in designationSources JSONB):");
   console.log("  acs              → Trauma (HRSA dataset, ACS-intent tag, proximity-gated)");
   console.log("  aba              → Burn centers (applied only if ABA API becomes available)");
@@ -1705,10 +1705,13 @@ async function run() {
   console.log("Note: Burn/Stroke remain in admin review until ABA/TJC publish public APIs.");
 }
 
-run().catch((err) => {
-  console.error("Import failed:", err);
-  process.exit(1);
-});
+const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"));
+if (isMain) {
+  run().catch((err) => {
+    console.error("Import failed:", err);
+    process.exit(1);
+  });
+}
 
 // ─── Exported helpers for Task 2 API endpoint ───────────────────────────────
 

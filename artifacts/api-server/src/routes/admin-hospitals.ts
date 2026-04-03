@@ -287,4 +287,40 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── CMS Import Trigger ──────────────────────────────────────────────────────
+
+let importState: {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+} = { status: "idle", startedAt: null, finishedAt: null, error: null };
+
+router.get("/admin/import-status", requireAdmin, (_req, res) => {
+  res.json(importState);
+});
+
+router.post("/admin/run-import", requireAdmin, async (_req, res) => {
+  if (importState.status === "running") {
+    res.status(409).json({ error: "Import already running", state: importState });
+    return;
+  }
+
+  importState = { status: "running", startedAt: new Date().toISOString(), finishedAt: null, error: null };
+  res.status(202).json({ message: "Import started", state: importState });
+
+  // Run in background — do not await
+  (async () => {
+    try {
+      const { runImport } = await import("../../scripts/import-cms-hospitals.js");
+      await runImport();
+      importState = { ...importState, status: "done", finishedAt: new Date().toISOString(), error: null };
+      console.log("[Admin] CMS import completed successfully");
+    } catch (err: any) {
+      importState = { ...importState, status: "error", finishedAt: new Date().toISOString(), error: String(err?.message ?? err) };
+      console.error("[Admin] CMS import failed:", err);
+    }
+  })();
+});
+
 export default router;

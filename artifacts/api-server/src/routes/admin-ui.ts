@@ -201,6 +201,21 @@ router.get("/admin-ui", (_req, res) => {
       <button class="nav-tab active" id="tab-reports" onclick="switchTab('reports')">Hospital Reports</button>
       <button class="nav-tab" id="tab-gaps" onclick="switchTab('gaps')">Specialty Gaps</button>
       <button class="nav-tab" id="tab-hospitals" onclick="switchTab('hospitals')">Edit Hospital Data</button>
+      <button class="nav-tab" id="tab-settings" onclick="switchTab('settings')">Settings</button>
+    </div>
+
+    <!-- Settings tab -->
+    <div id="view-settings" style="display:none;">
+      <div class="card" style="max-width:600px;">
+        <div class="card-header" style="margin-bottom:16px;">
+          <div>
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">CMS Data Import</div>
+            <div style="font-size:13px;color:#94a3b8;">Re-imports all hospital data from CMS Care Compare including addresses, specialties, and supplementary sources (ACS trauma, ABA burn, Joint Commission stroke, CMS IPF behavioral health). Takes 10–20 minutes.</div>
+          </div>
+        </div>
+        <div id="import-status-box" style="margin-bottom:16px;padding:12px 16px;background:#0f172a;border-radius:8px;font-size:13px;font-family:monospace;color:#94a3b8;display:none;"></div>
+        <button id="run-import-btn" onclick="triggerImport()" style="width:auto;padding:10px 24px;">Run CMS Import</button>
+      </div>
     </div>
 
     <!-- Reports tab -->
@@ -443,7 +458,58 @@ function switchTab(tab) {
   document.getElementById('view-reports').style.display = tab === 'reports' ? '' : 'none';
   document.getElementById('view-gaps').style.display = tab === 'gaps' ? '' : 'none';
   document.getElementById('view-hospitals').style.display = tab === 'hospitals' ? '' : 'none';
+  document.getElementById('view-settings').style.display = tab === 'settings' ? '' : 'none';
   if (tab === 'gaps' && !gapsData) loadGaps();
+  if (tab === 'settings') pollImportStatus();
+}
+
+let importPollTimer = null;
+
+async function pollImportStatus() {
+  try {
+    const r = await fetch('/api/admin/import-status', { headers: { Authorization: 'Bearer ' + adminToken } });
+    if (!r.ok) return;
+    const s = await r.json();
+    const box = document.getElementById('import-status-box');
+    const btn = document.getElementById('run-import-btn');
+    if (s.status === 'idle') {
+      box.style.display = 'none';
+    } else {
+      box.style.display = 'block';
+      const statusColor = s.status === 'running' ? '#facc15' : s.status === 'done' ? '#4ade80' : '#f87171';
+      const label = s.status === 'running' ? 'Running...' : s.status === 'done' ? 'Completed' : 'Failed';
+      box.innerHTML = '<span style="color:' + statusColor + ';font-weight:700;">' + label + '</span>'
+        + (s.startedAt ? '  Started: ' + new Date(s.startedAt).toLocaleTimeString() : '')
+        + (s.finishedAt ? '  Finished: ' + new Date(s.finishedAt).toLocaleTimeString() : '')
+        + (s.error ? '<br>Error: ' + s.error : '');
+    }
+    btn.disabled = s.status === 'running';
+    btn.textContent = s.status === 'running' ? 'Import Running...' : 'Run CMS Import';
+    if (s.status === 'running') {
+      importPollTimer = setTimeout(pollImportStatus, 5000);
+    }
+  } catch (e) { /* ignore */ }
+}
+
+async function triggerImport() {
+  const btn = document.getElementById('run-import-btn');
+  const box = document.getElementById('import-status-box');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  try {
+    const r = await fetch('/api/admin/run-import', { method: 'POST', headers: { Authorization: 'Bearer ' + adminToken } });
+    const data = await r.json();
+    if (r.status === 409) {
+      box.style.display = 'block';
+      box.innerHTML = '<span style="color:#facc15;font-weight:700;">Already running</span> — started at ' + new Date(data.state.startedAt).toLocaleTimeString();
+    }
+    pollImportStatus();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Run CMS Import';
+    box.style.display = 'block';
+    box.innerHTML = '<span style="color:#f87171;font-weight:700;">Error:</span> ' + e.message;
+  }
 }
 
 function setFilter(f, btn) {
