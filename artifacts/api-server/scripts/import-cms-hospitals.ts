@@ -179,6 +179,7 @@ function mapCmsToDesignations(rec: CmsRecord): DesignationResult {
 interface CmsRecord {
   facility_id: string;
   facility_name: string;
+  address?: string;
   citytown?: string;
   state: string;
   zip_code?: string;
@@ -221,6 +222,23 @@ export function haversineMeters(
     Math.cos((lat2 * Math.PI) / 180) *
     Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Convert an ALL-CAPS CMS string to Title Case.
+ * e.g. "1108 ROSS CLARK CIRCLE" → "1108 Ross Clark Circle"
+ */
+function toTitleCase(str: string): string {
+  const lower = ["of", "the", "and", "at", "in", "on", "for", "a", "an"];
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word, i) =>
+      i === 0 || !lower.includes(word)
+        ? word.charAt(0).toUpperCase() + word.slice(1)
+        : word
+    )
+    .join(" ");
 }
 
 /**
@@ -305,7 +323,10 @@ async function importCms(): Promise<{ imported: number; geocoded: number; skippe
       batch.push({
         cmsId: rec.facility_id,
         hospitalName: rec.facility_name,
+        address: rec.address ? toTitleCase(rec.address) : null,
+        city: rec.citytown ? toTitleCase(rec.citytown) : null,
         state: rec.state ?? "",
+        zip: rec.zip_code ? rec.zip_code.slice(0, 5).padStart(5, "0") : null,
         phone: rec.telephone_number ?? null,
         latitude: null,
         longitude: null,
@@ -326,7 +347,10 @@ async function importCms(): Promise<{ imported: number; geocoded: number; skippe
         target: hospitalSpecialties.cmsId,
         set: {
           hospitalName: sql`EXCLUDED.hospital_name`,
+          address: sql`EXCLUDED.address`,
+          city: sql`EXCLUDED.city`,
           state: sql`EXCLUDED.state`,
+          zip: sql`EXCLUDED.zip`,
           phone: sql`EXCLUDED.phone`,
           specialties: sql`EXCLUDED.specialties`,
           needsAdminReview: sql`EXCLUDED.needs_admin_review`,

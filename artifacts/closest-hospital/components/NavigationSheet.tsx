@@ -26,7 +26,7 @@ interface MapOption {
   id: string;
   label: string;
   icon: React.ReactNode;
-  buildUrl: (lat: number, lon: number, name: string) => string;
+  buildUrl: (lat: number, lon: number, name: string, address?: string) => string;
   appScheme?: string;
 }
 
@@ -46,10 +46,15 @@ export function NavigationSheet({
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
 
+      const fullAddress = [hospital.address, hospital.city, hospital.state, hospital.zip]
+        .filter(Boolean)
+        .join(", ");
+
       const url = option.buildUrl(
         hospital.latitude,
         hospital.longitude,
-        hospital.name
+        hospital.name,
+        fullAddress || undefined
       );
 
       try {
@@ -57,8 +62,10 @@ export function NavigationSheet({
         if (canOpen) {
           await Linking.openURL(url);
         } else {
-          const fallbackUrl = `https://maps.apple.com/?daddr=${hospital.latitude},${hospital.longitude}&dirflg=d`;
-          await Linking.openURL(fallbackUrl);
+          const fallback = fullAddress
+            ? `https://maps.apple.com/?daddr=${encodeURIComponent(fullAddress)}&dirflg=d`
+            : `https://maps.apple.com/?daddr=${hospital.latitude},${hospital.longitude}&dirflg=d`;
+          await Linking.openURL(fallback);
         }
       } catch (err) {
         console.error("Failed to open map:", err);
@@ -74,15 +81,19 @@ export function NavigationSheet({
       id: "apple",
       label: "Apple Maps",
       icon: <Ionicons name="map" size={22} color={colors.primary} />,
-      buildUrl: (lat, lon) =>
-        `maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`,
+      buildUrl: (lat, lon, _name, address) =>
+        address
+          ? `maps://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`
+          : `maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`,
     },
     {
       id: "google",
       label: "Google Maps",
       icon: <FontAwesome5 name="google" size={20} color="#4285F4" />,
-      buildUrl: (lat, lon) =>
-        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`,
+      buildUrl: (lat, lon, _name, address) =>
+        address
+          ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`
+          : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`,
     },
     {
       id: "waze",

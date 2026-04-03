@@ -69,7 +69,10 @@ export async function fetchNearbyHospitals(
     hospitals: Array<{
       id: string;
       name: string;
+      address: string | null;
+      city: string | null;
       state: string;
+      zip: string | null;
       latitude: number;
       longitude: number;
       distance: number;
@@ -87,7 +90,10 @@ export async function fetchNearbyHospitals(
   const hospitals = (json.hospitals ?? []).map((row) => ({
     id: row.id,
     name: row.name,
+    address: row.address ?? undefined,
+    city: row.city ?? undefined,
     state: row.state ?? "",
+    zip: row.zip ?? undefined,
     latitude: row.latitude,
     longitude: row.longitude,
     phone: row.phone ?? undefined,
