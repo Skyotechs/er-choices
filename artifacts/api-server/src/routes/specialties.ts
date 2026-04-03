@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, hospitalSpecialties, specialtyDefinitions } from "@workspace/db";
 import { isNotNull, eq, sql, count } from "drizzle-orm";
 import { spawn } from "child_process";
+import fs from "fs";
 
 const router = Router();
 
@@ -599,66 +600,113 @@ router.put("/admin/specialties/:osmId", requireAdmin, async (req, res) => {
   }
 });
 
+const IMPORT_PID_FILE = "/tmp/er-choices-import.pid";
+const IMPORT_LOG_FILE = "/tmp/er-choices-import.log";
+const IMPORT_STARTED_FILE = "/tmp/er-choices-import-started.txt";
+
 /**
- * In-memory seed state (resets on server restart — that's fine for admin use).
+ * Check if the import process is currently running by inspecting the PID file.
  */
-let seedStatus: "idle" | "running" | "done" | "error" = "idle";
-let seedStartedAt: Date | null = null;
-let seedLog: string[] = [];
+function isImportRunning(): boolean {
+  try {
+    const pid = parseInt(fs.readFileSync(IMPORT_PID_FILE, "utf8").trim(), 10);
+    if (!pid || isNaN(pid)) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read the last N lines from the import log file.
+ */
+function readImportLog(lines = 60): string {
+  try {
+    const content = fs.readFileSync(IMPORT_LOG_FILE, "utf8");
+    const all = content.split("\n");
+    return all.slice(-lines).join("\n");
+  } catch {
+    return "";
+  }
+}
 
 /**
  * GET /api/admin/seed/status
  * Returns current seed job status and recent log lines.
+ * Status is derived from the PID file (survives server restarts).
  */
 router.get("/admin/seed/status", requireAdmin, async (_req, res) => {
   try {
     const [row] = await db.select({ n: count() }).from(hospitalSpecialties);
     const hospitalCount = Number(row?.n ?? 0);
+
+    let status: "idle" | "running" | "done";
+    let startedAt: string | null = null;
+
+    if (isImportRunning()) {
+      status = "running";
+    } else if (hospitalCount > 0) {
+      status = "done";
+    } else {
+      status = "idle";
+    }
+
+    try {
+      startedAt = fs.readFileSync(IMPORT_STARTED_FILE, "utf8").trim();
+    } catch { /* no file yet */ }
+
     res.json({
-      status: seedStatus,
-      startedAt: seedStartedAt,
+      status,
+      startedAt,
       hospitalCount,
-      recentLog: seedLog.slice(-30).join(""),
+      recentLog: readImportLog(60),
     });
-  } catch {
-    res.json({ status: seedStatus, startedAt: seedStartedAt, hospitalCount: 0, recentLog: seedLog.slice(-30).join("") });
+  } catch (err) {
+    res.json({ status: "idle", startedAt: null, hospitalCount: 0, recentLog: "" });
   }
 });
 
 /**
  * POST /api/admin/seed
- * Triggers the CMS hospital import in the background.
+ * Triggers the CMS hospital import as a fully detached background process.
+ * Survives API server restarts — the import continues even if the server is killed.
  * Safe to call multiple times — import script uses upserts.
  */
 router.post("/admin/seed", requireAdmin, async (_req, res) => {
-  if (seedStatus === "running") {
+  if (isImportRunning()) {
     return res.json({ status: "running", message: "Import already in progress." });
   }
 
-  seedStatus = "running";
-  seedStartedAt = new Date();
-  seedLog = ["[seed] Starting CMS hospital import…\n"];
+  // Truncate log file and write start timestamp
+  try { fs.writeFileSync(IMPORT_LOG_FILE, `[seed] Starting CMS hospital import…\n`); } catch { /* ignore */ }
+  try { fs.writeFileSync(IMPORT_STARTED_FILE, new Date().toISOString()); } catch { /* ignore */ }
+
+  // Open log file for writing by child process
+  const logFd = fs.openSync(IMPORT_LOG_FILE, "a");
 
   const proc = spawn(
     "pnpm",
     ["--filter", "@workspace/api-server", "run", "import-cms"],
-    { cwd: "/home/runner/workspace", stdio: ["ignore", "pipe", "pipe"] }
+    {
+      cwd: "/home/runner/workspace",
+      stdio: ["ignore", logFd, logFd],
+      detached: true,
+    }
   );
 
-  proc.stdout?.on("data", (chunk: Buffer) => {
-    const line = chunk.toString();
-    seedLog.push(line);
-    if (seedLog.length > 500) seedLog = seedLog.slice(-400);
+  fs.closeSync(logFd);
+
+  // Write PID so we can detect if it's still running after restarts
+  try { fs.writeFileSync(IMPORT_PID_FILE, String(proc.pid)); } catch { /* ignore */ }
+
+  // Clean up PID file when process exits (only fires if this server instance survives)
+  proc.on("close", () => {
+    try { fs.unlinkSync(IMPORT_PID_FILE); } catch { /* ignore */ }
   });
-  proc.stderr?.on("data", (chunk: Buffer) => {
-    const line = chunk.toString();
-    seedLog.push(line);
-    if (seedLog.length > 500) seedLog = seedLog.slice(-400);
-  });
-  proc.on("close", (code: number | null) => {
-    seedStatus = code === 0 ? "done" : "error";
-    seedLog.push(`[seed] Process exited with code ${code}\n`);
-  });
+
+  // Unref so the API server can exit freely without waiting for the import
+  proc.unref();
 
   res.json({ status: "started", message: "CMS import started in background. This takes 10–20 minutes. Refresh status to monitor progress." });
 });
