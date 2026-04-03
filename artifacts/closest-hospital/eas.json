@@ -7,20 +7,17 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "autoIncrement": true,
-      "prebuildCommand": "./node_modules/.bin/expo prebuild"
+      "autoIncrement": true
     },
     "preview": {
       "distribution": "internal",
       "autoIncrement": true,
       "ios": {
         "simulator": false
-      },
-      "prebuildCommand": "./node_modules/.bin/expo prebuild"
+      }
     },
     "production": {
-      "autoIncrement": true,
-      "prebuildCommand": "./node_modules/.bin/expo prebuild"
+      "autoIncrement": true
     }
   },
   "submit": {
