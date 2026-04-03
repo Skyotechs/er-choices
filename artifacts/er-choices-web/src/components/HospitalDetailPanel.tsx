@@ -3,6 +3,22 @@ import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
 import { ReportModal } from "./ReportModal";
 
+function specialtyLabel(key: string): string {
+  return key.replace(/ - /g, " – ");
+}
+
+function specialtyColor(key: string): string {
+  if (key.startsWith("Trauma"))            return "bg-red-900/50 text-red-300 border-red-800";
+  if (key.startsWith("Stroke"))            return "bg-purple-900/50 text-purple-300 border-purple-800";
+  if (key.startsWith("Cardiac"))           return "bg-rose-900/50 text-rose-300 border-rose-800";
+  if (key.startsWith("Burn"))              return "bg-orange-900/50 text-orange-300 border-orange-800";
+  if (key.startsWith("Pediatric"))         return "bg-blue-900/50 text-blue-300 border-blue-800";
+  if (key.startsWith("Obstetrics"))        return "bg-pink-900/50 text-pink-300 border-pink-800";
+  if (key.startsWith("Behavioral"))        return "bg-indigo-900/50 text-indigo-300 border-indigo-800";
+  if (key.startsWith("HazMat"))            return "bg-amber-900/50 text-amber-300 border-amber-800";
+  return "bg-slate-800 text-slate-300 border-slate-700";
+}
+
 interface HospitalDetailPanelProps {
   hospital: Hospital | null;
   onClose: () => void;
@@ -49,6 +65,25 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
             </a>
           )}
         </div>
+
+        {hospital.specialties && hospital.specialties.length > 0 && (
+          <>
+            <div className="h-px bg-border" />
+            <div className="px-5 py-4">
+              <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">DESIGNATIONS</p>
+              <div className="flex flex-wrap gap-2">
+                {hospital.specialties.map((s) => (
+                  <span
+                    key={s}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full border ${specialtyColor(s)}`}
+                  >
+                    {specialtyLabel(s)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="h-px bg-border mb-4" />
 

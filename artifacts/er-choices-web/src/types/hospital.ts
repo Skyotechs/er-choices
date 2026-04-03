@@ -23,6 +23,7 @@ export interface Hospital {
   website?: string;
   categories: HospitalCategory[];
   verifiedSpecialties?: HospitalCategory[];
+  specialties?: string[];
   hospitalType?: string;
   distance?: number;
 }

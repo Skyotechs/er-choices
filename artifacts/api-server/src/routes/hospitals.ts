@@ -125,6 +125,7 @@ router.get("/hospitals/nearby", async (req, res) => {
         longitude: finalLon,
         distance: row.distance,
         categories,
+        specialties: (row.specialties as string[]) ?? [],
         phone: row.overridePhone ?? row.cmsPhone ?? null,
       };
     });

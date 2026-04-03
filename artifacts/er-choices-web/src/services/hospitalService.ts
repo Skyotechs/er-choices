@@ -59,6 +59,7 @@ interface CmsHospitalRow {
   longitude: number;
   distance: number;
   categories: string[];
+  specialties: string[];
   phone: string | null;
 }
 
@@ -100,6 +101,7 @@ export async function fetchNearbyHospitals(
       categories: hasAdminOverride ? adminCategories : cmsCategories,
       hospitalType: "Emergency Room",
       verifiedSpecialties: hasAdminOverride ? adminCategories : cmsCategories,
+      specialties: h.specialties ?? [],
       distance: h.distance ?? haversineDistance(latitude, longitude, h.latitude, h.longitude),
     };
   });
