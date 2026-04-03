@@ -467,7 +467,7 @@ let importPollTimer = null;
 
 async function pollImportStatus() {
   try {
-    const r = await fetch('/api/admin/import-status', { headers: { Authorization: 'Bearer ' + adminToken } });
+    const r = await fetch('/api/admin/import-status', { headers: { Authorization: 'Bearer ' + secret } });
     if (!r.ok) return;
     const s = await r.json();
     const box = document.getElementById('import-status-box');
@@ -497,7 +497,7 @@ async function triggerImport() {
   btn.disabled = true;
   btn.textContent = 'Starting...';
   try {
-    const r = await fetch('/api/admin/run-import', { method: 'POST', headers: { Authorization: 'Bearer ' + adminToken } });
+    const r = await fetch('/api/admin/run-import', { method: 'POST', headers: { Authorization: 'Bearer ' + secret } });
     const data = await r.json();
     if (r.status === 409) {
       box.style.display = 'block';
