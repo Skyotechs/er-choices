@@ -1,0 +1,108 @@
+Emitted 'error' event on ChildProcess instance at:
+    at ChildProcess._handle.onexit (node:internal/child_process:291:12)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn pnpm',
+  path: 'pnpm',
+  spawnargs: [ '--filter', '@workspace/api-server', 'run', 'import-cms' ]
+}
+Node.js v22.22.2
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+[⣯] Pulling schema from database...
+[⣟] Pulling schema from database...
+[✓] Pulling schema from database...
+[i] No changes detected
+Server listening
+[specialties] Seeded 16 specialty definitions
+request completed
+request completed
+request completed
+request completed
+request completed
+request completed
+request completed
+node:events:497
+      throw er; // Unhandled 'error' event
+      ^
+Error: spawn pnpm ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:285:19)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+Emitted 'error' event on ChildProcess instance at:
+    at ChildProcess._handle.onexit (node:internal/child_process:291:12)
+    at onErrorNT (node:internal/child_process:483:16)
+[⣯] Pulling schema from database...
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+[⣟] Pulling schema from database...
+  errno: -2,
+[✓] Pulling schema from database...
+  code: 'ENOENT',
+[i] No changes detected
+  syscall: 'spawn pnpm',
+Server listening
+  path: 'pnpm',
+[specialties] Seeded 16 specialty definitions
+  spawnargs: [ '--filter', '@workspace/api-server', 'run', 'import-cms' ]
+}
+Node.js v22.22.2
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+request completed
+request completed
+node:events:497
+      throw er; // Unhandled 'error' event
+      ^
+Error: spawn pnpm ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:285:19)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+Emitted 'error' event on ChildProcess instance at:
+    at ChildProcess._handle.onexit (node:internal/child_process:291:12)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn pnpm',
+  path: 'pnpm',
+  spawnargs: [ '--filter', '@workspace/api-server', 'run', 'import-cms' ]
+}
+Node.js v22.22.2
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+[⣯] Pulling schema from database...
+[⣟] Pulling schema from database...
+[✓] Pulling schema from database...
+[i] No changes detected
+Server listening
+[specialties] Seeded 16 specialty definitions
+request completed
+node:events:497
+      throw er; // Unhandled 'error' event
+      ^
+Error: spawn pnpm ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:285:19)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+Emitted 'error' event on ChildProcess instance at:
+    at ChildProcess._handle.onexit (node:internal/child_process:291:12)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn pnpm',
+  path: 'pnpm',
+  spawnargs: [ '--filter', '@workspace/api-server', 'run', 'import-cms' ]
+}
+Node.js v22.22.2

@@ -3,6 +3,7 @@ import { db, hospitalSpecialties, specialtyDefinitions } from "@workspace/db";
 import { isNotNull, eq, sql, count } from "drizzle-orm";
 import { spawn } from "child_process";
 import fs from "fs";
+import path from "path";
 
 const router = Router();
 
@@ -605,6 +606,20 @@ const IMPORT_LOG_FILE = "/tmp/er-choices-import.log";
 const IMPORT_STARTED_FILE = "/tmp/er-choices-import-started.txt";
 
 /**
+ * Walk up from cwd until we find pnpm-workspace.yaml — works on both Replit
+ * (cwd = artifacts/api-server) and Railway Docker (cwd = /app).
+ */
+function findWorkspaceRoot(): string {
+  let dir = process.cwd();
+  while (true) {
+    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return process.cwd(); // fallback
+    dir = parent;
+  }
+}
+
+/**
  * Check if the import process is currently running by inspecting the PID file.
  */
 function isImportRunning(): boolean {
@@ -685,13 +700,18 @@ router.post("/admin/seed", requireAdmin, async (_req, res) => {
   // Open log file for writing by child process
   const logFd = fs.openSync(IMPORT_LOG_FILE, "a");
 
+  const root = findWorkspaceRoot();
+  const tsxBin = path.join(root, "node_modules/.bin/tsx");
+  const scriptFile = path.join(root, "artifacts/api-server/scripts/import-cms-hospitals.ts");
+
   const proc = spawn(
-    "pnpm",
-    ["--filter", "@workspace/api-server", "run", "import-cms"],
+    tsxBin,
+    [scriptFile],
     {
-      cwd: "/home/runner/workspace",
+      cwd: root,
       stdio: ["ignore", logFd, logFd],
       detached: true,
+      env: { ...process.env },
     }
   );
 
@@ -702,6 +722,12 @@ router.post("/admin/seed", requireAdmin, async (_req, res) => {
 
   // Clean up PID file when process exits (only fires if this server instance survives)
   proc.on("close", () => {
+    try { fs.unlinkSync(IMPORT_PID_FILE); } catch { /* ignore */ }
+  });
+
+  // Prevent unhandled error from crashing the server (e.g. binary not found)
+  proc.on("error", (err) => {
+    try { fs.appendFileSync(IMPORT_LOG_FILE, `[seed] Spawn error: ${err.message}\n`); } catch { /* ignore */ }
     try { fs.unlinkSync(IMPORT_PID_FILE); } catch { /* ignore */ }
   });
 
