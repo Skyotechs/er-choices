@@ -37,6 +37,7 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
   cmsId: text("cms_id").notNull().unique(),
   hospitalName: text("hospital_name").notNull(),
   state: text("state").notNull(),
+  phone: text("phone"),
   latitude: real("latitude"),
   longitude: real("longitude"),
   specialties: jsonb("specialties").notNull().default([]),

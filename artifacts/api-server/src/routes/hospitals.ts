@@ -82,6 +82,7 @@ router.get("/hospitals/nearby", async (req, res) => {
         cmsId: hospitalSpecialties.cmsId,
         hospitalName: hospitalSpecialties.hospitalName,
         state: hospitalSpecialties.state,
+        cmsPhone: hospitalSpecialties.phone,
         latitude: hospitalSpecialties.latitude,
         longitude: hospitalSpecialties.longitude,
         specialties: hospitalSpecialties.specialties,
@@ -124,7 +125,7 @@ router.get("/hospitals/nearby", async (req, res) => {
         longitude: finalLon,
         distance: row.distance,
         categories,
-        phone: row.overridePhone ?? null,
+        phone: row.overridePhone ?? row.cmsPhone ?? null,
       };
     });
 

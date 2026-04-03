@@ -184,6 +184,7 @@ interface CmsRecord {
   zip_code?: string;
   hospital_type?: string;
   emergency_services?: string;
+  telephone_number?: string;
   [key: string]: unknown;
 }
 
@@ -305,6 +306,7 @@ async function importCms(): Promise<{ imported: number; geocoded: number; skippe
         cmsId: rec.facility_id,
         hospitalName: rec.facility_name,
         state: rec.state ?? "",
+        phone: rec.telephone_number ?? null,
         latitude: null,
         longitude: null,
         specialties,
@@ -325,6 +327,7 @@ async function importCms(): Promise<{ imported: number; geocoded: number; skippe
         set: {
           hospitalName: sql`EXCLUDED.hospital_name`,
           state: sql`EXCLUDED.state`,
+          phone: sql`EXCLUDED.phone`,
           specialties: sql`EXCLUDED.specialties`,
           needsAdminReview: sql`EXCLUDED.needs_admin_review`,
           emergencyServices: sql`EXCLUDED.emergency_services`,
