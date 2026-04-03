@@ -1,0 +1,43 @@
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+DATABASE_URL, ensure the database is provisioned
+/app/lib/db:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/db@0.0.0 push-force: `drizzle-kit push --force --config ./drizzle.config.ts`
+Exit status 1
+Starting Container
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+DATABASE_URL, ensure the database is provisioned
+/app/lib/db:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/db@0.0.0 push-force: `drizzle-kit push --force --config ./drizzle.config.ts`
+Exit status 1
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+DATABASE_URL, ensure the database is provisioned
+/app/lib/db:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/db@0.0.0 push-force: `drizzle-kit push --force --config ./drizzle.config.ts`
+Exit status 1
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+DATABASE_URL, ensure the database is provisioned
+/app/lib/db:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/db@0.0.0 push-force: `drizzle-kit push --force --config ./drizzle.config.ts`
+Exit status 1
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+DATABASE_URL, ensure the database is provisioned
+/app/lib/db:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/db@0.0.0 push-force: `drizzle-kit push --force --config ./drizzle.config.ts`
+Exit status 1
+> @workspace/db@0.0.0 push-force /app/lib/db
+> drizzle-kit push --force --config ./drizzle.config.ts
+Reading config file '/app/lib/db/drizzle.config.ts'
+DATABASE_URL, ensure the database is provisioned
+/app/lib/db:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/db@0.0.0 push-force: `drizzle-kit push --force --config ./drizzle.config.ts`
+Exit status 1
