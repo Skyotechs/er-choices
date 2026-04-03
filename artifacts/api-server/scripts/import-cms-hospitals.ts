@@ -1691,27 +1691,7 @@ export async function runImport(): Promise<void> {
   console.log(`  Still flagged for admin review    : ${stillFlagged}`);
 }
 
-async function run() {
-  await runImport();
-  await pool.end();
-  console.log("\nSource tags applied (per-designation in designationSources JSONB):");
-  console.log("  acs              → Trauma (HRSA dataset, ACS-intent tag, proximity-gated)");
-  console.log("  aba              → Burn centers (applied only if ABA API becomes available)");
-  console.log("  joint-commission → Stroke (applied only if TJC API becomes available)");
-  console.log("  cms-ipf          → Behavioral Health (CMS Inpatient Psychiatric Facility dataset q9vs-r7wp)");
-  console.log("  hrsa             → Trauma (legacy Phase 3, superseded by Phase 4/acs)");
-  console.log("  osm              → Heuristic enrichment from OpenStreetMap tags");
-  console.log("Note: Phase 3 (hrsa) is intentionally skipped; Phase 4 (acs) supersedes it.");
-  console.log("Note: Burn/Stroke remain in admin review until ABA/TJC publish public APIs.");
-}
-
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"));
-if (isMain) {
-  run().catch((err) => {
-    console.error("Import failed:", err);
-    process.exit(1);
-  });
-}
+// CLI entry point is in scripts/run-cms-import.ts — this file only exports functions.
 
 // ─── Exported helpers for Task 2 API endpoint ───────────────────────────────
 

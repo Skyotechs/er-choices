@@ -8,7 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "import-cms": "tsx scripts/import-cms-hospitals.ts"
+    "import-cms": "tsx scripts/run-cms-import.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

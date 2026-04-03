@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
 import { eq, ilike } from "drizzle-orm";
+import { runImport } from "../../scripts/import-cms-hospitals.js";
 
 const router = Router();
 
@@ -310,17 +311,15 @@ router.post("/admin/run-import", requireAdmin, async (_req, res) => {
   res.status(202).json({ message: "Import started", state: importState });
 
   // Run in background — do not await
-  (async () => {
-    try {
-      const { runImport } = await import("../../scripts/import-cms-hospitals.js");
-      await runImport();
+  runImport()
+    .then(() => {
       importState = { ...importState, status: "done", finishedAt: new Date().toISOString(), error: null };
       console.log("[Admin] CMS import completed successfully");
-    } catch (err: any) {
+    })
+    .catch((err: any) => {
       importState = { ...importState, status: "error", finishedAt: new Date().toISOString(), error: String(err?.message ?? err) };
       console.error("[Admin] CMS import failed:", err);
-    }
-  })();
+    });
 });
 
 export default router;
