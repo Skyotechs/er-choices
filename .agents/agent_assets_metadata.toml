@@ -6,3 +6,9 @@ id = "eJ_roaMON7HGEVxARQAhC"
 uri = "file://artifacts/closest-hospital/assets/images/icon.png"
 type = "image"
 title = "closest hospital app icon"
+
+[[generated]]
+id = "uo-2feHeowjTk1pY2OOgV"
+uri = "file://attached_assets/generated_images/er_choices_icon.png"
+type = "image"
+title = "er choices app icon"
