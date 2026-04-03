@@ -7,17 +7,26 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_MONOREPO_BUILD_WORKSPACE_FILTER": "@workspace/closest-hospital"
+      }
     },
     "preview": {
       "distribution": "internal",
       "autoIncrement": true,
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "EXPO_MONOREPO_BUILD_WORKSPACE_FILTER": "@workspace/closest-hospital"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_MONOREPO_BUILD_WORKSPACE_FILTER": "@workspace/closest-hospital"
+      }
     }
   },
   "submit": {
