@@ -111,8 +111,23 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
   let pathname = url.pathname;
 
+  // Health check — must respond before base-path stripping so the deployment
+  // system can reach it regardless of how BASE_PATH is configured.
+  if (pathname === "/status" || pathname === `${basePath}/status` || pathname === `${basePath}status`) {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+
   if (basePath && pathname.startsWith(basePath)) {
     pathname = pathname.slice(basePath.length) || "/";
+  }
+
+  // Inner /status after base-path stripping
+  if (pathname === "/status") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
   }
 
   if (pathname === "/" || pathname === "/manifest") {
