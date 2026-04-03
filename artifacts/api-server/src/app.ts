@@ -31,7 +31,7 @@ app.use(
   cors(
     corsOriginsEnv
       ? {
-          origin: corsOriginsEnv.split(",").map((o) => o.trim()),
+          origin: corsOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean),
           credentials: true,
         }
       : undefined,
