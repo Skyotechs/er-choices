@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "autoIncrement": true,
-      "prebuildCommand": "pnpm exec expo prebuild --non-interactive"
+      "prebuildCommand": "pnpm exec expo prebuild"
     },
     "preview": {
       "distribution": "internal",
@@ -16,11 +16,11 @@
       "ios": {
         "simulator": false
       },
-      "prebuildCommand": "pnpm exec expo prebuild --non-interactive"
+      "prebuildCommand": "pnpm exec expo prebuild"
     },
     "production": {
       "autoIncrement": true,
-      "prebuildCommand": "pnpm exec expo prebuild --non-interactive"
+      "prebuildCommand": "pnpm exec expo prebuild"
     }
   },
   "submit": {
