@@ -686,7 +686,7 @@ let editFormCurrentSpecialties = [];
  * Falls back to a hardcoded list only if the API is unavailable so the admin UI
  * always has the authoritative values from the single source of truth.
  */
-let ALL_16_DESIGNATIONS = [
+let DESIGNATION_KEYS = [
   'Behavioral Health',
   'Burn Center - Adult',
   'Burn Center - Pediatric',
@@ -711,7 +711,7 @@ async function loadCanonicalDesignations() {
     if (!res.ok) return;
     const defs = await res.json();
     if (Array.isArray(defs) && defs.length > 0) {
-      ALL_16_DESIGNATIONS = defs.map(d => d.key);
+      DESIGNATION_KEYS = defs.map(d => d.key);
     }
   } catch {}
 }
@@ -720,7 +720,7 @@ function openGapEditForm(recordId, hospitalName, currentSpecialties) {
   editFormRecordId = recordId;
   editFormCurrentSpecialties = currentSpecialties || [];
 
-  const checkboxes = ALL_16_DESIGNATIONS.map(d => {
+  const checkboxes = DESIGNATION_KEYS.map(d => {
     const checked = editFormCurrentSpecialties.includes(d) ? 'checked' : '';
     return \`<label class="specialty-check">
       <input type="checkbox" id="gapedit-\${d.replace(/[^a-zA-Z0-9]/g,'_')}" value="\${d}" \${checked} />
@@ -747,7 +747,7 @@ async function saveGapEditForm() {
   btn.disabled = true;
   status.textContent = 'Saving…';
 
-  const selected = ALL_16_DESIGNATIONS.filter(d => {
+  const selected = DESIGNATION_KEYS.filter(d => {
     const el = document.getElementById('gapedit-' + d.replace(/[^a-zA-Z0-9]/g,'_'));
     return el && el.checked;
   });
