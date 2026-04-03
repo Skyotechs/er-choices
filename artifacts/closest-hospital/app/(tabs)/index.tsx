@@ -44,12 +44,31 @@ export default function HomeScreen() {
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
   const [navSheetVisible, setNavSheetVisible] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(15);
 
   useEffect(() => {
     if (!isLoading && !location) {
       requestLocationPermission();
     }
   }, []);
+
+  useEffect(() => {
+    if (!serverError) {
+      setRetryCountdown(15);
+      return;
+    }
+    setRetryCountdown(15);
+    const interval = setInterval(() => {
+      setRetryCountdown((c) => {
+        if (c <= 1) {
+          refresh();
+          return 15;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [serverError, refresh]);
 
   const handleHospitalPress = useCallback((hospital: Hospital) => {
     setSelectedHospital(hospital);
@@ -86,10 +105,10 @@ export default function HomeScreen() {
       >
         <EmptyState
           icon="wifi-slash"
-          title="Navigation Server Down"
-          description="The navigation server is currently down. Please try again later."
-          actionLabel="Retry"
-          onAction={refresh}
+          title="Server Updating"
+          description={`The server is being updated. Retrying in ${retryCountdown}s...`}
+          actionLabel="Retry Now"
+          onAction={() => { setRetryCountdown(15); refresh(); }}
         />
       </View>
     );
