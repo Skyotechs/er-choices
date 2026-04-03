@@ -825,6 +825,7 @@ function renderHospResults() {
   }
   results.innerHTML = hospSearchResults.map((h, i) => {
     const badge = h.hasAdminOverride ? '<span class="hosp-override-badge">Admin Override</span>' : '';
+    const idLabel = h.osmId || ('CMS: ' + h.cmsId);
     const coordStr = (h.latitude != null && h.longitude != null)
       ? \`\${Number(h.latitude).toFixed(5)}, \${Number(h.longitude).toFixed(5)}\`
       : 'No coordinates';
@@ -832,7 +833,7 @@ function renderHospResults() {
     return \`<div class="hosp-result-item" id="hosp-item-\${i}" onclick="selectHospital(\${i})">
       <div>
         <div class="hosp-result-name">\${escHtml(h.name)}</div>
-        <div class="hosp-result-meta">\${escHtml(h.osmId)} &nbsp;·&nbsp; \${escHtml(phoneStr)} &nbsp;·&nbsp; \${escHtml(coordStr)}</div>
+        <div class="hosp-result-meta">\${escHtml(idLabel)} &nbsp;·&nbsp; \${escHtml(phoneStr)} &nbsp;·&nbsp; \${escHtml(coordStr)}</div>
       </div>
       \${badge}
     </div>\`;
@@ -851,12 +852,19 @@ function renderHospEditForm() {
   const panel = document.getElementById('hosp-edit-panel');
   if (!selectedHosp) { panel.innerHTML = ''; return; }
   const h = selectedHosp;
+  const isCmsOnly = !h.osmId;
+  const phoneHint = isCmsOnly
+    ? 'Saved directly to CMS record. Leave blank to clear.'
+    : 'Leave blank to clear the override and fall back to CMS data.';
+  const coordHint = isCmsOnly
+    ? 'Saved directly to CMS record. Leave blank to clear.'
+    : 'Leave blank to clear the coordinate override.';
   panel.innerHTML = \`<div class="hosp-edit-form">
     <h4>Editing: \${escHtml(h.name)}</h4>
     <div class="form-row">
       <label>Phone Number</label>
       <input type="text" id="edit-phone" value="\${escAttr(h.phone || '')}" placeholder="+1 (555) 000-0000" />
-      <div class="form-hint">Leave blank to clear the override and fall back to OSM data.</div>
+      <div class="form-hint">\${phoneHint}</div>
     </div>
     <div class="form-row">
       <label>Latitude</label>
@@ -865,7 +873,7 @@ function renderHospEditForm() {
     <div class="form-row">
       <label>Longitude</label>
       <input type="number" id="edit-lon" step="any" value="\${h.longitude != null ? h.longitude : ''}" placeholder="e.g. -122.41942" />
-      <div class="form-hint">Leave latitude or longitude blank to clear the coordinate override.</div>
+      <div class="form-hint">\${coordHint}</div>
     </div>
     <div class="form-actions">
       <button class="btn-save-hosp" id="hosp-save-btn" onclick="saveHospitalOverride()">Save Changes</button>
@@ -893,7 +901,10 @@ async function saveHospitalOverride() {
   };
 
   try {
-    const res = await fetch(\`/api/admin/hospitals/\${encodeURIComponent(selectedHosp.osmId)}\`, {
+    const url = selectedHosp.osmId
+      ? \`/api/admin/hospitals/\${encodeURIComponent(selectedHosp.osmId)}\`
+      : \`/api/admin/hospitals/cms/\${encodeURIComponent(selectedHosp.cmsId)}\`;
+    const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secret },
       body: JSON.stringify(body),
@@ -906,8 +917,9 @@ async function saveHospitalOverride() {
     selectedHosp.phone = data.phone;
     selectedHosp.latitude = data.latitude;
     selectedHosp.longitude = data.longitude;
-    selectedHosp.hasAdminOverride = true;
-    const idx = hospSearchResults.findIndex(h => h.osmId === selectedHosp.osmId);
+    selectedHosp.hasAdminOverride = !!selectedHosp.osmId;
+    const key = selectedHosp.osmId || selectedHosp.cmsId;
+    const idx = hospSearchResults.findIndex(h => (h.osmId || h.cmsId) === key);
     if (idx !== -1) hospSearchResults[idx] = { ...selectedHosp };
     renderHospResults();
     selectHospital(idx !== -1 ? idx : 0);

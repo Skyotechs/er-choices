@@ -63,8 +63,10 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   try {
     const rows = await db
       .select({
+        cmsId: hospitalSpecialties.cmsId,
         osmId: hospitalSpecialties.osmId,
         hospitalName: hospitalSpecialties.hospitalName,
+        cmsPhone: hospitalSpecialties.phone,
         latitude: hospitalSpecialties.latitude,
         longitude: hospitalSpecialties.longitude,
       })
@@ -72,47 +74,42 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
       .where(ilike(hospitalSpecialties.hospitalName, `%${q}%`))
       .limit(50);
 
-    // Normalise osmIds and deduplicate, keeping first occurrence
-    const seenOsmIds = new Set<string>();
+    // Normalise osmIds; keep all hospitals (OSM-matched and CMS-only)
+    const seenKeys = new Set<string>();
     const unique = rows
-      .filter((r) => !!r.osmId)
-      .map((r) => ({ ...r, osmId: normaliseOsmId(r.osmId as string) }))
+      .map((r) => ({
+        ...r,
+        osmId: r.osmId ? normaliseOsmId(r.osmId) : null,
+      }))
       .filter((r) => {
-        if (seenOsmIds.has(r.osmId)) return false;
-        seenOsmIds.add(r.osmId);
+        const key = r.osmId ?? r.cmsId;
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
         return true;
       });
 
-    const osmIds = unique.map((r) => r.osmId);
-
-    // Fetch all overrides for these osmIds in one query
+    // Fetch overrides for OSM-matched hospitals
+    const osmIds = unique.map((r) => r.osmId).filter((id): id is string => !!id);
     const allOverrides = osmIds.length > 0
       ? await Promise.all(
           osmIds.map((id) =>
-            db
-              .select()
-              .from(hospitalOverrides)
-              .where(eq(hospitalOverrides.osmId, id))
-              .limit(1)
+            db.select().from(hospitalOverrides).where(eq(hospitalOverrides.osmId, id)).limit(1)
           )
         ).then((results) => results.flat())
       : [];
 
     const overrideMap: Record<string, { phone: string | null; latitude: number | null; longitude: number | null }> = {};
     for (const o of allOverrides) {
-      overrideMap[o.osmId] = {
-        phone: o.phone ?? null,
-        latitude: o.latitude ?? null,
-        longitude: o.longitude ?? null,
-      };
+      overrideMap[o.osmId] = { phone: o.phone ?? null, latitude: o.latitude ?? null, longitude: o.longitude ?? null };
     }
 
     const merged = unique.slice(0, 20).map((r) => {
-      const override = overrideMap[r.osmId as string];
+      const override = r.osmId ? overrideMap[r.osmId] : undefined;
       return {
-        osmId: r.osmId,
+        cmsId: r.cmsId,
+        osmId: r.osmId ?? null,
         name: r.hospitalName,
-        phone: override?.phone ?? null,
+        phone: override?.phone ?? r.cmsPhone ?? null,
         latitude: override?.latitude ?? r.latitude ?? null,
         longitude: override?.longitude ?? r.longitude ?? null,
         hasAdminOverride: !!override,
@@ -209,6 +206,79 @@ router.patch("/admin/hospitals/:osmId", requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("PATCH /api/admin/hospitals error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/admin/hospitals/cms/:cmsId
+ * Updates phone, latitude, and longitude directly on hospitalSpecialties for CMS-only hospitals
+ * (hospitals with no OSM match). Any field included in the body will be saved (null clears it).
+ */
+router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
+  const cmsId = decodeURIComponent(req.params.cmsId);
+  if (!cmsId) {
+    res.status(400).json({ error: "Invalid cmsId" });
+    return;
+  }
+
+  const body = req.body ?? {};
+  const hasPhone = "phone" in body;
+  const hasLat = "latitude" in body;
+  const hasLon = "longitude" in body;
+
+  if (!hasPhone && !hasLat && !hasLon) {
+    res.status(400).json({ error: "At least one of phone, latitude, or longitude must be provided" });
+    return;
+  }
+
+  if (hasPhone && body.phone !== null && typeof body.phone !== "string") {
+    res.status(400).json({ error: "phone must be a string or null" });
+    return;
+  }
+  if (hasLat && body.latitude !== null && typeof body.latitude !== "number") {
+    res.status(400).json({ error: "latitude must be a number or null" });
+    return;
+  }
+  if (hasLon && body.longitude !== null && typeof body.longitude !== "number") {
+    res.status(400).json({ error: "longitude must be a number or null" });
+    return;
+  }
+
+  try {
+    const existing = await db
+      .select()
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.cmsId, cmsId))
+      .limit(1);
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Hospital not found" });
+      return;
+    }
+
+    const updateValues: Partial<{ phone: string | null; latitude: string | null; longitude: string | null }> = {};
+    if (hasPhone) updateValues.phone = body.phone ?? null;
+    if (hasLat) updateValues.latitude = body.latitude != null ? String(body.latitude) : null;
+    if (hasLon) updateValues.longitude = body.longitude != null ? String(body.longitude) : null;
+
+    await db.update(hospitalSpecialties).set(updateValues).where(eq(hospitalSpecialties.cmsId, cmsId));
+
+    const [saved] = await db
+      .select()
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.cmsId, cmsId))
+      .limit(1);
+
+    res.json({
+      success: true,
+      cmsId,
+      phone: saved.phone ?? null,
+      latitude: saved.latitude != null ? Number(saved.latitude) : null,
+      longitude: saved.longitude != null ? Number(saved.longitude) : null,
+    });
+  } catch (err) {
+    console.error("PATCH /api/admin/hospitals/cms error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
