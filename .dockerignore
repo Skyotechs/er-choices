@@ -1,0 +1,15 @@
+**/node_modules
+**/.pnpm-store
+**/dist
+**/.cache
+**/.turbo
+**/*.log
+.git
+.gitignore
+.replit
+replit.nix
+.local
+attached_assets
+artifacts/closest-hospital
+artifacts/er-choices-web
+artifacts/mockup-sandbox
