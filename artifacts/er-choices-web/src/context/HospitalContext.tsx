@@ -7,7 +7,9 @@ import {
   NavigationServerError,
 } from "@/services/hospitalService";
 
-const API_BASE = `${window.location.origin}/api`;
+const API_BASE = import.meta.env.VITE_API_BASE
+  ? import.meta.env.VITE_API_BASE.replace(/\/$/, "")
+  : `${window.location.origin}/api`;
 
 interface LocationCoords {
   latitude: number;
