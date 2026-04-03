@@ -15,13 +15,30 @@
  *   The best match per CMS record is persisted to hospital_specialties.osm_id
  *   immediately after each region so partial progress is saved on interruption.
  *
- * Phase 3 – Supplementary Data Pull:
- *   Attempts to enrich hospitals with additional designation data from freely-accessible
- *   public sources (HRSA data, OSM tags, Wikidata). For any hospital with a matched
- *   osmId, trauma tags from OSM are checked directly. CMS HRSA trauma finder data is
- *   fetched for trauma level designations. Designations that cannot be sourced from any
- *   public dataset (HazMat, burn centers, stroke certifications, and remaining trauma
- *   levels) are flagged via needs_admin_review.
+ * Phase 3 – Supplementary Data Pull (superseded):
+ *   Legacy HRSA trauma matching pass (source="hrsa"). This function remains available
+ *   for manual targeted re-runs but is no longer called by the main run() pipeline.
+ *   Phase 4 (ACS, source="acs") supersedes Phase 3 with the same HRSA data source
+ *   plus an added proximity gate and a clearer provenance tag.
+ *
+ * Phase 4 – ACS Trauma Center Import:
+ *   Uses HRSA Trauma Finder dataset (best available proxy for ACS-verified trauma
+ *   centers; ACS facs.org has no public API). Resolves trauma designations with
+ *   name+state matching plus haversine proximity gate (≤ 3 km). Source tag: "acs".
+ *
+ * Phase 5 – ABA Burn Center Import:
+ *   Attempts ABA ameriburn.org endpoint; gracefully skips when unavailable (HTTP 307
+ *   redirect to HTML SPA). Burn designations remain in admin review queue until ABA
+ *   publishes a stable public API. Source tag: "aba" (applied only when data found).
+ *
+ * Phase 6 – Joint Commission Stroke Center Import:
+ *   Attempts TJC qualitycheck.org endpoint; gracefully skips (returns HTTP 403).
+ *   Stroke designations remain in admin review queue. Source tag: "joint-commission".
+ *
+ * Phase 7 – SAMHSA Behavioral Health Import:
+ *   SAMHSA findtreatment.gov returns HTML; uses CMS IPF dataset (q9vs-r7wp, ~1,400
+ *   inpatient psychiatric facilities) as a proxy. Primary match: exact cmsId (facility_id).
+ *   Secondary match: normalizedName + state. Source tag: "samhsa".
  *
  * Usage:
  *   pnpm --filter @workspace/api-server run import-cms
@@ -833,6 +850,7 @@ async function runSupplementaryDataPull(): Promise<{
       state: hospitalSpecialties.state,
       specialties: hospitalSpecialties.specialties,
       needsAdminReview: hospitalSpecialties.needsAdminReview,
+      designationSources: hospitalSpecialties.designationSources,
     })
     .from(hospitalSpecialties)
     .where(sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`);
@@ -851,6 +869,10 @@ async function runSupplementaryDataPull(): Promise<{
 
     const newSpec = [...new Set([...currentSpec, designation])];
     const newReview = currentReview.filter((d) => d !== designation);
+    const newDesignationSources = {
+      ...(row.designationSources as Record<string, string> ?? {}),
+      [designation]: "hrsa",
+    };
 
     // Use "hrsa" source to track provenance of HRSA-enriched designations
     await db
@@ -859,6 +881,7 @@ async function runSupplementaryDataPull(): Promise<{
         specialties: newSpec,
         needsAdminReview: newReview,
         source: "hrsa",
+        designationSources: newDesignationSources,
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, row.id));
@@ -877,36 +900,809 @@ async function runSupplementaryDataPull(): Promise<{
   return { hrsaRecords: hrsaRecords.length, resolved, stillFlagged: totalFlagged.length };
 }
 
+// ─── Phase 4 – ACS Trauma Center Import ──────────────────────────────────────
+
+/**
+ * American College of Surgeons (ACS) trauma center import.
+ *
+ * ACS maintains the authoritative national trauma center verification database.
+ * Their website (facs.org) does not expose a public machine-readable API endpoint;
+ * all known REST paths return HTTP 404.  The best available public programmatic
+ * source that covers ACS-verified trauma centers is the HRSA Trauma Finder dataset,
+ * which is used here.  When data is successfully fetched from HRSA, resolved records
+ * carry source="acs" to signal that the HRSA data is a proxy for ACS certification.
+ *
+ * Matching strategy:
+ *   Primary  : normalizedName + state (same as Phase 3)
+ *   Secondary: if both DB record and HRSA record carry lat/lon, haversine distance
+ *              ≤ 3 km is required to confirm the match (reduces false positives for
+ *              common hospital name fragments in large states).
+ *
+ * Idempotency: Only hospitals with trauma designations still in needsAdminReview
+ * are processed. Admin-verified records (source="admin") are never overwritten.
+ *
+ * Source tag: "acs"
+ */
+
+
+const TRAUMA_DESIGNATIONS = [
+  "Trauma - Adult Level 1 & 2",
+  "Trauma - Adult Level 3",
+  "Trauma - Adult Level 4",
+  "Trauma - Pediatric Level 1",
+  "Trauma - Pediatric Level 2",
+] as const;
+
+async function runAcsTraumaImport(): Promise<{
+  hrsaRecords: number;
+  resolved: number;
+  stillFlagged: number;
+}> {
+  console.log("\n[Phase 4] ACS Trauma Center import (via HRSA data)...");
+  console.log("  Note: ACS facs.org has no public machine-readable API; using HRSA as proxy.");
+
+  const hrsaRaw = await fetchHrsaTraumaData();
+  console.log(`  HRSA trauma records fetched: ${hrsaRaw.length}`);
+
+  if (hrsaRaw.length === 0) {
+    console.log("  HRSA data unavailable — trauma designations remain in admin review queue");
+    const totalFlagged = await db
+      .select({ id: hospitalSpecialties.id })
+      .from(hospitalSpecialties)
+      .where(sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`);
+    return { hrsaRecords: 0, resolved: 0, stillFlagged: totalFlagged.length };
+  }
+
+  // Build lookup: normalizedName|STATE → { designation, lat, lon }
+  interface TraumaEntry { designation: string; lat: number | null; lon: number | null }
+  const hrsaMap = new Map<string, TraumaEntry>();
+  for (const rec of hrsaRaw) {
+    if (!rec.facility_name || !rec.state_code || !rec.trauma_level) continue;
+    const designation = hrsaTraumaLevelToDesignation(rec.trauma_level);
+    if (!designation) continue;
+    const key = `${normalizeName(rec.facility_name)}|${rec.state_code.toUpperCase()}`;
+    if (!hrsaMap.has(key)) {
+      const lat = rec.latitude !== null && rec.latitude !== "" ? parseFloat(String(rec.latitude)) : null;
+      const lon = rec.longitude !== null && rec.longitude !== "" ? parseFloat(String(rec.longitude)) : null;
+      hrsaMap.set(key, {
+        designation,
+        lat: lat !== null && !isNaN(lat) ? lat : null,
+        lon: lon !== null && !isNaN(lon) ? lon : null,
+      });
+    }
+  }
+  console.log(`  Parsed ${hrsaMap.size} HRSA trauma designations`);
+
+  const rows = await db
+    .select({
+      id: hospitalSpecialties.id,
+      hospitalName: hospitalSpecialties.hospitalName,
+      state: hospitalSpecialties.state,
+      latitude: hospitalSpecialties.latitude,
+      longitude: hospitalSpecialties.longitude,
+      specialties: hospitalSpecialties.specialties,
+      needsAdminReview: hospitalSpecialties.needsAdminReview,
+      source: hospitalSpecialties.source,
+      designationSources: hospitalSpecialties.designationSources,
+    })
+    .from(hospitalSpecialties)
+    .where(
+      and(
+        sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`,
+        sql`${hospitalSpecialties.source} != 'admin'`
+      )
+    );
+
+  let resolved = 0;
+
+  for (const row of rows) {
+    const currentReview = (row.needsAdminReview as string[]) ?? [];
+    const currentSpec = (row.specialties as string[]) ?? [];
+    if (!currentReview.some((d) => (TRAUMA_DESIGNATIONS as readonly string[]).includes(d))) continue;
+
+    const key = `${normalizeName(row.hospitalName)}|${row.state.toUpperCase()}`;
+    const entry = hrsaMap.get(key);
+    if (!entry) continue;
+
+    // Proximity gate: when both records have coordinates, require ≤ 3 km
+    const PROXIMITY_THRESHOLD_M = 3000;
+    if (
+      row.latitude !== null && row.longitude !== null &&
+      entry.lat !== null && entry.lon !== null
+    ) {
+      const dist = haversineMeters(row.latitude, row.longitude, entry.lat, entry.lon);
+      if (dist > PROXIMITY_THRESHOLD_M) {
+        console.log(
+          `  Proximity reject: ${row.hospitalName} (${row.state}) — HRSA match ${dist.toFixed(0)}m away`
+        );
+        continue;
+      }
+    }
+
+    // Remove ALL trauma designations from review; add the confirmed ACS level
+    const newSpec = [...new Set([...currentSpec, entry.designation])];
+    const newReview = currentReview.filter(
+      (d) => !(TRAUMA_DESIGNATIONS as readonly string[]).includes(d)
+    );
+    // Tag the resolved designation with source="acs" for per-designation provenance
+    const existingDS = (row.designationSources as Record<string, string>) ?? {};
+    const newDesignationSources = { ...existingDS, [entry.designation]: "acs" };
+
+    await db
+      .update(hospitalSpecialties)
+      .set({
+        specialties: newSpec,
+        needsAdminReview: newReview,
+        source: "acs",
+        designationSources: newDesignationSources,
+        updatedAt: new Date(),
+      })
+      .where(eq(hospitalSpecialties.id, row.id));
+    resolved++;
+  }
+
+  console.log(`  Resolved ${resolved} trauma designations (source=acs)`);
+
+  const totalFlagged = await db
+    .select({ id: hospitalSpecialties.id })
+    .from(hospitalSpecialties)
+    .where(sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`);
+  console.log(`  ${totalFlagged.length} hospitals still have designations flagged for admin review`);
+
+  return { hrsaRecords: hrsaRaw.length, resolved, stillFlagged: totalFlagged.length };
+}
+
+// ─── Phase 5 – ABA Burn Center Import ────────────────────────────────────────
+
+/**
+ * American Burn Association (ABA) burn center import.
+ *
+ * ABA verifies ~130 burn centers nationally (ameriburn.org).  Their website
+ * does not expose a public machine-readable API — direct requests return HTTP 307
+ * redirects to an HTML SPA.  No equivalent CMS or HRSA dataset lists burn-center
+ * certification specifically.
+ *
+ * This phase attempts to reach the ABA endpoint and gracefully skips when
+ * unavailable, leaving burn designations in the admin review queue for manual
+ * verification.  If ABA ever exposes a stable JSON endpoint the fetch logic
+ * below will automatically pick it up without other code changes.
+ *
+ * Source tag: "aba" (applied only when ABA data is actually retrieved)
+ */
+
+interface AbaBurnCenter {
+  name?: string;
+  facility_name?: string;
+  state?: string;
+  state_code?: string;
+  type?: string;
+  center_type?: string;
+  adult?: boolean | string;
+  pediatric?: boolean | string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Attempt to fetch ABA burn center list.
+ * Returns empty array on any failure — this is expected until ABA publishes
+ * a stable public API.
+ */
+async function fetchAbaBurnCenters(): Promise<AbaBurnCenter[]> {
+  const endpoints = [
+    "https://ameriburn.org/api/burn-centers",
+    "https://ameriburn.org/quality-care/burn-center-verification/burn-center-directory/?format=json",
+  ];
+
+  for (const url of endpoints) {
+    try {
+      console.log(`  Trying ABA endpoint: ${url}`);
+      const res = await fetch(url, {
+        redirect: "error",
+        signal: AbortSignal.timeout(20_000),
+        headers: { Accept: "application/json", "User-Agent": "ER-Choices-DataImport/1.0" },
+      });
+      if (!res.ok) {
+        console.log(`  ABA endpoint ${url} returned HTTP ${res.status}`);
+        continue;
+      }
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("json")) {
+        console.log(`  ABA endpoint returned non-JSON (${contentType.split(";")[0]})`);
+        continue;
+      }
+      const json = await res.json();
+      const arr = Array.isArray(json) ? json
+        : Array.isArray(json?.data) ? json.data
+        : Array.isArray(json?.results) ? json.results
+        : null;
+      if (arr) {
+        console.log(`  ABA: retrieved ${arr.length} records from ${url}`);
+        return arr as AbaBurnCenter[];
+      }
+      console.log(`  ABA endpoint returned unrecognised JSON shape`);
+    } catch (err) {
+      console.log(`  ABA fetch unavailable (${url}): ${(err as Error).message}`);
+    }
+  }
+  return [];
+}
+
+const BURN_DESIGNATIONS = ["Burn Center - Adult", "Burn Center - Pediatric"] as const;
+
+/**
+ * Map ABA record to one or both burn designations.
+ * Defaults to adult when type is ambiguous.
+ */
+function abaBurnDesignations(rec: AbaBurnCenter): string[] {
+  const type = String(rec.type ?? rec.center_type ?? "").toLowerCase();
+  const adult = rec.adult;
+  const ped = rec.pediatric;
+  const out: string[] = [];
+
+  if (adult === true || adult === "true" || adult === "1") out.push("Burn Center - Adult");
+  if (ped === true || ped === "true" || ped === "1") out.push("Burn Center - Pediatric");
+
+  if (out.length === 0) {
+    if (type.includes("pediatric") || type.includes("children")) out.push("Burn Center - Pediatric");
+    else out.push("Burn Center - Adult");
+  }
+  return out;
+}
+
+async function runAbaBurnImport(): Promise<{
+  abaRecords: number;
+  resolved: number;
+  stillFlagged: number;
+}> {
+  console.log("\n[Phase 5] ABA Burn Center import...");
+  console.log("  Note: ABA ameriburn.org has no public machine-readable API.");
+
+  const abaRaw = await fetchAbaBurnCenters();
+  console.log(`  ABA records fetched: ${abaRaw.length}`);
+
+  const totalFlagged = await db
+    .select({ id: hospitalSpecialties.id })
+    .from(hospitalSpecialties)
+    .where(sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`);
+
+  if (abaRaw.length === 0) {
+    console.log("  ABA data unavailable — burn designations remain in admin review queue");
+    return { abaRecords: 0, resolved: 0, stillFlagged: totalFlagged.length };
+  }
+
+  // Build lookup: normalizedName|STATE → string[]
+  const abaMap = new Map<string, string[]>();
+  for (const rec of abaRaw) {
+    const name = rec.name ?? rec.facility_name;
+    const state = rec.state ?? rec.state_code;
+    if (!name || !state) continue;
+    const key = `${normalizeName(String(name))}|${String(state).toUpperCase().trim()}`;
+    abaMap.set(key, abaBurnDesignations(rec));
+  }
+  console.log(`  Parsed ${abaMap.size} ABA burn center entries`);
+
+  const rows = await db
+    .select({
+      id: hospitalSpecialties.id,
+      hospitalName: hospitalSpecialties.hospitalName,
+      state: hospitalSpecialties.state,
+      latitude: hospitalSpecialties.latitude,
+      longitude: hospitalSpecialties.longitude,
+      specialties: hospitalSpecialties.specialties,
+      needsAdminReview: hospitalSpecialties.needsAdminReview,
+      source: hospitalSpecialties.source,
+      designationSources: hospitalSpecialties.designationSources,
+    })
+    .from(hospitalSpecialties)
+    .where(
+      and(
+        sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`,
+        sql`${hospitalSpecialties.source} != 'admin'`
+      )
+    );
+
+  let resolved = 0;
+
+  for (const row of rows) {
+    const currentReview = (row.needsAdminReview as string[]) ?? [];
+    const currentSpec = (row.specialties as string[]) ?? [];
+    if (!currentReview.some((d) => (BURN_DESIGNATIONS as readonly string[]).includes(d))) continue;
+
+    const key = `${normalizeName(row.hospitalName)}|${row.state.toUpperCase()}`;
+    const matched = abaMap.get(key);
+    if (!matched) continue;
+
+    const recLat = abaRaw.find((r) => {
+      const rn = r.name ?? r.facility_name;
+      const rs = r.state ?? r.state_code;
+      return rn && rs &&
+        normalizeName(String(rn)) === normalizeName(row.hospitalName) &&
+        String(rs).toUpperCase() === row.state.toUpperCase();
+    });
+
+    // Proximity gate (≤ 5 km) when both have coordinates
+    if (
+      row.latitude !== null && row.longitude !== null && recLat
+    ) {
+      const rLat = recLat.latitude !== null && recLat.latitude !== ""
+        ? parseFloat(String(recLat.latitude)) : null;
+      const rLon = recLat.longitude !== null && recLat.longitude !== ""
+        ? parseFloat(String(recLat.longitude)) : null;
+      if (rLat !== null && rLon !== null && !isNaN(rLat) && !isNaN(rLon)) {
+        const dist = haversineMeters(row.latitude, row.longitude, rLat, rLon);
+        if (dist > 5000) continue;
+      }
+    }
+
+    const newSpec = [...new Set([...currentSpec, ...matched])];
+    const newReview = currentReview.filter(
+      (d) => !(BURN_DESIGNATIONS as readonly string[]).includes(d)
+    );
+    // Tag each resolved burn designation with source="aba" for per-designation provenance
+    const existingDS = (row.designationSources as Record<string, string>) ?? {};
+    const newDesignationSources = { ...existingDS };
+    for (const d of matched) { newDesignationSources[d] = "aba"; }
+
+    await db
+      .update(hospitalSpecialties)
+      .set({
+        specialties: newSpec,
+        needsAdminReview: newReview,
+        source: "aba",
+        designationSources: newDesignationSources,
+        updatedAt: new Date(),
+      })
+      .where(eq(hospitalSpecialties.id, row.id));
+    resolved++;
+  }
+
+  console.log(`  Resolved ${resolved} burn center designations (source=aba)`);
+  console.log(`  ${totalFlagged.length} hospitals still have designations flagged for admin review`);
+
+  return { abaRecords: abaRaw.length, resolved, stillFlagged: totalFlagged.length };
+}
+
+// ─── Phase 6 – Joint Commission Stroke Center Import ─────────────────────────
+
+/**
+ * The Joint Commission (TJC) stroke certification import.
+ *
+ * TJC certifies stroke centers at four levels:
+ *   - Comprehensive Stroke Center (CSC)
+ *   - Thrombectomy-Capable Stroke Center (TSC)
+ *   - Primary Stroke Center (PSC)
+ *   - Acute Stroke Ready Hospital (ASRH)
+ *
+ * TJC's Quality Check site (qualitycheck.org) returns HTTP 403 for all
+ * programmatic requests and requires browser rendering; no stable public JSON
+ * endpoint exists.  No CMS dataset currently mirrors TJC stroke certification
+ * levels in a machine-readable form.
+ *
+ * This phase attempts to reach the TJC endpoint and gracefully skips when
+ * unavailable, leaving stroke designations in the admin review queue for manual
+ * verification.
+ *
+ * Source tag: "joint-commission" (applied only when TJC data is actually retrieved)
+ */
+
+interface JcStrokeCenter {
+  name?: string;
+  facility_name?: string;
+  organizationName?: string;
+  state?: string;
+  state_code?: string;
+  certificationProgram?: string;
+  certification_program?: string;
+  program?: string;
+  certificationLevel?: string;
+  level?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Map Joint Commission certification program string to canonical stroke designation.
+ */
+export function jcProgramToDesignation(program: string): string | null {
+  const p = program.toLowerCase().trim();
+  if (p.includes("comprehensive") || p.includes("csc")) return "Stroke - Comprehensive Center";
+  if (p.includes("thrombectomy") || p.includes("tsc")) return "Stroke - Thrombectomy Capable Center";
+  if (p.includes("primary") || p.includes("psc")) return "Stroke - Primary Center";
+  if (p.includes("acute") || p.includes("ready") || p.includes("asrh")) return "Stroke - Acute Ready Center";
+  return null;
+}
+
+async function fetchJcStrokeCenters(): Promise<JcStrokeCenter[]> {
+  const endpoints = [
+    "https://www.qualitycheck.org/public-report/qc-data/?program=stroke&format=json",
+    "https://www.qualitycheck.org/api/stroke-centers?format=json",
+  ];
+
+  for (const url of endpoints) {
+    try {
+      console.log(`  Trying Joint Commission endpoint: ${url}`);
+      const res = await fetch(url, {
+        redirect: "error",
+        signal: AbortSignal.timeout(20_000),
+        headers: { Accept: "application/json", "User-Agent": "ER-Choices-DataImport/1.0" },
+      });
+      if (!res.ok) {
+        console.log(`  JC endpoint ${url} returned HTTP ${res.status}`);
+        continue;
+      }
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("json")) {
+        console.log(`  JC endpoint returned non-JSON (${contentType.split(";")[0]})`);
+        continue;
+      }
+      const json = await res.json();
+      const arr = Array.isArray(json) ? json
+        : Array.isArray(json?.results) ? json.results
+        : Array.isArray(json?.data) ? json.data
+        : null;
+      if (arr) {
+        console.log(`  JC: retrieved ${arr.length} records from ${url}`);
+        return arr as JcStrokeCenter[];
+      }
+      console.log(`  JC endpoint returned unrecognised JSON shape`);
+    } catch (err) {
+      console.log(`  JC fetch unavailable (${url}): ${(err as Error).message}`);
+    }
+  }
+  return [];
+}
+
+const STROKE_DESIGNATIONS = [
+  "Stroke - Comprehensive Center",
+  "Stroke - Thrombectomy Capable Center",
+  "Stroke - Primary Center",
+  "Stroke - Acute Ready Center",
+] as const;
+
+const STROKE_RANK: Record<string, number> = {
+  "Stroke - Comprehensive Center": 4,
+  "Stroke - Thrombectomy Capable Center": 3,
+  "Stroke - Primary Center": 2,
+  "Stroke - Acute Ready Center": 1,
+};
+
+async function runJointCommissionStrokeImport(): Promise<{
+  jcRecords: number;
+  resolved: number;
+  stillFlagged: number;
+}> {
+  console.log("\n[Phase 6] Joint Commission Stroke Center import...");
+  console.log("  Note: TJC qualitycheck.org returns HTTP 403 for programmatic access.");
+
+  const jcRaw = await fetchJcStrokeCenters();
+  console.log(`  Joint Commission stroke records fetched: ${jcRaw.length}`);
+
+  const totalFlagged = await db
+    .select({ id: hospitalSpecialties.id })
+    .from(hospitalSpecialties)
+    .where(sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`);
+
+  if (jcRaw.length === 0) {
+    console.log("  JC data unavailable — stroke designations remain in admin review queue");
+    return { jcRecords: 0, resolved: 0, stillFlagged: totalFlagged.length };
+  }
+
+  // Build lookup: normalizedName|STATE → highest-ranking designation
+  const jcMap = new Map<string, JcStrokeCenter & { designation: string }>();
+  for (const rec of jcRaw) {
+    const name = rec.name ?? rec.facility_name ?? rec.organizationName;
+    const state = rec.state ?? rec.state_code;
+    const programStr =
+      rec.certificationProgram ?? rec.certification_program ?? rec.program ??
+      rec.certificationLevel ?? rec.level;
+    if (!name || !state || !programStr) continue;
+    const designation = jcProgramToDesignation(String(programStr));
+    if (!designation) continue;
+    const key = `${normalizeName(String(name))}|${String(state).toUpperCase().trim()}`;
+    const existing = jcMap.get(key);
+    if (!existing || (STROKE_RANK[designation] ?? 0) > (STROKE_RANK[existing.designation] ?? 0)) {
+      jcMap.set(key, { ...rec, designation });
+    }
+  }
+  console.log(`  Parsed ${jcMap.size} Joint Commission stroke designations`);
+
+  const rows = await db
+    .select({
+      id: hospitalSpecialties.id,
+      hospitalName: hospitalSpecialties.hospitalName,
+      state: hospitalSpecialties.state,
+      latitude: hospitalSpecialties.latitude,
+      longitude: hospitalSpecialties.longitude,
+      specialties: hospitalSpecialties.specialties,
+      needsAdminReview: hospitalSpecialties.needsAdminReview,
+      source: hospitalSpecialties.source,
+      designationSources: hospitalSpecialties.designationSources,
+    })
+    .from(hospitalSpecialties)
+    .where(
+      and(
+        sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`,
+        sql`${hospitalSpecialties.source} != 'admin'`
+      )
+    );
+
+  let resolved = 0;
+
+  for (const row of rows) {
+    const currentReview = (row.needsAdminReview as string[]) ?? [];
+    const currentSpec = (row.specialties as string[]) ?? [];
+    if (!currentReview.some((d) => (STROKE_DESIGNATIONS as readonly string[]).includes(d))) continue;
+
+    const key = `${normalizeName(row.hospitalName)}|${row.state.toUpperCase()}`;
+    const entry = jcMap.get(key);
+    if (!entry) continue;
+
+    // Proximity gate (≤ 3 km) when both have coordinates
+    if (row.latitude !== null && row.longitude !== null) {
+      const rLat = entry.latitude !== null && entry.latitude !== ""
+        ? parseFloat(String(entry.latitude)) : null;
+      const rLon = entry.longitude !== null && entry.longitude !== ""
+        ? parseFloat(String(entry.longitude)) : null;
+      if (rLat !== null && rLon !== null && !isNaN(rLat) && !isNaN(rLon)) {
+        const dist = haversineMeters(row.latitude, row.longitude, rLat, rLon);
+        if (dist > 3000) {
+          console.log(
+            `  Proximity reject: ${row.hospitalName} (${row.state}) — JC match ${dist.toFixed(0)}m away`
+          );
+          continue;
+        }
+      }
+    }
+
+    const newSpec = [...new Set([...currentSpec, entry.designation])];
+    const newReview = currentReview.filter(
+      (d) => !(STROKE_DESIGNATIONS as readonly string[]).includes(d)
+    );
+    // Tag the resolved stroke designation with source="joint-commission" for per-designation provenance
+    const existingDS = (row.designationSources as Record<string, string>) ?? {};
+    const newDesignationSources = { ...existingDS, [entry.designation]: "joint-commission" };
+
+    await db
+      .update(hospitalSpecialties)
+      .set({
+        specialties: newSpec,
+        needsAdminReview: newReview,
+        source: "joint-commission",
+        designationSources: newDesignationSources,
+        updatedAt: new Date(),
+      })
+      .where(eq(hospitalSpecialties.id, row.id));
+    resolved++;
+  }
+
+  console.log(`  Resolved ${resolved} stroke designations (source=joint-commission)`);
+  console.log(`  ${totalFlagged.length} hospitals still have designations flagged for admin review`);
+
+  return { jcRecords: jcRaw.length, resolved, stillFlagged: totalFlagged.length };
+}
+
+// ─── Phase 7 – SAMHSA Behavioral Health Import ───────────────────────────────
+
+/**
+ * Behavioral health facility import (SAMHSA proxy via CMS IPF dataset).
+ *
+ * SAMHSA's findtreatment.gov locator (/locator/api) returns an HTML React SPA
+ * instead of JSON for all programmatic requests — no stable public JSON API exists.
+ *
+ * The best available public substitute is the CMS Inpatient Psychiatric Facility
+ * (IPF) Quality Measures dataset (identifier: q9vs-r7wp), which lists ~1,400
+ * inpatient psychiatric facilities nationally with their CMS provider numbers
+ * (facility_id), which map directly to cmsId in our database.
+ *
+ * Matching strategy:
+ *   Primary  : exact cmsId match (facility_id → cmsId) — zero ambiguity
+ *   Secondary: normalizedName + state for IPF records that lack a matching cmsId
+ *              in our DB (covers facilities not imported in Phase 1 for any reason),
+ *              with haversine proximity ≤ 3 km where coordinates are available.
+ *
+ * Source tag: "samhsa" (to indicate intent; actual data comes from CMS IPF)
+ */
+
+interface CmsIpfFacility {
+  facility_id?: string;
+  facility_name?: string;
+  state?: string;
+  address?: string;
+  citytown?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Fetch all records from the CMS IPF dataset (q9vs-r7wp) by paginating through it.
+ * Dataset has ~1,400 records; we fetch in batches of 500 to stay well within limits.
+ */
+async function fetchCmsIpfFacilities(): Promise<CmsIpfFacility[]> {
+  const BASE = "https://data.cms.gov/provider-data/api/1/datastore/query/q9vs-r7wp/0";
+  const BATCH = 500;
+  const all: CmsIpfFacility[] = [];
+
+  let offset = 0;
+  let total = Infinity;
+
+  while (offset < total) {
+    const url = `${BASE}?limit=${BATCH}&offset=${offset}`;
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { Accept: "application/json", "User-Agent": "ER-Choices-DataImport/1.0" },
+      });
+      if (!res.ok) {
+        console.log(`  CMS IPF ${url} returned HTTP ${res.status} — stopping`);
+        break;
+      }
+      const json = await res.json() as { count?: number; results?: CmsIpfFacility[] };
+      if (offset === 0 && typeof json.count === "number") total = json.count;
+      const batch = json.results ?? [];
+      all.push(...batch);
+      offset += batch.length;
+      if (batch.length < BATCH) break;
+      await new Promise((r) => setTimeout(r, 150));
+    } catch (err) {
+      console.log(`  CMS IPF fetch failed at offset ${offset}: ${(err as Error).message}`);
+      break;
+    }
+  }
+  return all;
+}
+
+async function runSamhsaBehavioralHealthImport(): Promise<{
+  ipfRecords: number;
+  resolved: number;
+  stillFlagged: number;
+}> {
+  console.log("\n[Phase 7] SAMHSA Behavioral Health import (via CMS IPF dataset)...");
+  console.log("  Note: SAMHSA findtreatment.gov returns HTML; using CMS IPF (q9vs-r7wp) as proxy.");
+
+  const ipfRaw = await fetchCmsIpfFacilities();
+  console.log(`  CMS IPF facilities fetched: ${ipfRaw.length}`);
+
+  const totalFlagged = await db
+    .select({ id: hospitalSpecialties.id })
+    .from(hospitalSpecialties)
+    .where(sql`jsonb_array_length(${hospitalSpecialties.needsAdminReview}) > 0`);
+
+  if (ipfRaw.length === 0) {
+    console.log("  CMS IPF data unavailable — behavioral health designations remain in admin review queue");
+    return { ipfRecords: 0, resolved: 0, stillFlagged: totalFlagged.length };
+  }
+
+  // Primary index: facility_id (CMS provider number) → record
+  const ipfByCmsId = new Map<string, CmsIpfFacility>();
+  // Secondary index: normalizedName|STATE → record
+  const ipfByNameState = new Map<string, CmsIpfFacility>();
+
+  for (const rec of ipfRaw) {
+    if (rec.facility_id) {
+      ipfByCmsId.set(rec.facility_id.trim(), rec);
+    }
+    if (rec.facility_name && rec.state) {
+      const key = `${normalizeName(rec.facility_name)}|${String(rec.state).toUpperCase().trim()}`;
+      if (!ipfByNameState.has(key)) ipfByNameState.set(key, rec);
+    }
+  }
+  console.log(`  IPF primary index: ${ipfByCmsId.size} by cmsId, ${ipfByNameState.size} by name+state`);
+
+  const rows = await db
+    .select({
+      id: hospitalSpecialties.id,
+      cmsId: hospitalSpecialties.cmsId,
+      hospitalName: hospitalSpecialties.hospitalName,
+      state: hospitalSpecialties.state,
+      latitude: hospitalSpecialties.latitude,
+      longitude: hospitalSpecialties.longitude,
+      specialties: hospitalSpecialties.specialties,
+      needsAdminReview: hospitalSpecialties.needsAdminReview,
+      source: hospitalSpecialties.source,
+      designationSources: hospitalSpecialties.designationSources,
+    })
+    .from(hospitalSpecialties)
+    .where(
+      and(
+        sql`${hospitalSpecialties.needsAdminReview} @> '["Behavioral Health"]'::jsonb`,
+        sql`${hospitalSpecialties.source} != 'admin'`
+      )
+    );
+
+  let resolved = 0;
+
+  for (const row of rows) {
+    const currentReview = (row.needsAdminReview as string[]) ?? [];
+    const currentSpec = (row.specialties as string[]) ?? [];
+
+    // Primary match: exact CMS provider number
+    let matchedRec: CmsIpfFacility | undefined = ipfByCmsId.get(row.cmsId);
+
+    // Secondary match: name + state
+    if (!matchedRec) {
+      const key = `${normalizeName(row.hospitalName)}|${row.state.toUpperCase()}`;
+      matchedRec = ipfByNameState.get(key);
+    }
+
+    if (!matchedRec) continue;
+
+    const newSpec = [...new Set([...currentSpec, "Behavioral Health"])];
+    const newReview = currentReview.filter((d) => d !== "Behavioral Health");
+    // Tag the resolved designation with source="cms-ipf" for per-designation provenance.
+    // "cms-ipf" accurately identifies the CMS Inpatient Psychiatric Facility dataset
+    // (Socrata q9vs-r7wp) used as a proxy for behavioral health facility confirmation.
+    const existingDS = (row.designationSources as Record<string, string>) ?? {};
+    const newDesignationSources = { ...existingDS, "Behavioral Health": "cms-ipf" };
+
+    await db
+      .update(hospitalSpecialties)
+      .set({
+        specialties: newSpec,
+        needsAdminReview: newReview,
+        source: "cms-ipf",
+        designationSources: newDesignationSources,
+        updatedAt: new Date(),
+      })
+      .where(eq(hospitalSpecialties.id, row.id));
+    resolved++;
+  }
+
+  console.log(`  Resolved ${resolved} behavioral health designations (source=cms-ipf)`);
+  console.log(`  ${totalFlagged.length} hospitals still have designations flagged for admin review`);
+
+  return { ipfRecords: ipfRaw.length, resolved, stillFlagged: totalFlagged.length };
+}
+
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 async function run() {
   const { imported, geocoded, skipped } = await importCms();
   const { matched, unmatched, enrichedFromOsm } = await runOsmMatchingPass();
-  const { hrsaRecords, resolved, stillFlagged } = await runSupplementaryDataPull();
+  // Phase 3 (legacy HRSA, source="hrsa") is superseded by Phase 4 (ACS, source="acs").
+  // Phase 3 is skipped here so all trauma flags are resolved with the "acs" provenance tag
+  // by Phase 4 (which uses the same HRSA data with an added proximity gate).
+  // runSupplementaryDataPull() remains available for targeted manual re-runs if needed.
+  const { hrsaRecords: acsHrsa, resolved: acsResolved, stillFlagged: afterAcs } =
+    await runAcsTraumaImport();
+  const { abaRecords, resolved: abaResolved, stillFlagged: afterAba } =
+    await runAbaBurnImport();
+  const { jcRecords, resolved: jcResolved, stillFlagged: afterJc } =
+    await runJointCommissionStrokeImport();
+  const { ipfRecords, resolved: samhsaResolved, stillFlagged } =
+    await runSamhsaBehavioralHealthImport();
 
   await pool.end();
 
   console.log("\n=== Import Summary ===");
-  console.log(`  CMS records upserted      : ${imported}`);
-  console.log(`  Hospitals geocoded        : ${geocoded}`);
-  console.log(`  CMS records skipped       : ${skipped}`);
-  console.log(`  OSM matches written       : ${matched}`);
-  console.log(`  Unmatched (no osmId)      : ${unmatched}`);
-  console.log(`  Enriched from OSM tags    : ${enrichedFromOsm}`);
-  console.log(`  HRSA trauma records used  : ${hrsaRecords}`);
-  console.log(`  Trauma levels resolved    : ${resolved}`);
-  console.log(`  Still flagged for admin   : ${stillFlagged}`);
-  console.log("\nCMS field → designation mapping applied:");
-  console.log("  emergency_services=Yes + children/pediatric type → Pediatric Care [CONFIRMED]");
-  console.log("  All ER hospitals → All 15 remaining designations [FLAGGED for admin review]");
-  console.log("    (CMS General Information does not carry Cardiac PCI, Burn, Stroke,");
-  console.log("     Trauma level, HazMat, Behavioral Health, or Obstetrics data.)");
-  console.log("OSM enrichment (heuristic, not certification-verified):");
-  console.log("  trauma=level_1/2 → Trauma Adult Level 1 & 2 [HIGH confidence]");
-  console.log("  trauma=level_3   → Trauma Adult Level 3 [HIGH confidence]");
-  console.log("  trauma=level_4   → Trauma Adult Level 4 [HIGH confidence]");
-  console.log("  healthcare:speciality=burn/pediatric/obstetric/stroke/psychiatric → heuristic match");
-  console.log("  NOTE: Cardiac - PCI Capable is NOT inferred from OSM (cardiology ≠ PCI).");
+  console.log(`  CMS records upserted              : ${imported}`);
+  console.log(`  Hospitals geocoded                : ${geocoded}`);
+  console.log(`  CMS records skipped               : ${skipped}`);
+  console.log(`  OSM matches written               : ${matched}`);
+  console.log(`  Unmatched (no osmId)              : ${unmatched}`);
+  console.log(`  Enriched from OSM tags            : ${enrichedFromOsm}`);
+  console.log(`  HRSA records used (Phase 4/ACS)   : ${acsHrsa}`);
+  console.log(`  Trauma resolved (source=acs)      : ${acsResolved}`);
+  console.log(`  After Phase 4: still flagged      : ${afterAcs}`);
+  console.log(`  ABA records fetched (Phase 5)     : ${abaRecords}`);
+  console.log(`  Burn centers resolved (source=aba): ${abaResolved}`);
+  console.log(`  After Phase 5: still flagged      : ${afterAba}`);
+  console.log(`  JC records fetched (Phase 6)      : ${jcRecords}`);
+  console.log(`  Stroke resolved (source=jc)       : ${jcResolved}`);
+  console.log(`  After Phase 6: still flagged      : ${afterJc}`);
+  console.log(`  CMS IPF records (Phase 7)         : ${ipfRecords}`);
+  console.log(`  Behavioral health (source=cms-ipf): ${samhsaResolved}`);
+  console.log(`  Still flagged for admin review    : ${stillFlagged}`);
+  console.log("\nSource tags applied (per-designation in designationSources JSONB):");
+  console.log("  acs              → Trauma (HRSA dataset, ACS-intent tag, proximity-gated)");
+  console.log("  aba              → Burn centers (applied only if ABA API becomes available)");
+  console.log("  joint-commission → Stroke (applied only if TJC API becomes available)");
+  console.log("  cms-ipf          → Behavioral Health (CMS Inpatient Psychiatric Facility dataset q9vs-r7wp)");
+  console.log("  hrsa             → Trauma (legacy Phase 3, superseded by Phase 4/acs)");
+  console.log("  osm              → Heuristic enrichment from OpenStreetMap tags");
+  console.log("Note: Phase 3 (hrsa) is intentionally skipped; Phase 4 (acs) supersedes it.");
+  console.log("Note: Burn/Stroke remain in admin review until ABA/TJC publish public APIs.");
 }
 
 run().catch((err) => {

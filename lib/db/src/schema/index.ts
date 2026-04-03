@@ -46,6 +46,14 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
   specialties: jsonb("specialties").notNull().default([]),
   emergencyServices: boolean("emergency_services").notNull().default(false),
   source: text("source").notNull().default("cms"),
+  /**
+   * Per-designation source provenance map.
+   * Keys are canonical designation strings; values are source tags.
+   * Example: { "Trauma - Adult Level 1 & 2": "acs", "Behavioral Health": "samhsa" }
+   * Updated incrementally as each import phase resolves new designations.
+   * A designation absent from this map was either not yet sourced or came from CMS.
+   */
+  designationSources: jsonb("designation_sources").notNull().default({}),
   verified: boolean("verified").notNull().default(true),
   needsAdminReview: jsonb("needs_admin_review").notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

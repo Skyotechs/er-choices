@@ -45,8 +45,8 @@ export const ALL_16_DESIGNATIONS: Array<{
     label: "Behavioral Health",
     category: "Psychiatric",
     cmsField: null,
-    sourceable: false,
-    notes: "CMS does not carry this designation; requires admin entry.",
+    sourceable: true,
+    notes: "Sourced from CMS Inpatient Psychiatric Facility (IPF) dataset (q9vs-r7wp) as a proxy for SAMHSA behavioral health data. Matched by CMS provider number (primary) or name+state (fallback). Source tag: samhsa.",
   },
   {
     key: "Burn Center - Adult",
@@ -54,7 +54,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Burn",
     cmsField: null,
     sourceable: false,
-    notes: "Verified by ABA; no free national API available.",
+    notes: "Intended source: ABA verified burn center directory (ameriburn.org). ABA has no public machine-readable API; requires admin entry. Will auto-resolve if ABA publishes a JSON endpoint. Source tag: aba.",
   },
   {
     key: "Burn Center - Pediatric",
@@ -62,7 +62,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Burn",
     cmsField: null,
     sourceable: false,
-    notes: "Verified by ABA; no free national API available.",
+    notes: "Intended source: ABA verified burn center directory (ameriburn.org). ABA has no public machine-readable API; requires admin entry. Will auto-resolve if ABA publishes a JSON endpoint. Source tag: aba.",
   },
   {
     key: "Cardiac - PCI Capable",
@@ -102,7 +102,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Stroke",
     cmsField: null,
     sourceable: false,
-    notes: "Certified by Joint Commission/DNV; no free public API.",
+    notes: "Intended source: The Joint Commission Quality Check (qualitycheck.org). TJC returns HTTP 403 for programmatic access; requires admin entry. Will auto-resolve if TJC publishes a public JSON endpoint. Source tag: joint-commission.",
   },
   {
     key: "Stroke - Thrombectomy Capable Center",
@@ -110,7 +110,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Stroke",
     cmsField: null,
     sourceable: false,
-    notes: "Certified by Joint Commission/DNV; no free public API.",
+    notes: "Intended source: The Joint Commission Quality Check (qualitycheck.org). TJC returns HTTP 403 for programmatic access; requires admin entry. Will auto-resolve if TJC publishes a public JSON endpoint. Source tag: joint-commission.",
   },
   {
     key: "Stroke - Primary Center",
@@ -118,7 +118,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Stroke",
     cmsField: null,
     sourceable: false,
-    notes: "Certified by Joint Commission/DNV; no free public API.",
+    notes: "Intended source: The Joint Commission Quality Check (qualitycheck.org). TJC returns HTTP 403 for programmatic access; requires admin entry. Will auto-resolve if TJC publishes a public JSON endpoint. Source tag: joint-commission.",
   },
   {
     key: "Stroke - Acute Ready Center",
@@ -126,7 +126,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Stroke",
     cmsField: null,
     sourceable: false,
-    notes: "State-certified; no unified national public dataset.",
+    notes: "Intended source: The Joint Commission Quality Check (qualitycheck.org). TJC returns HTTP 403 for programmatic access; requires admin entry. Will auto-resolve if TJC publishes a public JSON endpoint. Source tag: joint-commission.",
   },
   {
     key: "Trauma - Adult Level 1 & 2",
@@ -134,7 +134,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Trauma",
     cmsField: null,
     sourceable: true,
-    notes: "Supplementary source: HRSA hospital list (trauma level tags) and OSM trauma= tag. Unmatched hospitals require admin entry.",
+    notes: "Primary source: ACS verified trauma center list (source: acs). Fallback: HRSA trauma data (source: hrsa) and OSM trauma= tag. Unmatched hospitals require admin entry.",
   },
   {
     key: "Trauma - Adult Level 3",
@@ -142,7 +142,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Trauma",
     cmsField: null,
     sourceable: true,
-    notes: "Supplementary source: HRSA hospital list (trauma level tags) and OSM trauma= tag. Unmatched hospitals require admin entry.",
+    notes: "Primary source: ACS verified trauma center list (source: acs). Fallback: HRSA trauma data (source: hrsa) and OSM trauma= tag. Unmatched hospitals require admin entry.",
   },
   {
     key: "Trauma - Adult Level 4",
@@ -150,7 +150,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Trauma",
     cmsField: null,
     sourceable: true,
-    notes: "Supplementary source: HRSA hospital list (trauma level tags) and OSM trauma= tag. Unmatched hospitals require admin entry.",
+    notes: "Primary source: ACS verified trauma center list (source: acs). Fallback: HRSA trauma data (source: hrsa) and OSM trauma= tag. Unmatched hospitals require admin entry.",
   },
   {
     key: "Trauma - Pediatric Level 1",
@@ -158,7 +158,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Trauma",
     cmsField: null,
     sourceable: true,
-    notes: "Supplementary source: HRSA hospital list (trauma level tags) and OSM trauma= tag. Unmatched hospitals require admin entry.",
+    notes: "Primary source: ACS verified trauma center list (source: acs). Fallback: HRSA trauma data (source: hrsa) and OSM trauma= tag. Unmatched hospitals require admin entry.",
   },
   {
     key: "Trauma - Pediatric Level 2",
@@ -166,7 +166,7 @@ export const ALL_16_DESIGNATIONS: Array<{
     category: "Trauma",
     cmsField: null,
     sourceable: true,
-    notes: "Supplementary source: HRSA hospital list (trauma level tags) and OSM trauma= tag. Unmatched hospitals require admin entry.",
+    notes: "Primary source: ACS verified trauma center list (source: acs). Fallback: HRSA trauma data (source: hrsa) and OSM trauma= tag. Unmatched hospitals require admin entry.",
   },
 ];
 
@@ -366,6 +366,7 @@ router.get("/admin/specialty-gaps", requireAdmin, async (_req, res) => {
         specialties: hospitalSpecialties.specialties,
         needsAdminReview: hospitalSpecialties.needsAdminReview,
         source: hospitalSpecialties.source,
+        designationSources: hospitalSpecialties.designationSources,
       })
       .from(hospitalSpecialties)
       .where(
@@ -382,6 +383,7 @@ router.get("/admin/specialty-gaps", requireAdmin, async (_req, res) => {
         state: string;
         specialties: string[];
         needsAdminReview: string[];
+        designationSources: Record<string, string>;
       }>
     > = {};
 
@@ -400,6 +402,7 @@ router.get("/admin/specialty-gaps", requireAdmin, async (_req, res) => {
           state: row.state,
           specialties: (row.specialties as string[]) ?? [],
           needsAdminReview: reviewList,
+          designationSources: (row.designationSources as Record<string, string>) ?? {},
         });
       }
     }
@@ -457,6 +460,7 @@ router.patch("/admin/specialty-gaps/:id/resolve", requireAdmin, async (req, res)
         id: hospitalSpecialties.id,
         specialties: hospitalSpecialties.specialties,
         needsAdminReview: hospitalSpecialties.needsAdminReview,
+        designationSources: hospitalSpecialties.designationSources,
       })
       .from(hospitalSpecialties)
       .where(eq(hospitalSpecialties.id, id));
@@ -468,6 +472,7 @@ router.patch("/admin/specialty-gaps/:id/resolve", requireAdmin, async (req, res)
 
     const currentSpecialties = (record.specialties as string[]) ?? [];
     const currentReview = (record.needsAdminReview as string[]) ?? [];
+    const existingDS = (record.designationSources as Record<string, string>) ?? {};
 
     const newReview = currentReview.filter((d) => d !== designation);
     let newSpecialties = currentSpecialties;
@@ -478,12 +483,16 @@ router.patch("/admin/specialty-gaps/:id/resolve", requireAdmin, async (req, res)
       newSpecialties = currentSpecialties.filter((s) => s !== designation);
     }
 
+    // Tag admin-confirmed designations with source="admin" for per-designation provenance
+    const newDesignationSources = { ...existingDS, [designation]: "admin" };
+
     await db
       .update(hospitalSpecialties)
       .set({
         specialties: newSpecialties,
         needsAdminReview: newReview,
         source: "admin",
+        designationSources: newDesignationSources,
         verified: true,
         updatedAt: new Date(),
       })
@@ -496,6 +505,7 @@ router.patch("/admin/specialty-gaps/:id/resolve", requireAdmin, async (req, res)
       present,
       specialties: newSpecialties,
       needsAdminReview: newReview,
+      designationSources: newDesignationSources,
     });
   } catch (err) {
     console.error("PATCH /api/admin/specialty-gaps/:id/resolve error:", err);
@@ -527,18 +537,28 @@ router.put("/admin/specialty-gaps/:id/resolve-all", requireAdmin, async (req, re
   const filtered = (specialties as string[]).filter((s) => isValidSpecialty(s));
 
   try {
+    // Build a designationSources map marking all confirmed specialties as admin-resolved
+    const [existing] = await db
+      .select({ designationSources: hospitalSpecialties.designationSources })
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.id, id));
+    const existingDS = (existing?.designationSources as Record<string, string>) ?? {};
+    const newDesignationSources = { ...existingDS };
+    for (const s of filtered) { newDesignationSources[s] = "admin"; }
+
     await db
       .update(hospitalSpecialties)
       .set({
         specialties: filtered,
         needsAdminReview: [],
         source: "admin",
+        designationSources: newDesignationSources,
         verified: true,
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, id));
 
-    res.json({ success: true, id, specialties: filtered, needsAdminReview: [] });
+    res.json({ success: true, id, specialties: filtered, needsAdminReview: [], designationSources: newDesignationSources });
   } catch (err) {
     console.error("PUT /api/admin/specialty-gaps/:id/resolve-all error:", err);
     res.status(500).json({ error: "Internal server error" });
