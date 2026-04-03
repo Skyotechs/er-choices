@@ -28,7 +28,7 @@ In the API service's **Variables** tab, add the following:
 | `NODE_ENV` | `production` | Enables production logging |
 | `ADMIN_SECRET` | *(set a strong unique value)* | Protects the admin dashboard |
 | `SESSION_SECRET` | *(a long random string)* | Used for cookie session signing |
-| `CORS_ORIGINS` | `https://erchoice.replit.app,https://YOUR_CUSTOM_DOMAIN` | Comma-separated list of allowed origins — no trailing slashes. Update if you add more domains. |
+| `CORS_ORIGINS` | `https://erchoices.com,https://erchoice.replit.app` | Comma-separated list of allowed origins — no trailing slashes. Update if you add more domains. |
 
 > **Do NOT set `DATABASE_URL` or `PORT`** — Railway injects both automatically.
 
