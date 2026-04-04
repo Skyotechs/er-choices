@@ -9,6 +9,36 @@ export type HospitalCategory =
   | "Cardiac"
   | "Cancer";
 
+/**
+ * Designation-based filter derived from the enriched HIFLD database fields:
+ * actualDesignation, serviceLine, strokeDesignation, burnDesignation, pciCapability.
+ * These replace the legacy HospitalCategory enum for the slide filter UI.
+ */
+export type DesignationFilter =
+  | "All"
+  | "Trauma I"
+  | "Trauma II"
+  | "Trauma III"
+  | "Trauma IV"
+  | "Stroke"
+  | "Burn"
+  | "PCI/STEMI"
+  | "Critical Access"
+  | "Psychiatric";
+
+export const DESIGNATION_FILTERS: DesignationFilter[] = [
+  "All",
+  "Trauma I",
+  "Trauma II",
+  "Trauma III",
+  "Trauma IV",
+  "Stroke",
+  "Burn",
+  "PCI/STEMI",
+  "Critical Access",
+  "Psychiatric",
+];
+
 export interface Hospital {
   id: string;
   name: string;

@@ -7,12 +7,13 @@ import React, {
   useRef,
 } from "react";
 import { Platform } from "react-native";
-import { Hospital, HospitalCategory, CATEGORIES } from "@/types/hospital";
+import { Hospital, HospitalCategory, DesignationFilter, DESIGNATION_FILTERS } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
   fetchVerifiedSpecialtyMap,
   fetchHospitalOverrides,
   filterAndSortHospitals,
+  matchesDesignationFilter,
   NavigationServerError,
   type HospitalOverride,
 } from "@/services/hospitalService";
@@ -33,13 +34,13 @@ interface HospitalContextValue {
   serverError: boolean;
   allHospitals: Hospital[];
   filteredHospitals: Hospital[];
-  selectedCategory: HospitalCategory;
-  availableCategories: HospitalCategory[];
+  selectedFilter: DesignationFilter;
+  availableFilters: DesignationFilter[];
   isLoading: boolean;
   isRefreshing: boolean;
   requestLocationPermission: () => Promise<void>;
   refresh: () => Promise<void>;
-  setCategory: (category: HospitalCategory) => void;
+  setFilter: (filter: DesignationFilter) => void;
 }
 
 const HospitalContext = createContext<HospitalContextValue | null>(null);
@@ -80,21 +81,17 @@ async function requestPermissionNative(): Promise<PermStatus> {
 }
 
 /**
- * Derive which categories have at least one verified hospital in the list.
- * "All" is always available. A category is available only if at least one
- * hospital in the list has a non-empty `verifiedSpecialties` array that
- * includes that category.
+ * Derive which designation filters are applicable to the current hospital list.
+ * "All" is always first. A filter is included only if at least one nearby
+ * hospital matches it, so the chip bar only shows relevant options.
  */
-function computeAvailableCategories(hospitals: Hospital[]): HospitalCategory[] {
-  const verifiedSet = new Set<HospitalCategory>();
-  for (const h of hospitals) {
-    if (h.verifiedSpecialties) {
-      for (const cat of h.verifiedSpecialties) verifiedSet.add(cat);
+function computeAvailableFilters(hospitals: Hospital[]): DesignationFilter[] {
+  const available: DesignationFilter[] = ["All"];
+  for (const f of DESIGNATION_FILTERS) {
+    if (f === "All") continue;
+    if (hospitals.some((h) => matchesDesignationFilter(h, f))) {
+      available.push(f);
     }
-  }
-  const available: HospitalCategory[] = ["All"];
-  for (const cat of CATEGORIES) {
-    if (cat !== "All" && verifiedSet.has(cat)) available.push(cat);
   }
   return available;
 }
@@ -104,8 +101,8 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationPermission, setLocationPermission] = useState<PermStatus>(null);
   const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
-  const [selectedCategory, setSelectedCategory] =
-    useState<HospitalCategory>("All");
+  const [selectedFilter, setSelectedFilter] =
+    useState<DesignationFilter>("All");
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [serverError, setServerError] = useState(false);
@@ -119,8 +116,8 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
   const overrideMapRef = useRef<Record<string, HospitalOverride>>({});
 
-  const filteredHospitals = filterAndSortHospitals(allHospitals, selectedCategory, 10);
-  const availableCategories = computeAvailableCategories(allHospitals);
+  const filteredHospitals = filterAndSortHospitals(allHospitals, selectedFilter, 10);
+  const availableFilters = computeAvailableFilters(allHospitals);
 
   useEffect(() => {
     fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
@@ -251,8 +248,8 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [location, loadHospitals, requestLocationPermission]);
 
-  const setCategory = useCallback((category: HospitalCategory) => {
-    setSelectedCategory(category);
+  const setFilter = useCallback((filter: DesignationFilter) => {
+    setSelectedFilter(filter);
   }, []);
 
   return (
@@ -264,13 +261,13 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
         serverError,
         allHospitals,
         filteredHospitals,
-        selectedCategory,
-        availableCategories,
+        selectedFilter,
+        availableFilters,
         isLoading,
         isRefreshing,
         requestLocationPermission,
         refresh,
-        setCategory,
+        setFilter,
       }}
     >
       {children}

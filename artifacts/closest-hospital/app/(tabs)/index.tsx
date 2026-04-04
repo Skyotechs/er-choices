@@ -33,13 +33,13 @@ export default function HomeScreen() {
     locationPermission,
     serverError,
     filteredHospitals,
-    selectedCategory,
-    availableCategories,
+    selectedFilter,
+    availableFilters,
     isLoading,
     isRefreshing,
     requestLocationPermission,
     refresh,
-    setCategory,
+    setFilter,
   } = useHospital();
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
@@ -178,11 +178,11 @@ export default function HomeScreen() {
 
       <LiveStatusBanner />
 
-      {availableCategories.length > 1 && (
+      {availableFilters.length > 1 && (
         <CategoryFilter
-          selected={selectedCategory}
-          onSelect={setCategory}
-          availableCategories={availableCategories}
+          selected={selectedFilter}
+          onSelect={setFilter}
+          availableFilters={availableFilters}
         />
       )}
     </View>

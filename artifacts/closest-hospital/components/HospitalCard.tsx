@@ -55,6 +55,18 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         >
           {hospital.name}
         </Text>
+
+        {hospital.actualDesignation ? (
+          <View style={[styles.designationBadge, { backgroundColor: colors.muted }]}>
+            <Text
+              style={[styles.designationText, { color: colors.primary }]}
+              numberOfLines={1}
+            >
+              {hospital.actualDesignation.split(";")[0].trim()}
+            </Text>
+          </View>
+        ) : null}
+
         <Text
           style={[styles.address, { color: colors.mutedForeground }]}
           numberOfLines={1}
@@ -125,6 +137,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.2,
+  },
+  designationBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginBottom: 1,
+  },
+  designationText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.1,
   },
   address: {
     fontSize: 12,

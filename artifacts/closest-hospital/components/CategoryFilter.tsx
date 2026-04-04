@@ -10,44 +10,46 @@ import {
 import { FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
-import { HospitalCategory, CATEGORIES } from "@/types/hospital";
+import { DesignationFilter } from "@/types/hospital";
 
-const CATEGORY_ICONS: Record<HospitalCategory, { lib: "fa5" | "mci"; name: string }> = {
-  All: { lib: "mci", name: "hospital-box" },
-  Trauma: { lib: "fa5", name: "ambulance" },
-  Stroke: { lib: "fa5", name: "brain" },
-  Cardiac: { lib: "fa5", name: "heartbeat" },
-  Pediatric: { lib: "fa5", name: "baby" },
-  Obstetrics: { lib: "fa5", name: "baby-carriage" },
-  Burn: { lib: "fa5", name: "fire" },
-  Psychiatric: { lib: "mci", name: "head-cog" },
-  Cancer: { lib: "fa5", name: "ribbon" },
+type IconSpec =
+  | { lib: "fa5"; name: string }
+  | { lib: "mci"; name: string };
+
+const FILTER_ICONS: Record<DesignationFilter, IconSpec> = {
+  All:            { lib: "mci", name: "hospital-box" },
+  "Trauma I":     { lib: "fa5", name: "ambulance" },
+  "Trauma II":    { lib: "fa5", name: "ambulance" },
+  "Trauma III":   { lib: "fa5", name: "ambulance" },
+  "Trauma IV":    { lib: "fa5", name: "ambulance" },
+  Stroke:         { lib: "fa5", name: "brain" },
+  Burn:           { lib: "fa5", name: "fire" },
+  "PCI/STEMI":    { lib: "fa5", name: "heartbeat" },
+  "Critical Access": { lib: "mci", name: "hospital-building" },
+  Psychiatric:    { lib: "mci", name: "head-cog" },
 };
 
 interface CategoryFilterProps {
-  selected: HospitalCategory;
-  onSelect: (category: HospitalCategory) => void;
-  /** Subset of CATEGORIES to display (always includes "All"). Falls back to all CATEGORIES if omitted. */
-  availableCategories?: HospitalCategory[];
+  selected: DesignationFilter;
+  onSelect: (filter: DesignationFilter) => void;
+  availableFilters: DesignationFilter[];
 }
 
-function CategoryChip({
-  category,
+function FilterChip({
+  filter,
   isSelected,
   onSelect,
 }: {
-  category: HospitalCategory;
+  filter: DesignationFilter;
   isSelected: boolean;
-  onSelect: (c: HospitalCategory) => void;
+  onSelect: (f: DesignationFilter) => void;
 }) {
   const colors = useColors();
-  const icon = CATEGORY_ICONS[category];
+  const icon = FILTER_ICONS[filter];
 
   const handlePress = () => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync();
-    }
-    onSelect(category);
+    if (Platform.OS !== "web") Haptics.selectionAsync();
+    onSelect(filter);
   };
 
   return (
@@ -88,15 +90,14 @@ function CategoryChip({
           },
         ]}
       >
-        {category}
+        {filter}
       </Text>
     </TouchableOpacity>
   );
 }
 
-export function CategoryFilter({ selected, onSelect, availableCategories }: CategoryFilterProps) {
+export function CategoryFilter({ selected, onSelect, availableFilters }: CategoryFilterProps) {
   const colors = useColors();
-  const displayCategories = availableCategories ?? CATEGORIES;
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -106,11 +107,11 @@ export function CategoryFilter({ selected, onSelect, availableCategories }: Cate
         contentContainerStyle={styles.scrollContent}
         bounces={true}
       >
-        {displayCategories.map((category) => (
-          <CategoryChip
-            key={category}
-            category={category}
-            isSelected={selected === category}
+        {availableFilters.map((filter) => (
+          <FilterChip
+            key={filter}
+            filter={filter}
+            isSelected={selected === filter}
             onSelect={onSelect}
           />
         ))}

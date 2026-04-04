@@ -1,4 +1,4 @@
-import { Hospital, HospitalCategory } from "@/types/hospital";
+import { Hospital, HospitalCategory, DesignationFilter } from "@/types/hospital";
 
 /** Fetch the verified specialty map from the API server. Never throws. */
 export async function fetchVerifiedSpecialtyMap(
@@ -107,17 +107,50 @@ export async function fetchNearbyHospitals(
   return hospitals;
 }
 
+/**
+ * Returns true if the hospital matches the given DesignationFilter.
+ * Uses word-boundary regex so "Trauma I" never accidentally matches "Trauma II".
+ */
+export function matchesDesignationFilter(
+  hospital: Hospital,
+  filter: DesignationFilter
+): boolean {
+  if (filter === "All") return true;
+  const d = hospital.actualDesignation ?? "";
+  const sl = hospital.serviceLine ?? "";
+  switch (filter) {
+    case "Trauma I":
+      return /\blevel i\b/i.test(d);
+    case "Trauma II":
+      return /\blevel ii\b/i.test(d);
+    case "Trauma III":
+      return /\blevel iii\b/i.test(d);
+    case "Trauma IV":
+      return /\blevel iv\b/i.test(d);
+    case "Stroke":
+      return !!(hospital.strokeDesignation);
+    case "Burn":
+      return !!(hospital.burnDesignation);
+    case "PCI/STEMI":
+      return !!(hospital.pciCapability);
+    case "Critical Access":
+      return sl === "Critical Access";
+    case "Psychiatric":
+      return sl === "Psychiatric";
+    default:
+      return false;
+  }
+}
+
 export function filterAndSortHospitals(
   hospitals: Hospital[],
-  category: HospitalCategory,
+  filter: DesignationFilter,
   limit = 10
 ): Hospital[] {
   const filtered =
-    category === "All"
+    filter === "All"
       ? hospitals
-      : // Only include hospitals with verified specialty data that matches the filter.
-        // OSM-inferred categories are intentionally excluded from specialty-filtered results.
-        hospitals.filter((h) => h.verifiedSpecialties?.includes(category));
+      : hospitals.filter((h) => matchesDesignationFilter(h, filter));
 
   return filtered
     .slice()
