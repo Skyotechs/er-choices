@@ -560,7 +560,7 @@ async function triggerImport() {
 // ── CSV upload helpers ─────────────────────────────────────────────────────
 async function downloadExportCsv() {
   const r = await fetch('/api/admin/export-csv', {
-    headers: { 'Authorization': 'Bearer ' + adminToken }
+    headers: { 'Authorization': 'Bearer ' + secret }
   });
   if (!r.ok) { alert('Export failed: ' + r.status); return; }
   const blob = await r.blob();
