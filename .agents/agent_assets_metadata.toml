@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "eJ_roaMON7HGEVxARQAhC"
@@ -12,3 +11,9 @@ id = "uo-2feHeowjTk1pY2OOgV"
 uri = "file://attached_assets/generated_images/er_choices_icon.png"
 type = "image"
 title = "er choices app icon"
+
+[[outputs]]
+id = "FohpcqJsTHuyjLfGTvjiB"
+uri = "file://hospital-export.csv"
+type = "table"
+title = "ER Choices Hospital Database (5,428 hospitals)"
