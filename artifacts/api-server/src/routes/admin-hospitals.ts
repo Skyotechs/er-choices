@@ -288,6 +288,80 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── CSV Export ──────────────────────────────────────────────────────────────
+
+function escapeCsv(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+router.get("/admin/export-csv", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.select().from(hospitalSpecialties).orderBy(hospitalSpecialties.cmsId);
+
+    const headers = [
+      "CMS ID", "Hospital Name", "Address", "City", "State", "ZIP",
+      "Phone", "Latitude", "Longitude", "Emergency Services",
+      "Confirmed Specialties", "Needs Admin Review",
+      // Enriched fields — must match importer IDX names exactly
+      "Actual Designation", "Service Line", "Advanced Capabilities",
+      "EMS Tags", "Helipad", "Beds",
+      "HIFLD Owner", "HIFLD Website",
+      "Stroke Designation", "Burn Designation",
+      "PCI Capability", "HIFLD Match Confidence",
+    ];
+
+    const csvLines = [headers.join(",")];
+
+    for (const row of rows) {
+      const specialties = Array.isArray(row.specialties) ? (row.specialties as string[]).join("|") : "";
+      const needsReview = Array.isArray(row.needsAdminReview) ? (row.needsAdminReview as string[]).join("|") : "";
+
+      const cols = [
+        row.cmsId,
+        row.hospitalName,
+        row.address,
+        row.city,
+        row.state,
+        row.zip,
+        row.phone,
+        row.latitude,
+        row.longitude,
+        row.emergencyServices === true ? "Yes" : row.emergencyServices === false ? "No" : "",
+        specialties,
+        needsReview,
+        row.actualDesignation,
+        row.serviceLine,
+        row.advancedCapabilities,
+        row.emsTags,
+        row.helipad === true ? "true" : row.helipad === false ? "false" : "",
+        row.beds,
+        row.hifldOwner,
+        row.hifldWebsite,
+        row.strokeDesignation,
+        row.burnDesignation,
+        row.pciCapability,
+        row.hifldMatchConfidence,
+      ];
+
+      csvLines.push(cols.map(escapeCsv).join(","));
+    }
+
+    const csv = csvLines.join("\r\n");
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="hospitals-export-${date}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error("GET /api/admin/export-csv error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── CSV Upload Import ────────────────────────────────────────────────────────
 
 /** Parse a CSV line respecting double-quoted fields. */
@@ -325,18 +399,31 @@ router.post("/admin/import-csv", requireAdmin, async (req, res) => {
   const col = (name: string) => rawHeaders.findIndex(h => h.trim().toLowerCase() === name.toLowerCase());
 
   const IDX = {
-    cmsId:          col("CMS ID"),
-    hospitalName:   col("Hospital Name"),
-    address:        col("Address"),
-    city:           col("City"),
-    state:          col("State"),
-    zip:            col("ZIP"),
-    phone:          col("Phone"),
-    lat:            col("Latitude"),
-    lon:            col("Longitude"),
-    emergency:      col("Emergency Services"),
-    specialties:    col("Confirmed Specialties"),
-    needsReview:    col("Needs Admin Review"),
+    cmsId:               col("CMS ID"),
+    hospitalName:        col("Hospital Name"),
+    address:             col("Address"),
+    city:                col("City"),
+    state:               col("State"),
+    zip:                 col("ZIP"),
+    phone:               col("Phone"),
+    lat:                 col("Latitude"),
+    lon:                 col("Longitude"),
+    emergency:           col("Emergency Services"),
+    specialties:         col("Confirmed Specialties"),
+    needsReview:         col("Needs Admin Review"),
+    // Enriched / HIFLD fields
+    actualDesignation:   col("Actual Designation"),
+    serviceLine:         col("Service Line"),
+    advancedCapabilities:col("Advanced Capabilities"),
+    emsTags:             col("EMS Tags"),
+    helipad:             col("Helipad"),
+    beds:                col("Beds"),
+    hifldOwner:          col("HIFLD Owner"),
+    hifldWebsite:        col("HIFLD Website"),
+    strokeDesignation:   col("Stroke Designation"),
+    burnDesignation:     col("Burn Designation"),
+    pciCapability:       col("PCI Capability"),
+    hifldMatchConfidence:col("HIFLD Match Confidence"),
   };
 
   if (IDX.cmsId < 0) { res.status(400).json({ error: "Missing required column: CMS ID" }); return; }
@@ -411,6 +498,28 @@ router.post("/admin/import-csv", requireAdmin, async (req, res) => {
         patch.needsAdminReview = val
           ? val.split("|").map((s: string) => s.trim()).filter(Boolean)
           : [];
+      }
+
+      // ── Enriched / HIFLD fields ──────────────────────────────────────────
+      // Write the value whether it's empty or not (empty string clears the field)
+      if (IDX.actualDesignation   >= 0) patch.actualDesignation    = str(IDX.actualDesignation)    || null;
+      if (IDX.serviceLine         >= 0) patch.serviceLine          = str(IDX.serviceLine)          || null;
+      if (IDX.advancedCapabilities>= 0) patch.advancedCapabilities = str(IDX.advancedCapabilities) || null;
+      if (IDX.emsTags             >= 0) patch.emsTags              = str(IDX.emsTags)              || null;
+      if (IDX.hifldOwner          >= 0) patch.hifldOwner           = str(IDX.hifldOwner)           || null;
+      if (IDX.hifldWebsite        >= 0) patch.hifldWebsite         = str(IDX.hifldWebsite)         || null;
+      if (IDX.strokeDesignation   >= 0) patch.strokeDesignation    = str(IDX.strokeDesignation)    || null;
+      if (IDX.burnDesignation     >= 0) patch.burnDesignation      = str(IDX.burnDesignation)      || null;
+      if (IDX.pciCapability       >= 0) patch.pciCapability        = str(IDX.pciCapability)        || null;
+      if (IDX.hifldMatchConfidence>= 0) patch.hifldMatchConfidence = str(IDX.hifldMatchConfidence) || null;
+
+      if (IDX.helipad >= 0 && str(IDX.helipad)) {
+        const v = str(IDX.helipad).toLowerCase();
+        patch.helipad = v === "true" || v === "yes" || v === "1";
+      }
+      if (IDX.beds >= 0 && str(IDX.beds)) {
+        const v = parseInt(str(IDX.beds), 10);
+        if (!isNaN(v)) patch.beds = v;
       }
 
       if (Object.keys(patch).length > 0) {

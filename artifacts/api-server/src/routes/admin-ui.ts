@@ -217,15 +217,32 @@ router.get("/admin-ui", (_req, res) => {
         <button id="run-import-btn" onclick="triggerImport()" style="width:auto;padding:10px 24px;">Run CMS Import</button>
       </div>
 
+      <!-- CSV Export card -->
+      <div class="card" style="max-width:600px;margin-top:24px;">
+        <div class="card-header" style="margin-bottom:16px;">
+          <div>
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Export Hospital CSV</div>
+            <div style="font-size:13px;color:#94a3b8;">
+              Downloads all hospitals with every field — including Actual Designation, Stroke,
+              Burn, PCI, HIFLD, and more. Edit the file, then re-upload it below to push
+              your changes into the database. The column headers must not be renamed.
+            </div>
+          </div>
+        </div>
+        <button onclick="downloadExportCsv()" style="width:auto;padding:10px 24px;">
+          Download Export CSV
+        </button>
+      </div>
+
       <!-- CSV Upload card -->
       <div class="card" style="max-width:600px;margin-top:24px;">
         <div class="card-header" style="margin-bottom:16px;">
           <div>
             <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Upload Edited Hospital CSV</div>
             <div style="font-size:13px;color:#94a3b8;">
-              Upload the filled-out export CSV to patch addresses, phone numbers, coordinates,
-              and confirmed specialties. Only non-empty cells are applied — blank cells are left
-              as-is. CMS ID is used to match each row.
+              Upload the exported CSV (after editing) to patch designation data, addresses,
+              phone numbers, coordinates, and more. Only filled-in cells are applied — blank
+              cells are left as-is. CMS ID is used to match each row.
             </div>
           </div>
         </div>
@@ -541,6 +558,20 @@ async function triggerImport() {
 }
 
 // ── CSV upload helpers ─────────────────────────────────────────────────────
+async function downloadExportCsv() {
+  const r = await fetch('/api/admin/export-csv', {
+    headers: { 'Authorization': 'Bearer ' + adminToken }
+  });
+  if (!r.ok) { alert('Export failed: ' + r.status); return; }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'hospitals-export.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 let csvFileContents = null;
 
 function csvFileChosen(input) {
