@@ -93,6 +93,19 @@ router.get("/hospitals/nearby", async (req, res) => {
         overrideLat: hospitalOverrides.latitude,
         overrideLon: hospitalOverrides.longitude,
         overridePhone: hospitalOverrides.phone,
+        // Enriched fields from HIFLD / research pass
+        actualDesignation: hospitalSpecialties.actualDesignation,
+        serviceLine: hospitalSpecialties.serviceLine,
+        advancedCapabilities: hospitalSpecialties.advancedCapabilities,
+        emsTags: hospitalSpecialties.emsTags,
+        helipad: hospitalSpecialties.helipad,
+        beds: hospitalSpecialties.beds,
+        hifldOwner: hospitalSpecialties.hifldOwner,
+        hifldWebsite: hospitalSpecialties.hifldWebsite,
+        strokeDesignation: hospitalSpecialties.strokeDesignation,
+        burnDesignation: hospitalSpecialties.burnDesignation,
+        pciCapability: hospitalSpecialties.pciCapability,
+        hifldMatchConfidence: hospitalSpecialties.hifldMatchConfidence,
       })
       .from(hospitalSpecialties)
       .leftJoin(
@@ -133,6 +146,19 @@ router.get("/hospitals/nearby", async (req, res) => {
         categories,
         specialties: (row.specialties as string[]) ?? [],
         phone: row.overridePhone ?? row.cmsPhone ?? null,
+        // Enriched fields
+        actualDesignation: row.actualDesignation ?? null,
+        serviceLine: row.serviceLine ?? null,
+        advancedCapabilities: row.advancedCapabilities ?? null,
+        emsTags: row.emsTags ?? null,
+        helipad: row.helipad ?? null,
+        beds: row.beds ?? null,
+        hifldOwner: row.hifldOwner ?? null,
+        hifldWebsite: row.hifldWebsite ?? null,
+        strokeDesignation: row.strokeDesignation ?? null,
+        burnDesignation: row.burnDesignation ?? null,
+        pciCapability: row.pciCapability ?? null,
+        hifldMatchConfidence: row.hifldMatchConfidence ?? null,
       };
     });
 
