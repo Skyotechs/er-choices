@@ -1,4 +1,4 @@
-import { boolean, jsonb, pgTable, real, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, real, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -56,6 +56,31 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
   designationSources: jsonb("designation_sources").notNull().default({}),
   verified: boolean("verified").notNull().default(true),
   needsAdminReview: jsonb("needs_admin_review").notNull().default([]),
+  // ── Enriched fields from HIFLD / first-responder research pass ──────────────
+  /** e.g. "Level II Trauma Center; Acute Care Hospital" */
+  actualDesignation: text("actual_designation"),
+  /** e.g. "General Acute Care", "Critical Access", "Psychiatric" */
+  serviceLine: text("service_line"),
+  /** e.g. "Trauma capability; Helipad" */
+  advancedCapabilities: text("advanced_capabilities"),
+  /** Pipe-separated EMS classification tags, e.g. "TRAUMA_1 | HELIPAD | ED" */
+  emsTags: text("ems_tags"),
+  /** Whether the facility has a helipad (from HIFLD) */
+  helipad: boolean("helipad"),
+  /** Staffed bed count from HIFLD */
+  beds: integer("beds"),
+  /** Ownership type from HIFLD, e.g. "GOVERNMENT - STATE", "VOLUNTARY NON-PROFIT" */
+  hifldOwner: text("hifld_owner"),
+  /** Official website from HIFLD */
+  hifldWebsite: text("hifld_website"),
+  /** Stroke center designation, e.g. "Comprehensive Stroke Center" */
+  strokeDesignation: text("stroke_designation"),
+  /** Burn center designation */
+  burnDesignation: text("burn_designation"),
+  /** PCI/STEMI capability description */
+  pciCapability: text("pci_capability"),
+  /** HIFLD match confidence: HIGH | MEDIUM | LOW | UNMATCHED */
+  hifldMatchConfidence: text("hifld_match_confidence"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
