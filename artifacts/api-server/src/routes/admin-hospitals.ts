@@ -288,6 +288,154 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── CSV Upload Import ────────────────────────────────────────────────────────
+
+/** Parse a CSV line respecting double-quoted fields. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { fields.push(cur); cur = ""; }
+      else { cur += ch; }
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+router.post("/admin/import-csv", requireAdmin, async (req, res) => {
+  const body: string = req.body as string;
+  if (typeof body !== "string" || !body.trim()) {
+    res.status(400).json({ error: "No CSV data provided" });
+    return;
+  }
+
+  const lines = body.trim().split(/\r?\n/);
+  if (lines.length < 2) { res.status(400).json({ error: "CSV has no data rows" }); return; }
+
+  const rawHeaders = parseCsvLine(lines[0]);
+  const col = (name: string) => rawHeaders.findIndex(h => h.trim().toLowerCase() === name.toLowerCase());
+
+  const IDX = {
+    cmsId:          col("CMS ID"),
+    hospitalName:   col("Hospital Name"),
+    address:        col("Address"),
+    city:           col("City"),
+    state:          col("State"),
+    zip:            col("ZIP"),
+    phone:          col("Phone"),
+    lat:            col("Latitude"),
+    lon:            col("Longitude"),
+    emergency:      col("Emergency Services"),
+    specialties:    col("Confirmed Specialties"),
+    needsReview:    col("Needs Admin Review"),
+  };
+
+  if (IDX.cmsId < 0) { res.status(400).json({ error: "Missing required column: CMS ID" }); return; }
+
+  let updated = 0, skipped = 0, notFound = 0;
+  const errors: string[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const fields = parseCsvLine(line);
+    const cmsId = fields[IDX.cmsId]?.trim();
+    if (!cmsId) { skipped++; continue; }
+
+    // Fetch existing record
+    const [existing] = await db
+      .select()
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.cmsId, cmsId));
+
+    if (!existing) { notFound++; continue; }
+
+    try {
+      const patch: Record<string, unknown> = {};
+
+      const str = (idx: number) => (idx >= 0 ? (fields[idx] ?? "").trim() : "");
+
+      if (IDX.address >= 0 && str(IDX.address))      patch.address = str(IDX.address);
+      if (IDX.city    >= 0 && str(IDX.city))          patch.city    = str(IDX.city);
+      if (IDX.state   >= 0 && str(IDX.state))         patch.state   = str(IDX.state);
+      if (IDX.zip     >= 0 && str(IDX.zip))           patch.zip     = str(IDX.zip);
+      if (IDX.phone   >= 0 && str(IDX.phone))         patch.phone   = str(IDX.phone);
+
+      if (IDX.lat >= 0 && str(IDX.lat)) {
+        const v = parseFloat(str(IDX.lat));
+        if (!isNaN(v)) patch.latitude = v;
+      }
+      if (IDX.lon >= 0 && str(IDX.lon)) {
+        const v = parseFloat(str(IDX.lon));
+        if (!isNaN(v)) patch.longitude = v;
+      }
+      if (IDX.emergency >= 0 && str(IDX.emergency)) {
+        patch.emergencyServices = str(IDX.emergency).toLowerCase() === "yes";
+      }
+
+      // Merge specialties — add admin-confirmed ones, preserve existing
+      if (IDX.specialties >= 0 && str(IDX.specialties)) {
+        const incoming = str(IDX.specialties)
+          .split("|")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+
+        const existing_specialties: string[] = Array.isArray(existing.specialties)
+          ? (existing.specialties as string[])
+          : [];
+        const existing_sources: Record<string, string> =
+          (existing.designationSources as Record<string, string>) ?? {};
+
+        const merged = [...existing_specialties];
+        const mergedSources = { ...existing_sources };
+        for (const sp of incoming) {
+          if (!merged.includes(sp)) merged.push(sp);
+          if (!mergedSources[sp]) mergedSources[sp] = "admin";
+        }
+        patch.specialties = merged;
+        patch.designationSources = mergedSources;
+      }
+
+      // Overwrite needs-admin-review list if provided
+      if (IDX.needsReview >= 0 && str(IDX.needsReview) !== undefined) {
+        const val = str(IDX.needsReview);
+        patch.needsAdminReview = val
+          ? val.split("|").map((s: string) => s.trim()).filter(Boolean)
+          : [];
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await db
+          .update(hospitalSpecialties)
+          .set(patch as any)
+          .where(eq(hospitalSpecialties.cmsId, cmsId));
+        updated++;
+      } else {
+        skipped++;
+      }
+    } catch (err: any) {
+      errors.push(`Row ${i} (${cmsId}): ${err?.message ?? err}`);
+    }
+  }
+
+  res.json({
+    message: "CSV import complete",
+    updated,
+    skipped,
+    notFound,
+    errors: errors.slice(0, 20),
+  });
+});
+
 // ─── CMS Import Trigger ──────────────────────────────────────────────────────
 
 let importState: {

@@ -216,6 +216,34 @@ router.get("/admin-ui", (_req, res) => {
         <div id="import-status-box" style="margin-bottom:16px;padding:12px 16px;background:#0f172a;border-radius:8px;font-size:13px;font-family:monospace;color:#94a3b8;display:none;"></div>
         <button id="run-import-btn" onclick="triggerImport()" style="width:auto;padding:10px 24px;">Run CMS Import</button>
       </div>
+
+      <!-- CSV Upload card -->
+      <div class="card" style="max-width:600px;margin-top:24px;">
+        <div class="card-header" style="margin-bottom:16px;">
+          <div>
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Upload Edited Hospital CSV</div>
+            <div style="font-size:13px;color:#94a3b8;">
+              Upload the filled-out export CSV to patch addresses, phone numbers, coordinates,
+              and confirmed specialties. Only non-empty cells are applied — blank cells are left
+              as-is. CMS ID is used to match each row.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <label style="flex:1;display:block;padding:10px 14px;background:#0f172a;border:1px solid #334155;
+                        border-radius:8px;cursor:pointer;font-size:13px;color:#94a3b8;">
+            <span id="csv-file-label">Choose CSV file…</span>
+            <input type="file" id="csv-file-input" accept=".csv,text/csv"
+                   onchange="csvFileChosen(this)" style="display:none;">
+          </label>
+          <button id="csv-upload-btn" onclick="uploadCsv()" disabled
+                  style="width:auto;padding:10px 24px;opacity:0.4;cursor:not-allowed;">
+            Upload &amp; Import
+          </button>
+        </div>
+        <div id="csv-status-box" style="padding:12px 16px;background:#0f172a;border-radius:8px;
+                                        font-size:13px;font-family:monospace;color:#94a3b8;display:none;"></div>
+      </div>
     </div>
 
     <!-- Reports tab -->
@@ -510,6 +538,61 @@ async function triggerImport() {
     box.style.display = 'block';
     box.innerHTML = '<span style="color:#f87171;font-weight:700;">Error:</span> ' + e.message;
   }
+}
+
+// ── CSV upload helpers ─────────────────────────────────────────────────────
+let csvFileContents = null;
+
+function csvFileChosen(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('csv-file-label').textContent = file.name;
+  const btn = document.getElementById('csv-upload-btn');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    csvFileContents = e.target.result;
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  };
+  reader.readAsText(file);
+}
+
+async function uploadCsv() {
+  if (!csvFileContents) return;
+  const btn = document.getElementById('csv-upload-btn');
+  const box = document.getElementById('csv-status-box');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  box.style.display = 'block';
+  box.innerHTML = '<span style="color:#94a3b8;">Processing — this may take a minute for large files…</span>';
+  try {
+    const r = await fetch('/api/admin/import-csv', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + secret,
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+      body: csvFileContents,
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      box.innerHTML = '<span style="color:#f87171;font-weight:700;">Error:</span> ' + (data.error || r.statusText);
+    } else {
+      const errs = data.errors && data.errors.length
+        ? '<br><span style="color:#f87171;">Errors (' + data.errors.length + '):</span><br>' + data.errors.join('<br>')
+        : '';
+      box.innerHTML =
+        '<span style="color:#4ade80;font-weight:700;">Done!</span> ' +
+        data.updated + ' updated, ' + data.skipped + ' skipped (no changes), ' +
+        data.notFound + ' CMS IDs not found.' + errs;
+    }
+  } catch (e) {
+    box.innerHTML = '<span style="color:#f87171;font-weight:700;">Error:</span> ' + e.message;
+  }
+  btn.textContent = 'Upload & Import';
+  btn.disabled = false;
+  btn.style.opacity = '1';
 }
 
 function setFilter(f, btn) {
