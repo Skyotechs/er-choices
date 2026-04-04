@@ -54,13 +54,29 @@ export class NavigationServerError extends Error {
 interface CmsHospitalRow {
   id: string;
   name: string;
+  address: string | null;
+  city: string | null;
   state: string;
+  zip: string | null;
   latitude: number;
   longitude: number;
   distance: number;
   categories: string[];
   specialties: string[];
   phone: string | null;
+  // Enriched fields
+  actualDesignation: string | null;
+  serviceLine: string | null;
+  advancedCapabilities: string | null;
+  emsTags: string | null;
+  helipad: boolean | null;
+  beds: number | null;
+  hifldOwner: string | null;
+  hifldWebsite: string | null;
+  strokeDesignation: string | null;
+  burnDesignation: string | null;
+  pciCapability: string | null;
+  hifldMatchConfidence: string | null;
 }
 
 export async function fetchNearbyHospitals(
@@ -97,12 +113,25 @@ export async function fetchNearbyHospitals(
       latitude: h.latitude,
       longitude: h.longitude,
       phone: h.phone ?? undefined,
-      website: undefined,
+      website: h.hifldWebsite ?? undefined,
       categories: hasAdminOverride ? adminCategories : cmsCategories,
-      hospitalType: "Emergency Room",
+      hospitalType: h.serviceLine ?? "Emergency Room",
       verifiedSpecialties: hasAdminOverride ? adminCategories : cmsCategories,
       specialties: h.specialties ?? [],
       distance: h.distance ?? haversineDistance(latitude, longitude, h.latitude, h.longitude),
+      // Enriched fields
+      actualDesignation: h.actualDesignation,
+      serviceLine: h.serviceLine,
+      advancedCapabilities: h.advancedCapabilities,
+      emsTags: h.emsTags,
+      helipad: h.helipad,
+      beds: h.beds,
+      hifldOwner: h.hifldOwner,
+      hifldWebsite: h.hifldWebsite,
+      strokeDesignation: h.strokeDesignation,
+      burnDesignation: h.burnDesignation,
+      pciCapability: h.pciCapability,
+      hifldMatchConfidence: h.hifldMatchConfidence,
     };
   });
 }
