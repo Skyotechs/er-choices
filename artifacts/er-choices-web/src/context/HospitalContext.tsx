@@ -43,10 +43,49 @@ async function getLocationWeb(): Promise<LocationCoords> {
       reject(new Error("Geolocation is not supported"));
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10000 }
+
+    let watchId: number | undefined;
+    let settled = false;
+    let bestCoords: GeolocationCoordinates | null = null;
+
+    const cleanup = () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+    };
+
+    const accept = (coords: GeolocationCoordinates) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      clearTimeout(maxWaitTimer);
+      resolve({ latitude: coords.latitude, longitude: coords.longitude });
+    };
+
+    const maxWaitTimer = setTimeout(() => {
+      if (bestCoords) {
+        accept(bestCoords);
+      } else if (!settled) {
+        settled = true;
+        cleanup();
+        reject(new Error("Location timeout"));
+      }
+    }, 15000);
+
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        bestCoords = pos.coords;
+        if (pos.coords.accuracy <= 150) {
+          accept(pos.coords);
+        }
+      },
+      (err) => {
+        clearTimeout(maxWaitTimer);
+        if (!settled) {
+          settled = true;
+          cleanup();
+          reject(err);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   });
 }
