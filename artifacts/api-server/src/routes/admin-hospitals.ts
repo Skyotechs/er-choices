@@ -6,29 +6,26 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
 const execFileAsync = promisify(execFile);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Root of the monorepo: src/routes → src → dist → api-server → artifacts → workspace root
-const WORKSPACE_ROOT = path.resolve(__dirname, "..", "..", "..", "..", "..");
-const ENRICHMENT_CSV_PATH = path.join(WORKSPACE_ROOT, "artifacts", "api-server", "specialty-enrichment-review.csv");
+
+// pnpm scripts run from the package directory, so process.cwd() =
+// /home/runner/workspace/artifacts/api-server (the api-server package root).
+const API_SERVER_DIR = process.cwd();
+const ENRICHMENT_CSV_PATH = path.join(API_SERVER_DIR, "specialty-enrichment-review.csv");
+const ENRICH_SCRIPT = path.join(API_SERVER_DIR, "scripts", "run-enrich-specialties.ts");
 
 /** Resolve tsx binary from api-server or root node_modules */
 function findTsx(): string {
   const candidates = [
-    path.join(WORKSPACE_ROOT, "artifacts", "api-server", "node_modules", ".bin", "tsx"),
-    path.join(WORKSPACE_ROOT, "node_modules", ".bin", "tsx"),
+    path.join(API_SERVER_DIR, "node_modules", ".bin", "tsx"),
+    path.join(API_SERVER_DIR, "..", "..", "node_modules", ".bin", "tsx"),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
-  return "tsx"; // Hope it's on PATH
+  return "tsx"; // Fall back to PATH
 }
-
-const ENRICH_SCRIPT = path.join(
-  WORKSPACE_ROOT, "artifacts", "api-server", "scripts", "run-enrich-specialties.ts",
-);
 
 const router = Router();
 
@@ -690,7 +687,7 @@ router.post("/admin/run-enrichment", requireAdmin, async (_req, res) => {
     console.log(`[Admin] Forking enrichment child process: ${tsxBin} ${ENRICH_SCRIPT}`);
 
     const { stdout } = await execFileAsync(tsxBin, [ENRICH_SCRIPT], {
-      cwd: WORKSPACE_ROOT,
+      cwd: API_SERVER_DIR,
       env: { ...process.env },
       maxBuffer: 20 * 1024 * 1024,
     });
