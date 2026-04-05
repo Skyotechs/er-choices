@@ -34,10 +34,10 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 z-40"
+        className="fixed inset-0 bg-black/50 z-[1000]"
         onClick={onClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+      <div className="fixed bottom-0 left-0 right-0 z-[1001] bg-card border-t border-border rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
         <div className="w-9 h-1 bg-border rounded-full mx-auto mt-3 mb-4" />
 
         <div className="px-5 pb-4">
