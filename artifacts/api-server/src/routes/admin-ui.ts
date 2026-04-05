@@ -234,6 +234,28 @@ router.get("/admin-ui", (_req, res) => {
         </button>
       </div>
 
+      <!-- Sync Specialties card -->
+      <div class="card" style="max-width:600px;margin-top:24px;">
+        <div class="card-header" style="margin-bottom:16px;">
+          <div>
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Sync Specialties from Designations</div>
+            <div style="font-size:13px;color:#94a3b8;">
+              Rebuilds the specialty tags (Trauma, Stroke, Burn, Cardiac, Psychiatric) for every
+              hospital using the enriched designation columns as the source of truth. Removes
+              incorrect tags (e.g. "Trauma" on non-trauma-centers) and adds correct ones based on
+              Actual Designation, Stroke Designation, Burn Designation, PCI Capability, and
+              Service Line. Other specialties (Pediatric, Obstetrics, etc.) are left untouched.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <button onclick="syncSpecialties()" style="width:auto;padding:10px 24px;" id="sync-spec-btn">
+            Sync Specialties from Designations
+          </button>
+          <span id="sync-spec-status" style="font-size:13px;color:#94a3b8;"></span>
+        </div>
+      </div>
+
       <!-- CSV Upload card -->
       <div class="card" style="max-width:600px;margin-top:24px;">
         <div class="card-header" style="margin-bottom:16px;">
@@ -558,6 +580,31 @@ async function triggerImport() {
 }
 
 // ── CSV upload helpers ─────────────────────────────────────────────────────
+async function syncSpecialties() {
+  const btn = document.getElementById('sync-spec-btn');
+  const status = document.getElementById('sync-spec-status');
+  btn.disabled = true;
+  btn.textContent = 'Syncing…';
+  status.textContent = '';
+  status.style.color = '#94a3b8';
+  try {
+    const r = await fetch('/api/admin/sync-specialties', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + secret },
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error ?? r.status);
+    status.textContent = data.message;
+    status.style.color = '#34d399';
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    status.style.color = '#f87171';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sync Specialties from Designations';
+  }
+}
+
 async function downloadExportCsv() {
   const r = await fetch('/api/admin/export-csv', {
     headers: { 'Authorization': 'Bearer ' + secret }

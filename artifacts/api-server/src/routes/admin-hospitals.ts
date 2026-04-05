@@ -545,6 +545,85 @@ router.post("/admin/import-csv", requireAdmin, async (req, res) => {
   });
 });
 
+// ─── Sync Specialties from Designation Fields ─────────────────────────────────
+
+/**
+ * POST /api/admin/sync-specialties
+ * Rebuilds the `specialties` array for every hospital from the enriched
+ * designation columns, using them as the source of truth:
+ *   - "Trauma"     ← actualDesignation contains "Level I/II/III/IV"
+ *   - "Stroke"     ← strokeDesignation is non-empty
+ *   - "Burn"       ← burnDesignation is non-empty
+ *   - "Cardiac"    ← pciCapability is non-empty
+ *   - "Psychiatric"← serviceLine === "Psychiatric" (exact, case-insensitive)
+ * All other specialties (Pediatric, Obstetrics, etc.) are left untouched.
+ */
+router.post("/admin/sync-specialties", requireAdmin, async (_req, res) => {
+  const DESIGNATION_DRIVEN = ["Trauma", "Stroke", "Burn", "Cardiac", "Psychiatric"] as const;
+  const traumaRe = /\blevel\s+(?:i{1,3}|iv)\b/i;
+
+  try {
+    const rows = await db
+      .select({
+        cmsId: hospitalSpecialties.cmsId,
+        specialties: hospitalSpecialties.specialties,
+        actualDesignation: hospitalSpecialties.actualDesignation,
+        strokeDesignation: hospitalSpecialties.strokeDesignation,
+        burnDesignation: hospitalSpecialties.burnDesignation,
+        pciCapability: hospitalSpecialties.pciCapability,
+        serviceLine: hospitalSpecialties.serviceLine,
+      })
+      .from(hospitalSpecialties);
+
+    let updated = 0;
+    let unchanged = 0;
+
+    for (const row of rows) {
+      const existing: string[] = Array.isArray(row.specialties)
+        ? (row.specialties as string[])
+        : [];
+
+      // Determine which designation-driven flags should be set
+      const shouldHave = new Set<string>();
+      if (row.actualDesignation && traumaRe.test(row.actualDesignation)) shouldHave.add("Trauma");
+      if (row.strokeDesignation) shouldHave.add("Stroke");
+      if (row.burnDesignation)   shouldHave.add("Burn");
+      if (row.pciCapability)     shouldHave.add("Cardiac");
+      if (row.serviceLine && row.serviceLine.trim().toLowerCase() === "psychiatric") shouldHave.add("Psychiatric");
+
+      // Rebuild: keep non-designation specialties, replace designation-driven ones
+      const nonDesignation = existing.filter(s => !DESIGNATION_DRIVEN.includes(s as any));
+      const rebuilt = [...nonDesignation, ...Array.from(shouldHave)];
+
+      // Only write if changed
+      const same =
+        rebuilt.length === existing.length &&
+        rebuilt.every(s => existing.includes(s));
+
+      if (!same) {
+        await db
+          .update(hospitalSpecialties)
+          .set({ specialties: rebuilt })
+          .where(eq(hospitalSpecialties.cmsId, row.cmsId));
+        updated++;
+      } else {
+        unchanged++;
+      }
+    }
+
+    res.json({
+      success: true,
+      total: rows.length,
+      updated,
+      unchanged,
+      message: `Synced ${rows.length} hospitals: ${updated} updated, ${unchanged} already correct.`,
+    });
+  } catch (err) {
+    console.error("POST /api/admin/sync-specialties error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── CMS Import Trigger ──────────────────────────────────────────────────────
 
 let importState: {
