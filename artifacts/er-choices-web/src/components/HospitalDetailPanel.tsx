@@ -80,7 +80,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
                 {hospital.helipad && (
                   <li className="text-sm text-foreground">✈️ Helipad available</li>
                 )}
-                {hospital.specialties && hospital.specialties.filter((s) => !hospital.actualDesignation).map((s) => (
+                {!hospital.actualDesignation && hospital.specialties && hospital.specialties.map((s) => (
                   <li key={s} className="text-sm text-foreground">
                     {specialtyLabel(s)}
                   </li>
