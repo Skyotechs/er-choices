@@ -187,7 +187,7 @@ export function NavigationSheet({
 
           {hospital.helipad && (
             <View style={styles.helipadRow}>
-              <Text style={styles.helipadText}>✈️ Helipad available</Text>
+              <Text style={[styles.helipadText, { color: colors.foreground }]}>✈️ Helipad available</Text>
             </View>
           )}
 
@@ -352,7 +352,6 @@ const styles = StyleSheet.create({
   helipadText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
-    color: "#4A90D9",
   },
   callBtn: {
     flexDirection: "row",
