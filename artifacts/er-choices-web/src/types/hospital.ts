@@ -10,6 +10,31 @@ export type HospitalCategory =
   | "Cancer"
   | "HazMat";
 
+export type DesignationFilter =
+  | "All"
+  | "Trauma I"
+  | "Trauma II"
+  | "Trauma III"
+  | "Trauma IV"
+  | "Stroke"
+  | "Burn"
+  | "PCI/STEMI"
+  | "Critical Access"
+  | "Psychiatric";
+
+export const DESIGNATION_FILTERS: DesignationFilter[] = [
+  "All",
+  "Trauma I",
+  "Trauma II",
+  "Trauma III",
+  "Trauma IV",
+  "Stroke",
+  "Burn",
+  "PCI/STEMI",
+  "Critical Access",
+  "Psychiatric",
+];
+
 export interface Hospital {
   id: string;
   name: string;

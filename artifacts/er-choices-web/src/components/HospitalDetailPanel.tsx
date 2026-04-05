@@ -64,13 +64,23 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
           )}
         </div>
 
-        {hospital.specialties && hospital.specialties.length > 0 && (
+        {(hospital.actualDesignation || hospital.helipad || (hospital.specialties && hospital.specialties.length > 0)) && (
           <>
             <div className="h-px bg-border" />
             <div className="px-5 py-4">
               <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">DESIGNATIONS</p>
               <ul className="space-y-1">
-                {hospital.specialties.map((s) => (
+                {hospital.actualDesignation &&
+                  hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
+                    <li key={seg} className="text-sm text-foreground font-medium">
+                      {seg}
+                    </li>
+                  ))
+                }
+                {hospital.helipad && (
+                  <li className="text-sm text-foreground">✈️ Helipad available</li>
+                )}
+                {hospital.specialties && hospital.specialties.filter((s) => !hospital.actualDesignation).map((s) => (
                   <li key={s} className="text-sm text-foreground">
                     {specialtyLabel(s)}
                   </li>

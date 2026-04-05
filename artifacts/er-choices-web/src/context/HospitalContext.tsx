@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
-import { Hospital, HospitalCategory, CATEGORIES } from "@/types/hospital";
+import { Hospital, HospitalCategory, DesignationFilter } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
   fetchVerifiedSpecialtyMap,
   filterAndSortHospitals,
   NavigationServerError,
 } from "@/services/hospitalService";
+import { computeAvailableFilters } from "@/services/designationUtils";
 
 const API_BASE = import.meta.env.VITE_API_BASE
   ? import.meta.env.VITE_API_BASE.replace(/\/$/, "")
@@ -25,13 +26,13 @@ interface HospitalContextValue {
   serverError: boolean;
   allHospitals: Hospital[];
   filteredHospitals: Hospital[];
-  selectedCategory: HospitalCategory;
-  availableCategories: HospitalCategory[];
+  selectedFilter: DesignationFilter;
+  availableFilters: DesignationFilter[];
   isLoading: boolean;
   isRefreshing: boolean;
   requestLocationPermission: () => Promise<void>;
   refresh: () => Promise<void>;
-  setCategory: (category: HospitalCategory) => void;
+  setFilter: (filter: DesignationFilter) => void;
 }
 
 const HospitalContext = createContext<HospitalContextValue | null>(null);
@@ -50,35 +51,20 @@ async function getLocationWeb(): Promise<LocationCoords> {
   });
 }
 
-function computeAvailableCategories(hospitals: Hospital[]): HospitalCategory[] {
-  const catSet = new Set<HospitalCategory>();
-  for (const h of hospitals) {
-    const specialties = h.verifiedSpecialties ?? h.categories;
-    for (const cat of specialties) {
-      if (cat !== "All") catSet.add(cat);
-    }
-  }
-  const available: HospitalCategory[] = ["All"];
-  for (const cat of CATEGORIES) {
-    if (cat !== "All" && catSet.has(cat)) available.push(cat);
-  }
-  return available;
-}
-
 export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationPermission, setLocationPermission] = useState<PermStatus>(null);
   const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<HospitalCategory>("All");
+  const [selectedFilter, setSelectedFilter] = useState<DesignationFilter>("All");
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [serverError, setServerError] = useState(false);
   const [verifiedSpecialtyMap, setVerifiedSpecialtyMap] = useState<Record<string, HospitalCategory[]>>({});
   const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
 
-  const filteredHospitals = filterAndSortHospitals(allHospitals, selectedCategory, 10);
-  const availableCategories = computeAvailableCategories(allHospitals);
+  const filteredHospitals = filterAndSortHospitals(allHospitals, selectedFilter, 10);
+  const availableFilters = computeAvailableFilters(allHospitals);
 
   useEffect(() => {
     fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
@@ -161,17 +147,17 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [location, loadHospitals, requestLocationPermission]);
 
-  const setCategory = useCallback((category: HospitalCategory) => {
-    setSelectedCategory(category);
+  const setFilter = useCallback((filter: DesignationFilter) => {
+    setSelectedFilter(filter);
   }, []);
 
   return (
     <HospitalContext.Provider
       value={{
         location, locationError, locationPermission, serverError,
-        allHospitals, filteredHospitals, selectedCategory,
-        availableCategories, isLoading, isRefreshing,
-        requestLocationPermission, refresh, setCategory,
+        allHospitals, filteredHospitals, selectedFilter,
+        availableFilters, isLoading, isRefreshing,
+        requestLocationPermission, refresh, setFilter,
       }}
     >
       {children}

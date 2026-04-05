@@ -10,9 +10,9 @@ const HospitalMap = lazy(() => import("@/components/HospitalMap").then(m => ({ d
 export function Home() {
   const {
     location, locationError, locationPermission,
-    serverError, filteredHospitals, selectedCategory,
-    availableCategories, isLoading, isRefreshing,
-    requestLocationPermission, refresh, setCategory,
+    serverError, filteredHospitals, selectedFilter,
+    availableFilters, isLoading, isRefreshing,
+    requestLocationPermission, refresh, setFilter,
   } = useHospital();
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
@@ -124,11 +124,11 @@ export function Home() {
         </button>
       </div>
 
-      {availableCategories.length > 0 && (
+      {availableFilters.length > 0 && (
         <CategoryFilter
-          selected={selectedCategory}
-          onSelect={setCategory}
-          availableCategories={availableCategories}
+          selected={selectedFilter}
+          onSelect={setFilter}
+          availableFilters={availableFilters}
         />
       )}
 

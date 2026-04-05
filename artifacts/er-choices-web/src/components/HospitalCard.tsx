@@ -9,6 +9,10 @@ interface HospitalCardProps {
 }
 
 export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
+  const designationBadge = hospital.actualDesignation
+    ? hospital.actualDesignation.split(";")[0].trim()
+    : null;
+
   return (
     <button
       onClick={() => onPress(hospital)}
@@ -20,6 +24,9 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs text-muted-foreground font-medium">#{index + 1}</span>
             <h3 className="text-sm font-semibold text-foreground truncate">{hospital.name}</h3>
+            {hospital.helipad && (
+              <span className="text-xs flex-shrink-0" title="Helipad available">✈️</span>
+            )}
           </div>
           {(hospital.address || hospital.city) && (
             <p className="text-xs text-muted-foreground truncate">
@@ -29,16 +36,11 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
           {hospital.phone && (
             <p className="text-xs text-muted-foreground mt-0.5">📞 {hospital.phone}</p>
           )}
-          {hospital.categories.length > 0 && (
+          {designationBadge && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {hospital.categories.slice(0, 3).map((cat) => (
-                <span
-                  key={cat}
-                  className="text-xs px-1.5 py-0.5 bg-[#c0392b]/10 text-[#c0392b] rounded-md font-medium"
-                >
-                  {cat}
-                </span>
-              ))}
+              <span className="text-xs px-1.5 py-0.5 bg-[#c0392b]/10 text-[#c0392b] rounded-md font-medium">
+                {designationBadge}
+              </span>
             </div>
           )}
         </div>

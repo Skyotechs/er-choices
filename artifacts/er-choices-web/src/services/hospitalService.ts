@@ -1,4 +1,5 @@
-import { Hospital, HospitalCategory } from "@/types/hospital";
+import { Hospital, HospitalCategory, DesignationFilter } from "@/types/hospital";
+import { matchesDesignationFilter } from "@/services/designationUtils";
 
 const SEARCH_RADIUS_MILES = 50;
 
@@ -138,16 +139,13 @@ export async function fetchNearbyHospitals(
 
 export function filterAndSortHospitals(
   hospitals: Hospital[],
-  category: HospitalCategory,
+  filter: DesignationFilter,
   limit = 10
 ): Hospital[] {
   const filtered =
-    category === "All"
+    filter === "All"
       ? hospitals
-      : hospitals.filter((h) => {
-          const specialties = h.verifiedSpecialties ?? h.categories;
-          return specialties.includes(category);
-        });
+      : hospitals.filter((h) => matchesDesignationFilter(h, filter));
   return filtered
     .slice()
     .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0))
