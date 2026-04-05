@@ -17,7 +17,7 @@ export function Home() {
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
   const [panelVisible, setPanelVisible] = useState(false);
-  const [retryCountdown, setRetryCountdown] = useState(15);
+  const [retryCountdown, setRetryCountdown] = useState(30);
 
   useEffect(() => {
     if (!isLoading && !location) {
@@ -27,15 +27,15 @@ export function Home() {
 
   useEffect(() => {
     if (!serverError) {
-      setRetryCountdown(15);
+      setRetryCountdown(30);
       return;
     }
-    setRetryCountdown(15);
+    setRetryCountdown(30);
     const interval = setInterval(() => {
       setRetryCountdown((c) => {
         if (c <= 1) {
           refresh();
-          return 15;
+          return 30;
         }
         return c - 1;
       });
@@ -71,7 +71,7 @@ export function Home() {
           <h2 className="text-lg font-bold text-foreground mb-2">Server Updating</h2>
           <p className="text-sm text-muted-foreground mb-4">The server is being updated. Retrying in {retryCountdown}s...</p>
           <button
-            onClick={() => { setRetryCountdown(15); refresh(); }}
+            onClick={() => { setRetryCountdown(30); refresh(); }}
             className="px-5 py-2.5 bg-[#c0392b] text-white rounded-xl text-sm font-semibold hover:bg-[#a93226] transition-colors"
           >
             Retry Now

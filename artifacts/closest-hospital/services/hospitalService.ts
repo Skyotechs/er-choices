@@ -54,7 +54,7 @@ export async function fetchNearbyHospitals(
     console.log("Querying hospital database for nearby hospitals...");
     response = await fetch(
       `${apiBase}/hospitals/nearby?lat=${latitude}&lon=${longitude}&radius=50`,
-      { signal: AbortSignal.timeout(15000) }
+      { signal: AbortSignal.timeout(30000) }
     );
   } catch {
     throw new NavigationServerError();

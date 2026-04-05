@@ -89,7 +89,7 @@ export async function fetchNearbyHospitals(
 
   try {
     const url = `${API_BASE}/hospitals/nearby?lat=${latitude}&lon=${longitude}&radius=${SEARCH_RADIUS_MILES}`;
-    const res = await fetchWithTimeout(url, 12000);
+    const res = await fetchWithTimeout(url, 30000);
     if (!res.ok) throw new NavigationServerError();
     data = await res.json();
     if (!data.hospitals || !Array.isArray(data.hospitals)) throw new NavigationServerError();

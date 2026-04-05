@@ -44,7 +44,7 @@ export default function HomeScreen() {
 
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
   const [navSheetVisible, setNavSheetVisible] = useState(false);
-  const [retryCountdown, setRetryCountdown] = useState(15);
+  const [retryCountdown, setRetryCountdown] = useState(30);
 
   useEffect(() => {
     if (!isLoading && !location) {
@@ -54,15 +54,15 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!serverError) {
-      setRetryCountdown(15);
+      setRetryCountdown(30);
       return;
     }
-    setRetryCountdown(15);
+    setRetryCountdown(30);
     const interval = setInterval(() => {
       setRetryCountdown((c) => {
         if (c <= 1) {
           refresh();
-          return 15;
+          return 30;
         }
         return c - 1;
       });
@@ -108,7 +108,7 @@ export default function HomeScreen() {
           title="Server Updating"
           description={`The server is being updated. Retrying in ${retryCountdown}s...`}
           actionLabel="Retry Now"
-          onAction={() => { setRetryCountdown(15); refresh(); }}
+          onAction={() => { setRetryCountdown(30); refresh(); }}
         />
       </View>
     );
