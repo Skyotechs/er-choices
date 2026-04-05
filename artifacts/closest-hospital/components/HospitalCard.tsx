@@ -56,14 +56,21 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
           {hospital.name}
         </Text>
 
-        {hospital.actualDesignation ? (
-          <View style={[styles.designationBadge, { backgroundColor: colors.muted }]}>
-            <Text
-              style={[styles.designationText, { color: colors.primary }]}
-              numberOfLines={1}
-            >
-              {hospital.actualDesignation.split(";")[0].trim()}
-            </Text>
+        {(hospital.actualDesignation || hospital.helipad) ? (
+          <View style={styles.badgeRow}>
+            {hospital.actualDesignation ? (
+              <View style={[styles.designationBadge, { backgroundColor: colors.muted }]}>
+                <Text
+                  style={[styles.designationText, { color: colors.primary }]}
+                  numberOfLines={1}
+                >
+                  {hospital.actualDesignation.split(";")[0].trim()}
+                </Text>
+              </View>
+            ) : null}
+            {hospital.helipad ? (
+              <Text style={styles.helipadIcon}>✈️</Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -138,12 +145,20 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.2,
   },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 1,
+  },
   designationBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginBottom: 1,
+  },
+  helipadIcon: {
+    fontSize: 13,
   },
   designationText: {
     fontSize: 11,

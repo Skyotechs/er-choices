@@ -137,24 +137,72 @@ export function NavigationSheet({
           </Text>
           {hospital.distance != null && (
             <View style={styles.distanceBadge}>
-              <MaterialIcons
-                name="place"
-                size={14}
-                color={colors.primary}
-              />
+              <MaterialIcons name="place" size={14} color={colors.primary} />
               <Text style={[styles.distanceText, { color: colors.primary }]}>
                 {formatDistance(hospital.distance)} away
               </Text>
             </View>
           )}
+
+          {hospital.actualDesignation && (
+            <View style={styles.designationBlock}>
+              {hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
+                <View
+                  key={seg}
+                  style={[styles.designationBadge, { backgroundColor: colors.primary + "18" }]}
+                >
+                  <Text style={[styles.designationBadgeText, { color: colors.primary }]}>
+                    {seg}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {(hospital.strokeDesignation || hospital.burnDesignation || hospital.pciCapability) && (
+            <View style={styles.secondaryBadgesRow}>
+              {hospital.strokeDesignation ? (
+                <View style={[styles.secondaryBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.secondaryBadgeText, { color: colors.foreground }]}>
+                    🧠 {hospital.strokeDesignation}
+                  </Text>
+                </View>
+              ) : null}
+              {hospital.burnDesignation ? (
+                <View style={[styles.secondaryBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.secondaryBadgeText, { color: colors.foreground }]}>
+                    🔥 {hospital.burnDesignation}
+                  </Text>
+                </View>
+              ) : null}
+              {hospital.pciCapability ? (
+                <View style={[styles.secondaryBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.secondaryBadgeText, { color: colors.foreground }]}>
+                    ❤️ {hospital.pciCapability}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {hospital.helipad && (
+            <View style={styles.helipadRow}>
+              <Text style={styles.helipadText}>✈️ Helipad available</Text>
+            </View>
+          )}
+
           {hospital.phone && (
             <TouchableOpacity
-              onPress={() => Linking.openURL(`tel:${hospital.phone}`)}
-              style={styles.phoneRow}
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                Linking.openURL(`tel:${hospital.phone}`);
+              }}
+              style={[styles.callBtn, { borderColor: colors.primary, borderRadius: colors.radius - 2 }]}
+              activeOpacity={0.75}
             >
-              <MaterialIcons name="phone" size={14} color={colors.mutedForeground} />
-              <Text style={[styles.phone, { color: colors.mutedForeground }]}>
-                {hospital.phone}
+              <MaterialIcons name="phone" size={20} color={colors.primary} />
+              <Text style={[styles.callBtnText, { color: colors.primary }]}>
+                Call {hospital.phone}
               </Text>
             </TouchableOpacity>
           )}
@@ -268,15 +316,57 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
   },
-  phoneRow: {
+  designationBlock: {
+    gap: 5,
+    marginTop: 8,
+  },
+  designationBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  designationBadgeText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.1,
+  },
+  secondaryBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+  },
+  secondaryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  secondaryBadgeText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+  helipadRow: {
+    marginTop: 6,
+  },
+  helipadText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#4A90D9",
+  },
+  callBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 4,
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    paddingVertical: 13,
+    marginTop: 12,
   },
-  phone: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
+  callBtnText: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: -0.1,
   },
   divider: {
     height: 1,
