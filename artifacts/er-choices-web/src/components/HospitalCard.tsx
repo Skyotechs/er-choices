@@ -1,6 +1,7 @@
 import React from "react";
 import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
+import { normalizeDesignation } from "@/services/designationUtils";
 
 interface HospitalCardProps {
   hospital: Hospital;
@@ -10,7 +11,7 @@ interface HospitalCardProps {
 
 export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
   const designationBadge = hospital.actualDesignation
-    ? hospital.actualDesignation.split(";")[0].trim()
+    ? normalizeDesignation(hospital.actualDesignation.split(";")[0].trim())
     : (hospital.categories as string[]).filter((c) => c !== "All")[0] ?? null;
 
   return (

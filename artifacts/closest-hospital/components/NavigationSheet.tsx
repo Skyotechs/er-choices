@@ -13,7 +13,7 @@ import { FontAwesome5, MaterialIcons, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
-import { formatDistance } from "@/services/hospitalService";
+import { formatDistance, normalizeDesignation } from "@/services/hospitalService";
 import { ReportModal } from "./ReportModal";
 
 interface NavigationSheetProps {
@@ -147,7 +147,7 @@ export function NavigationSheet({
           {(hospital.actualDesignation || (hospital.categories as string[]).filter(c => c !== "All").length > 0) && (
             <View style={styles.designationBlock}>
               {(hospital.actualDesignation
-                ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean)
+                ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map(normalizeDesignation)
                 : (hospital.categories as string[]).filter((c) => c !== "All")
               ).map((seg) => (
                 <View

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
+import { normalizeDesignation } from "@/services/designationUtils";
 import { ReportModal } from "./ReportModal";
 
 function specialtyLabel(key: string): string {
@@ -73,7 +74,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
                 {hospital.actualDesignation
                   ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
                       <li key={seg} className="text-sm text-foreground font-medium">
-                        {seg}
+                        {normalizeDesignation(seg)}
                       </li>
                     ))
                   : (hospital.categories as string[]).filter((c) => c !== "All").map((cat) => (
