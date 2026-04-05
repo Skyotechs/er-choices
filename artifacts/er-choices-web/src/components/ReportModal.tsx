@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Hospital } from "@/types/hospital";
 
-const API_BASE = `${window.location.origin}/api`;
+const API_BASE = import.meta.env.VITE_API_BASE
+  ? (import.meta.env.VITE_API_BASE as string).replace(/\/$/, "")
+  : `${window.location.origin}/api`;
 
 type IssueType =
   | "wrong_name"
