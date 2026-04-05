@@ -3,10 +3,7 @@ import { DesignationFilter, DESIGNATION_FILTERS } from "@/types/hospital";
 
 const FILTER_ICONS: Record<DesignationFilter, string> = {
   All: "🏥",
-  "Trauma I": "🚑",
-  "Trauma II": "🚑",
-  "Trauma III": "🚑",
-  "Trauma IV": "🚑",
+  Trauma: "🚑",
   Stroke: "🧠",
   Burn: "🔥",
   "PCI/STEMI": "❤️",

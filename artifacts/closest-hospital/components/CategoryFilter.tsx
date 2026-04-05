@@ -17,16 +17,13 @@ type IconSpec =
   | { lib: "mci"; name: string };
 
 const FILTER_ICONS: Record<DesignationFilter, IconSpec> = {
-  All:            { lib: "mci", name: "hospital-box" },
-  "Trauma I":     { lib: "fa5", name: "ambulance" },
-  "Trauma II":    { lib: "fa5", name: "ambulance" },
-  "Trauma III":   { lib: "fa5", name: "ambulance" },
-  "Trauma IV":    { lib: "fa5", name: "ambulance" },
-  Stroke:         { lib: "fa5", name: "brain" },
-  Burn:           { lib: "fa5", name: "fire" },
-  "PCI/STEMI":    { lib: "fa5", name: "heartbeat" },
+  All:               { lib: "mci", name: "hospital-box" },
+  Trauma:            { lib: "fa5", name: "ambulance" },
+  Stroke:            { lib: "fa5", name: "brain" },
+  Burn:              { lib: "fa5", name: "fire" },
+  "PCI/STEMI":       { lib: "fa5", name: "heartbeat" },
   "Critical Access": { lib: "mci", name: "hospital-building" },
-  Psychiatric:    { lib: "mci", name: "head-cog" },
+  Psychiatric:       { lib: "mci", name: "head-cog" },
 };
 
 interface CategoryFilterProps {

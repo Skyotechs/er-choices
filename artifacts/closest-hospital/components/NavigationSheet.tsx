@@ -144,9 +144,12 @@ export function NavigationSheet({
             </View>
           )}
 
-          {hospital.actualDesignation && (
+          {(hospital.actualDesignation || (hospital.categories as string[]).filter(c => c !== "All").length > 0) && (
             <View style={styles.designationBlock}>
-              {hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
+              {(hospital.actualDesignation
+                ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean)
+                : (hospital.categories as string[]).filter((c) => c !== "All")
+              ).map((seg) => (
                 <View
                   key={seg}
                   style={[styles.designationBadge, { backgroundColor: colors.primary + "18" }]}

@@ -11,7 +11,7 @@ interface HospitalCardProps {
 export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
   const designationBadge = hospital.actualDesignation
     ? hospital.actualDesignation.split(";")[0].trim()
-    : null;
+    : (hospital.categories as string[]).filter((c) => c !== "All")[0] ?? null;
 
   return (
     <button

@@ -16,10 +16,7 @@ export type HospitalCategory =
  */
 export type DesignationFilter =
   | "All"
-  | "Trauma I"
-  | "Trauma II"
-  | "Trauma III"
-  | "Trauma IV"
+  | "Trauma"
   | "Stroke"
   | "Burn"
   | "PCI/STEMI"
@@ -28,10 +25,7 @@ export type DesignationFilter =
 
 export const DESIGNATION_FILTERS: DesignationFilter[] = [
   "All",
-  "Trauma I",
-  "Trauma II",
-  "Trauma III",
-  "Trauma IV",
+  "Trauma",
   "Stroke",
   "Burn",
   "PCI/STEMI",

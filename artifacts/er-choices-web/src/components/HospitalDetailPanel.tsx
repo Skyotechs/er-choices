@@ -64,27 +64,27 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
           )}
         </div>
 
-        {(hospital.actualDesignation || hospital.helipad || (hospital.specialties && hospital.specialties.length > 0)) && (
+        {(hospital.actualDesignation || hospital.helipad || (hospital.categories as string[]).filter(c => c !== "All").length > 0 || (hospital.specialties && hospital.specialties.length > 0)) && (
           <>
             <div className="h-px bg-border" />
             <div className="px-5 py-4">
               <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">DESIGNATIONS</p>
               <ul className="space-y-1">
-                {hospital.actualDesignation &&
-                  hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
-                    <li key={seg} className="text-sm text-foreground font-medium">
-                      {seg}
-                    </li>
-                  ))
+                {hospital.actualDesignation
+                  ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
+                      <li key={seg} className="text-sm text-foreground font-medium">
+                        {seg}
+                      </li>
+                    ))
+                  : (hospital.categories as string[]).filter((c) => c !== "All").map((cat) => (
+                      <li key={cat} className="text-sm text-foreground font-medium">
+                        {cat}
+                      </li>
+                    ))
                 }
                 {hospital.helipad && (
                   <li className="text-sm text-foreground">✈️ Helipad available</li>
                 )}
-                {!hospital.actualDesignation && hospital.specialties && hospital.specialties.map((s) => (
-                  <li key={s} className="text-sm text-foreground">
-                    {specialtyLabel(s)}
-                  </li>
-                ))}
               </ul>
             </div>
           </>

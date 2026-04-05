@@ -56,23 +56,28 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
           {hospital.name}
         </Text>
 
-        {(hospital.actualDesignation || hospital.helipad) ? (
-          <View style={styles.badgeRow}>
-            {hospital.actualDesignation ? (
-              <View style={[styles.designationBadge, { backgroundColor: colors.muted }]}>
-                <Text
-                  style={[styles.designationText, { color: colors.primary }]}
-                  numberOfLines={1}
-                >
-                  {hospital.actualDesignation.split(";")[0].trim()}
-                </Text>
-              </View>
-            ) : null}
-            {hospital.helipad ? (
-              <Text style={styles.helipadIcon}>✈️</Text>
-            ) : null}
-          </View>
-        ) : null}
+        {(() => {
+          const badge = hospital.actualDesignation
+            ? hospital.actualDesignation.split(";")[0].trim()
+            : (hospital.categories as string[]).filter((c) => c !== "All")[0] ?? null;
+          return (badge || hospital.helipad) ? (
+            <View style={styles.badgeRow}>
+              {badge ? (
+                <View style={[styles.designationBadge, { backgroundColor: colors.muted }]}>
+                  <Text
+                    style={[styles.designationText, { color: colors.primary }]}
+                    numberOfLines={1}
+                  >
+                    {badge}
+                  </Text>
+                </View>
+              ) : null}
+              {hospital.helipad ? (
+                <Text style={styles.helipadIcon}>✈️</Text>
+              ) : null}
+            </View>
+          ) : null;
+        })()}
 
         <Text
           style={[styles.address, { color: colors.mutedForeground }]}
