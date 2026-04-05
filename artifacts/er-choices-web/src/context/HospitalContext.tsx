@@ -145,6 +145,23 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setLocationError(null);
     try {
+      // Pre-check permission state via Permissions API (supported in iOS Safari 16+,
+      // Chrome, Firefox). If already denied, skip the geolocation call entirely —
+      // watchPosition would just return the same error and confuse the user.
+      if (typeof navigator.permissions !== "undefined") {
+        try {
+          const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+          if (status.state === "denied") {
+            setLocationPermission("denied");
+            setLocationError(null);
+            setIsLoading(false);
+            return;
+          }
+        } catch {
+          // Permissions API threw (e.g. older Safari) — fall through to geolocation call
+        }
+      }
+
       let coords: LocationCoords;
       try {
         coords = await getLocationWeb();
@@ -153,7 +170,7 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
         const geolocationError = err as GeolocationPositionError;
         if (geolocationError?.code === 1) {
           setLocationPermission("denied");
-          setLocationError("Location permission denied. Please allow location access in your browser.");
+          setLocationError(null);
         } else {
           setLocationError("Unable to get your location. Please try again.");
         }

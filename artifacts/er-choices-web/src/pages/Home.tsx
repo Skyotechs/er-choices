@@ -82,22 +82,60 @@ export function Home() {
   }
 
   if (locationError || locationPermission === "denied") {
+    const isDenied = locationPermission === "denied";
+    const ua = navigator.userAgent;
+    const isIosSafari =
+      /iPad|iPhone|iPod/.test(ua) &&
+      /Safari/.test(ua) &&
+      !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
+
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center max-w-xs">
           <div className="text-5xl mb-4">📍</div>
           <h2 className="text-lg font-bold text-foreground mb-2">Location Required</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            ER Choices needs your location to find nearby hospitals. Please grant location access to continue.
-          </p>
-          <button
-            onClick={requestLocationPermission}
-            className="px-5 py-2.5 bg-[#c0392b] text-white rounded-xl text-sm font-semibold hover:bg-[#a93226] transition-colors"
-          >
-            Enable Location
-          </button>
-          {locationError && (
-            <p className="text-xs text-red-400 mt-3">{locationError}</p>
+
+          {isDenied ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                Location access was blocked for this site. Follow these steps to re-enable it:
+              </p>
+              {isIosSafari ? (
+                <ol className="text-left text-sm text-muted-foreground space-y-2 mb-5 bg-muted/40 rounded-xl p-4">
+                  <li><span className="font-semibold text-foreground">1.</span> Tap the <span className="font-semibold text-foreground">aA</span> icon in the Safari address bar</li>
+                  <li><span className="font-semibold text-foreground">2.</span> Tap <span className="font-semibold text-foreground">Website Settings</span></li>
+                  <li><span className="font-semibold text-foreground">3.</span> Set <span className="font-semibold text-foreground">Location</span> to <span className="font-semibold text-foreground">Allow</span></li>
+                  <li><span className="font-semibold text-foreground">4.</span> Tap <span className="font-semibold text-foreground">Done</span>, then come back here</li>
+                </ol>
+              ) : (
+                <ol className="text-left text-sm text-muted-foreground space-y-2 mb-5 bg-muted/40 rounded-xl p-4">
+                  <li><span className="font-semibold text-foreground">1.</span> Click the <span className="font-semibold text-foreground">lock icon</span> in your browser's address bar</li>
+                  <li><span className="font-semibold text-foreground">2.</span> Set <span className="font-semibold text-foreground">Location</span> to <span className="font-semibold text-foreground">Allow</span></li>
+                  <li><span className="font-semibold text-foreground">3.</span> Reload the page</li>
+                </ol>
+              )}
+              <button
+                onClick={requestLocationPermission}
+                className="px-5 py-2.5 bg-[#c0392b] text-white rounded-xl text-sm font-semibold hover:bg-[#a93226] transition-colors"
+              >
+                I've Enabled It — Try Again
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                ER Choices needs your location to find nearby hospitals. Please grant location access to continue.
+              </p>
+              <button
+                onClick={requestLocationPermission}
+                className="px-5 py-2.5 bg-[#c0392b] text-white rounded-xl text-sm font-semibold hover:bg-[#a93226] transition-colors"
+              >
+                Enable Location
+              </button>
+              {locationError && (
+                <p className="text-xs text-red-400 mt-3">{locationError}</p>
+              )}
+            </>
           )}
         </div>
       </div>
