@@ -101,12 +101,17 @@ export function Home() {
                 Location access was blocked for this site. Follow these steps to re-enable it:
               </p>
               {isIosSafari ? (
-                <ol className="text-left text-sm text-muted-foreground space-y-2 mb-5 bg-muted/40 rounded-xl p-4">
-                  <li><span className="font-semibold text-foreground">1.</span> Tap the <span className="font-semibold text-foreground">aA</span> icon in the Safari address bar</li>
-                  <li><span className="font-semibold text-foreground">2.</span> Tap <span className="font-semibold text-foreground">Website Settings</span></li>
-                  <li><span className="font-semibold text-foreground">3.</span> Set <span className="font-semibold text-foreground">Location</span> to <span className="font-semibold text-foreground">Allow</span></li>
-                  <li><span className="font-semibold text-foreground">4.</span> Tap <span className="font-semibold text-foreground">Done</span>, then come back here</li>
-                </ol>
+                <>
+                  <ol className="text-left text-sm text-muted-foreground space-y-2 mb-3 bg-muted/40 rounded-xl p-4">
+                    <li><span className="font-semibold text-foreground">1.</span> Tap the <span className="font-semibold text-foreground">aA</span> icon in the Safari address bar</li>
+                    <li><span className="font-semibold text-foreground">2.</span> Tap <span className="font-semibold text-foreground">Website Settings</span></li>
+                    <li><span className="font-semibold text-foreground">3.</span> Set <span className="font-semibold text-foreground">Location</span> to <span className="font-semibold text-foreground">Allow</span></li>
+                    <li><span className="font-semibold text-foreground">4.</span> Tap <span className="font-semibold text-foreground">Done</span>, then come back here</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground mb-5">
+                    Or go to <span className="font-semibold">Settings → Safari → erchoices.com → Location → Allow</span>
+                  </p>
+                </>
               ) : (
                 <ol className="text-left text-sm text-muted-foreground space-y-2 mb-5 bg-muted/40 rounded-xl p-4">
                   <li><span className="font-semibold text-foreground">1.</span> Click the <span className="font-semibold text-foreground">lock icon</span> in your browser's address bar</li>

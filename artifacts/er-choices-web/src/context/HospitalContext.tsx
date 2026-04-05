@@ -142,26 +142,25 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requestLocationPermission = useCallback(async () => {
-    setIsLoading(true);
     setLocationError(null);
-    try {
-      // Pre-check permission state via Permissions API (supported in iOS Safari 16+,
-      // Chrome, Firefox). If already denied, skip the geolocation call entirely —
-      // watchPosition would just return the same error and confuse the user.
-      if (typeof navigator.permissions !== "undefined") {
-        try {
-          const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
-          if (status.state === "denied") {
-            setLocationPermission("denied");
-            setLocationError(null);
-            setIsLoading(false);
-            return;
-          }
-        } catch {
-          // Permissions API threw (e.g. older Safari) — fall through to geolocation call
-        }
-      }
 
+    // Pre-check permission state via Permissions API (supported in iOS Safari 16+,
+    // Chrome, Firefox). If already denied, show instructions immediately — no spinner,
+    // no flash — watchPosition would return the same error anyway.
+    if (typeof navigator.permissions !== "undefined") {
+      try {
+        const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+        if (status.state === "denied") {
+          setLocationPermission("denied");
+          return;
+        }
+      } catch {
+        // Permissions API threw (e.g. older Safari) — fall through to geolocation call
+      }
+    }
+
+    setIsLoading(true);
+    try {
       let coords: LocationCoords;
       try {
         coords = await getLocationWeb();
