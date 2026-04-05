@@ -2,7 +2,33 @@ import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
 import { eq, ilike } from "drizzle-orm";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
-import { runEnrichment, getEnrichmentCsv } from "../../scripts/enrich-specialties.js";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+const execFileAsync = promisify(execFile);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Root of the monorepo: src/routes → src → dist → api-server → artifacts → workspace root
+const WORKSPACE_ROOT = path.resolve(__dirname, "..", "..", "..", "..", "..");
+const ENRICHMENT_CSV_PATH = path.join(WORKSPACE_ROOT, "artifacts", "api-server", "specialty-enrichment-review.csv");
+
+/** Resolve tsx binary from api-server or root node_modules */
+function findTsx(): string {
+  const candidates = [
+    path.join(WORKSPACE_ROOT, "artifacts", "api-server", "node_modules", ".bin", "tsx"),
+    path.join(WORKSPACE_ROOT, "node_modules", ".bin", "tsx"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return "tsx"; // Hope it's on PATH
+}
+
+const ENRICH_SCRIPT = path.join(
+  WORKSPACE_ROOT, "artifacts", "api-server", "scripts", "run-enrich-specialties.ts",
+);
 
 const router = Router();
 
@@ -660,47 +686,69 @@ router.post("/admin/run-enrichment", requireAdmin, async (_req, res) => {
   };
 
   try {
-    const result = await runEnrichment();
+    const tsxBin = findTsx();
+    console.log(`[Admin] Forking enrichment child process: ${tsxBin} ${ENRICH_SCRIPT}`);
+
+    const { stdout } = await execFileAsync(tsxBin, [ENRICH_SCRIPT], {
+      cwd: WORKSPACE_ROOT,
+      env: { ...process.env },
+      maxBuffer: 20 * 1024 * 1024,
+    });
+
+    // Parse ENRICHMENT_RESULT:{...} JSON line emitted by the runner
+    const resultLine = stdout.split(/\r?\n/).find((l) => l.startsWith("ENRICHMENT_RESULT:"));
+    if (!resultLine) {
+      throw new Error("Enrichment script did not emit an ENRICHMENT_RESULT line");
+    }
+    const result = JSON.parse(resultLine.replace("ENRICHMENT_RESULT:", "")) as {
+      strokeWritten: number;
+      burnWritten: number;
+      pciWritten: number;
+      total: number;
+    };
+
     enrichState = {
       status: "done",
       startedAt: enrichState.startedAt,
       finishedAt: new Date().toISOString(),
-      strokeMatched: result.strokeMatched,
-      burnMatched: result.burnMatched,
-      pciMatched: result.pciMatched,
-      total: result.total,
+      strokeMatched: result.strokeWritten,
+      burnMatched:   result.burnWritten,
+      pciMatched:    result.pciWritten,
+      total:         result.total,
       error: null,
     };
     console.log("[Admin] Specialty enrichment completed:", enrichState);
+
     res.json({
       message: "Enrichment complete",
-      strokeMatched: result.strokeMatched,
-      burnMatched: result.burnMatched,
-      pciMatched: result.pciMatched,
-      total: result.total,
-      csvAvailable: true,
+      strokeMatched: result.strokeWritten,
+      burnMatched:   result.burnWritten,
+      pciMatched:    result.pciWritten,
+      total:         result.total,
+      csvAvailable: fs.existsSync(ENRICHMENT_CSV_PATH),
     });
   } catch (err: unknown) {
+    const msg = String((err as Error)?.message ?? err);
     enrichState = {
       ...enrichState,
       status: "error",
       finishedAt: new Date().toISOString(),
-      error: String((err as Error)?.message ?? err),
+      error: msg,
     };
     console.error("[Admin] Specialty enrichment failed:", err);
-    res.status(500).json({ error: enrichState.error });
+    res.status(500).json({ error: msg });
   }
 });
 
 router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {
-  const { csv, runAt } = getEnrichmentCsv();
-  if (!csv) {
+  if (!fs.existsSync(ENRICHMENT_CSV_PATH)) {
     res.status(404).json({
       error: "No enrichment CSV available. Run specialty enrichment first.",
     });
     return;
   }
-  const date = runAt ? runAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const csv = fs.readFileSync(ENRICHMENT_CSV_PATH, "utf8");
+  const date = new Date().toISOString().slice(0, 10);
   res.setHeader("Content-Type", "text/csv");
   res.setHeader(
     "Content-Disposition",
