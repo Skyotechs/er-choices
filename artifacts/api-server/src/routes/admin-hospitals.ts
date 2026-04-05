@@ -658,31 +658,38 @@ router.post("/admin/run-enrichment", requireAdmin, async (_req, res) => {
     strokeMatched: 0, burnMatched: 0, pciMatched: 0, total: 0,
     error: null,
   };
-  res.status(202).json({ message: "Enrichment started", state: enrichState });
 
-  runEnrichment()
-    .then((result) => {
-      enrichState = {
-        status: "done",
-        startedAt: enrichState.startedAt,
-        finishedAt: new Date().toISOString(),
-        strokeMatched: result.strokeMatched,
-        burnMatched: result.burnMatched,
-        pciMatched: result.pciMatched,
-        total: result.total,
-        error: null,
-      };
-      console.log("[Admin] Specialty enrichment completed:", enrichState);
-    })
-    .catch((err: unknown) => {
-      enrichState = {
-        ...enrichState,
-        status: "error",
-        finishedAt: new Date().toISOString(),
-        error: String((err as Error)?.message ?? err),
-      };
-      console.error("[Admin] Specialty enrichment failed:", err);
+  try {
+    const result = await runEnrichment();
+    enrichState = {
+      status: "done",
+      startedAt: enrichState.startedAt,
+      finishedAt: new Date().toISOString(),
+      strokeMatched: result.strokeMatched,
+      burnMatched: result.burnMatched,
+      pciMatched: result.pciMatched,
+      total: result.total,
+      error: null,
+    };
+    console.log("[Admin] Specialty enrichment completed:", enrichState);
+    res.json({
+      message: "Enrichment complete",
+      strokeMatched: result.strokeMatched,
+      burnMatched: result.burnMatched,
+      pciMatched: result.pciMatched,
+      total: result.total,
+      csvAvailable: true,
     });
+  } catch (err: unknown) {
+    enrichState = {
+      ...enrichState,
+      status: "error",
+      finishedAt: new Date().toISOString(),
+      error: String((err as Error)?.message ?? err),
+    };
+    console.error("[Admin] Specialty enrichment failed:", err);
+    res.status(500).json({ error: enrichState.error });
+  }
 });
 
 router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {

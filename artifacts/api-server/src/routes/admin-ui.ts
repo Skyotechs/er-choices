@@ -612,7 +612,6 @@ async function triggerImport() {
 }
 
 // ── Specialty Enrichment ───────────────────────────────────────────────────
-let enrichPollTimer = null;
 
 async function triggerEnrichment() {
   const btn = document.getElementById('run-enrich-btn');
@@ -620,9 +619,11 @@ async function triggerEnrichment() {
   const box = document.getElementById('enrich-status-box');
   const downloadRow = document.getElementById('enrich-download-row');
   btn.disabled = true;
-  btn.textContent = 'Starting…';
-  status.textContent = '';
-  box.style.display = 'none';
+  btn.textContent = 'Running…';
+  status.textContent = 'Querying sources — this may take up to a minute…';
+  status.style.color = '#fdba74';
+  box.style.display = 'block';
+  box.textContent = 'Mining internal designations and querying external sources…';
   downloadRow.style.display = 'none';
   try {
     const r = await fetch('/api/admin/run-enrichment', {
@@ -630,67 +631,30 @@ async function triggerEnrichment() {
       headers: { 'Authorization': 'Bearer ' + secret },
     });
     if (r.status === 409) {
-      const d = await r.json();
-      status.textContent = 'Already running — polling for status…';
-      startEnrichPoll();
+      status.textContent = 'Another enrichment run is already in progress. Try again shortly.';
+      status.style.color = '#fdba74';
+      btn.disabled = false;
+      btn.textContent = 'Run Specialty Enrichment';
+      box.style.display = 'none';
       return;
     }
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      throw new Error(d.error ?? r.status);
-    }
-    btn.textContent = 'Running…';
-    status.textContent = 'Running — this may take a minute…';
-    status.style.color = '#fdba74';
-    box.style.display = 'block';
-    box.textContent = 'Mining internal designations and querying external sources…';
-    startEnrichPoll();
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = 'Run Specialty Enrichment';
-    status.textContent = 'Error: ' + err.message;
-    status.style.color = '#f87171';
-  }
-}
-
-function startEnrichPoll() {
-  if (enrichPollTimer) clearInterval(enrichPollTimer);
-  enrichPollTimer = setInterval(pollEnrichmentStatus, 3000);
-}
-
-async function pollEnrichmentStatus() {
-  try {
-    const r = await fetch('/api/admin/enrichment-status', {
-      headers: { 'Authorization': 'Bearer ' + secret },
-    });
     const d = await r.json();
-    const btn = document.getElementById('run-enrich-btn');
-    const status = document.getElementById('enrich-run-status');
-    const box = document.getElementById('enrich-status-box');
-    const downloadRow = document.getElementById('enrich-download-row');
-
-    if (d.status === 'done') {
-      clearInterval(enrichPollTimer);
-      enrichPollTimer = null;
-      btn.disabled = false;
-      btn.textContent = 'Run Specialty Enrichment';
-      status.textContent = 'Done: Stroke ' + d.strokeMatched + ' | Burn ' + d.burnMatched + ' | PCI ' + d.pciMatched + ' (' + d.total + ' total matches)';
-      status.style.color = '#34d399';
-      box.style.display = 'block';
-      box.textContent = 'Stroke: ' + d.strokeMatched + ' written | Burn: ' + d.burnMatched + ' written | PCI: ' + d.pciMatched + ' written\\nTotal matches exported to CSV: ' + d.total + '\\nHIGH/MEDIUM confidence matches written to DB automatically.';
+    if (!r.ok) throw new Error(d.error ?? r.status);
+    btn.textContent = 'Run Specialty Enrichment';
+    status.textContent = 'Done: Stroke ' + d.strokeMatched + ' | Burn ' + d.burnMatched + ' | PCI ' + d.pciMatched + ' (' + d.total + ' total matches written/found)';
+    status.style.color = '#34d399';
+    box.textContent = 'Stroke: ' + d.strokeMatched + ' | Burn: ' + d.burnMatched + ' | PCI: ' + d.pciMatched + ' (HIGH/MEDIUM written to DB)' + '\\nAll ' + d.total + ' matches available in verification CSV.';
+    if (d.csvAvailable) {
       downloadRow.style.display = 'flex';
       downloadRow.style.alignItems = 'center';
-    } else if (d.status === 'error') {
-      clearInterval(enrichPollTimer);
-      enrichPollTimer = null;
-      btn.disabled = false;
-      btn.textContent = 'Run Specialty Enrichment';
-      status.textContent = 'Error: ' + (d.error ?? 'Unknown error');
-      status.style.color = '#f87171';
-    } else if (d.status === 'running') {
-      status.textContent = 'Running… (polling)';
     }
-  } catch (_) {}
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    status.style.color = '#f87171';
+    box.textContent = 'Enrichment failed. Check server logs for details.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function downloadEnrichmentCsv() {

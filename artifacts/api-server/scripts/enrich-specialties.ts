@@ -672,31 +672,58 @@ function buildCsv(matches: EnrichmentMatch[]): string {
 
 // ─── DB write ─────────────────────────────────────────────────────────────────
 
-async function writeMatchesToDb(matches: EnrichmentMatch[]): Promise<number> {
-  const eligible = matches.filter(
-    (m) => m.confidence === "HIGH" || m.confidence === "MEDIUM"
-  );
+/**
+ * DB-write eligibility rules:
+ *   - HIGH or MEDIUM confidence
+ *   - AND distance was actually confirmed:
+ *       distanceKm === 0  → internal mining (same hospital record, no proximity needed)
+ *       distanceKm  >  0  → external source with coordinates confirmed ≤ 3 km
+ *       distanceKm === -1 → no coordinates available → CSV-only, do NOT write to DB
+ */
+function isEligibleForDb(m: EnrichmentMatch): boolean {
+  if (m.confidence !== "HIGH" && m.confidence !== "MEDIUM") return false;
+  // distanceKm < 0 means no coordinate data was available — never write
+  return m.distanceKm >= 0;
+}
 
-  // Group by cmsId so we do one update per hospital
-  const byHosp = new Map<string, Partial<Record<EnrichField, string>>>();
+async function writeMatchesToDb(matches: EnrichmentMatch[]): Promise<number> {
+  const eligible = matches.filter(isEligibleForDb);
+
+  // Group by cmsId so we emit one update per hospital
+  const byHosp = new Map<string, Partial<{
+    strokeDesignation: string;
+    burnDesignation: string;
+    pciCapability: string;
+  }>>();
+
   for (const m of eligible) {
     if (!byHosp.has(m.cmsId)) byHosp.set(m.cmsId, {});
+    const entry = byHosp.get(m.cmsId)!;
     // Only set if not already set by a higher-confidence match in this run
-    if (!byHosp.get(m.cmsId)![m.field]) {
-      byHosp.get(m.cmsId)![m.field] = m.matchedValue;
+    if (!entry[m.field]) {
+      entry[m.field] = m.matchedValue;
     }
   }
 
   let written = 0;
   for (const [cmsId, fields] of byHosp) {
-    const patch: Record<string, string> = {};
-    for (const [k, v] of Object.entries(fields)) {
-      if (v) patch[k] = v;
-    }
-    if (Object.keys(patch).length > 0) {
+    const patch: Partial<{
+      strokeDesignation: string | null;
+      burnDesignation: string | null;
+      pciCapability: string | null;
+      updatedAt: Date;
+    }> = { updatedAt: new Date() };
+
+    if (fields.strokeDesignation) patch.strokeDesignation = fields.strokeDesignation;
+    if (fields.burnDesignation)   patch.burnDesignation   = fields.burnDesignation;
+    if (fields.pciCapability)     patch.pciCapability     = fields.pciCapability;
+
+    // Only update if we actually have at least one field to set
+    const hasField = fields.strokeDesignation || fields.burnDesignation || fields.pciCapability;
+    if (hasField) {
       await db
         .update(hospitalSpecialties)
-        .set({ ...patch, updatedAt: new Date() } as any)
+        .set(patch)
         .where(eq(hospitalSpecialties.cmsId, cmsId));
       written++;
     }
