@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
 import { eq, ilike } from "drizzle-orm";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
+import { runEnrichment, getEnrichmentCsv } from "../../scripts/enrich-specialties.js";
 
 const router = Router();
 
@@ -622,6 +623,83 @@ router.post("/admin/sync-specialties", requireAdmin, async (_req, res) => {
     console.error("POST /api/admin/sync-specialties error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+// ─── Specialty Enrichment Trigger ────────────────────────────────────────────
+
+let enrichState: {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  strokeMatched: number;
+  burnMatched: number;
+  pciMatched: number;
+  total: number;
+  error: string | null;
+} = {
+  status: "idle", startedAt: null, finishedAt: null,
+  strokeMatched: 0, burnMatched: 0, pciMatched: 0, total: 0, error: null,
+};
+
+router.get("/admin/enrichment-status", requireAdmin, (_req, res) => {
+  res.json(enrichState);
+});
+
+router.post("/admin/run-enrichment", requireAdmin, async (_req, res) => {
+  if (enrichState.status === "running") {
+    res.status(409).json({ error: "Enrichment already running", state: enrichState });
+    return;
+  }
+
+  enrichState = {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    strokeMatched: 0, burnMatched: 0, pciMatched: 0, total: 0,
+    error: null,
+  };
+  res.status(202).json({ message: "Enrichment started", state: enrichState });
+
+  runEnrichment()
+    .then((result) => {
+      enrichState = {
+        status: "done",
+        startedAt: enrichState.startedAt,
+        finishedAt: new Date().toISOString(),
+        strokeMatched: result.strokeMatched,
+        burnMatched: result.burnMatched,
+        pciMatched: result.pciMatched,
+        total: result.total,
+        error: null,
+      };
+      console.log("[Admin] Specialty enrichment completed:", enrichState);
+    })
+    .catch((err: unknown) => {
+      enrichState = {
+        ...enrichState,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        error: String((err as Error)?.message ?? err),
+      };
+      console.error("[Admin] Specialty enrichment failed:", err);
+    });
+});
+
+router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {
+  const { csv, runAt } = getEnrichmentCsv();
+  if (!csv) {
+    res.status(404).json({
+      error: "No enrichment CSV available. Run specialty enrichment first.",
+    });
+    return;
+  }
+  const date = runAt ? runAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="specialty-enrichment-review-${date}.csv"`,
+  );
+  res.send(csv);
 });
 
 // ─── CMS Import Trigger ──────────────────────────────────────────────────────

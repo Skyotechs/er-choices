@@ -234,6 +234,38 @@ router.get("/admin-ui", (_req, res) => {
         </button>
       </div>
 
+      <!-- Specialty Enrichment card -->
+      <div class="card" style="max-width:600px;margin-top:24px;">
+        <div class="card-header" style="margin-bottom:16px;">
+          <div>
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Run Specialty Enrichment</div>
+            <div style="font-size:13px;color:#94a3b8;">
+              Attempts to populate <strong>Stroke Designation</strong>, <strong>Burn Designation</strong>,
+              and <strong>PCI Capability</strong> from multiple public sources:
+              internal Actual Designation mining, CMS cardiac dataset, TJC stroke certifications,
+              and ABA burn center list. HIGH and MEDIUM confidence matches are written to the
+              database automatically. After the run, download the verification CSV to review
+              all matches — LOW confidence matches must be re-imported manually via CSV upload.
+            </div>
+          </div>
+        </div>
+        <div id="enrich-status-box" style="margin-bottom:16px;padding:12px 16px;background:#0f172a;border-radius:8px;font-size:13px;font-family:monospace;color:#94a3b8;display:none;"></div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <button onclick="triggerEnrichment()" style="width:auto;padding:10px 24px;" id="run-enrich-btn">
+            Run Specialty Enrichment
+          </button>
+          <span id="enrich-run-status" style="font-size:13px;color:#94a3b8;"></span>
+        </div>
+        <div id="enrich-download-row" style="display:none;margin-top:14px;">
+          <button onclick="downloadEnrichmentCsv()" style="width:auto;padding:8px 18px;background:#334155;font-size:13px;">
+            Download Verification CSV
+          </button>
+          <span style="font-size:12px;color:#64748b;margin-left:10px;">
+            Review all matches — upload LOW confidence rows via CSV after verification.
+          </span>
+        </div>
+      </div>
+
       <!-- Sync Specialties card -->
       <div class="card" style="max-width:600px;margin-top:24px;">
         <div class="card-header" style="margin-bottom:16px;">
@@ -577,6 +609,105 @@ async function triggerImport() {
     box.style.display = 'block';
     box.innerHTML = '<span style="color:#f87171;font-weight:700;">Error:</span> ' + e.message;
   }
+}
+
+// ── Specialty Enrichment ───────────────────────────────────────────────────
+let enrichPollTimer = null;
+
+async function triggerEnrichment() {
+  const btn = document.getElementById('run-enrich-btn');
+  const status = document.getElementById('enrich-run-status');
+  const box = document.getElementById('enrich-status-box');
+  const downloadRow = document.getElementById('enrich-download-row');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  status.textContent = '';
+  box.style.display = 'none';
+  downloadRow.style.display = 'none';
+  try {
+    const r = await fetch('/api/admin/run-enrichment', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + secret },
+    });
+    if (r.status === 409) {
+      const d = await r.json();
+      status.textContent = 'Already running — polling for status…';
+      startEnrichPoll();
+      return;
+    }
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.error ?? r.status);
+    }
+    btn.textContent = 'Running…';
+    status.textContent = 'Running — this may take a minute…';
+    status.style.color = '#fdba74';
+    box.style.display = 'block';
+    box.textContent = 'Mining internal designations and querying external sources…';
+    startEnrichPoll();
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Run Specialty Enrichment';
+    status.textContent = 'Error: ' + err.message;
+    status.style.color = '#f87171';
+  }
+}
+
+function startEnrichPoll() {
+  if (enrichPollTimer) clearInterval(enrichPollTimer);
+  enrichPollTimer = setInterval(pollEnrichmentStatus, 3000);
+}
+
+async function pollEnrichmentStatus() {
+  try {
+    const r = await fetch('/api/admin/enrichment-status', {
+      headers: { 'Authorization': 'Bearer ' + secret },
+    });
+    const d = await r.json();
+    const btn = document.getElementById('run-enrich-btn');
+    const status = document.getElementById('enrich-run-status');
+    const box = document.getElementById('enrich-status-box');
+    const downloadRow = document.getElementById('enrich-download-row');
+
+    if (d.status === 'done') {
+      clearInterval(enrichPollTimer);
+      enrichPollTimer = null;
+      btn.disabled = false;
+      btn.textContent = 'Run Specialty Enrichment';
+      status.textContent = 'Done: Stroke ' + d.strokeMatched + ' | Burn ' + d.burnMatched + ' | PCI ' + d.pciMatched + ' (' + d.total + ' total matches)';
+      status.style.color = '#34d399';
+      box.style.display = 'block';
+      box.textContent = 'Stroke: ' + d.strokeMatched + ' written | Burn: ' + d.burnMatched + ' written | PCI: ' + d.pciMatched + ' written\\nTotal matches exported to CSV: ' + d.total + '\\nHIGH/MEDIUM confidence matches written to DB automatically.';
+      downloadRow.style.display = 'flex';
+      downloadRow.style.alignItems = 'center';
+    } else if (d.status === 'error') {
+      clearInterval(enrichPollTimer);
+      enrichPollTimer = null;
+      btn.disabled = false;
+      btn.textContent = 'Run Specialty Enrichment';
+      status.textContent = 'Error: ' + (d.error ?? 'Unknown error');
+      status.style.color = '#f87171';
+    } else if (d.status === 'running') {
+      status.textContent = 'Running… (polling)';
+    }
+  } catch (_) {}
+}
+
+async function downloadEnrichmentCsv() {
+  const r = await fetch('/api/admin/enrichment-csv', {
+    headers: { 'Authorization': 'Bearer ' + secret }
+  });
+  if (!r.ok) {
+    alert('No enrichment CSV available. Run specialty enrichment first.');
+    return;
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'specialty-enrichment-review.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── CSV upload helpers ─────────────────────────────────────────────────────
