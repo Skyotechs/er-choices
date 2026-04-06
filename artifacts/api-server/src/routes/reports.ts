@@ -115,11 +115,16 @@ router.patch("/admin/reports/:id/resolve", requireAdmin, async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  await db
-    .update(hospitalReports)
-    .set({ status: "resolved", resolvedAt: new Date() })
-    .where(eq(hospitalReports.id, id));
-  res.json({ success: true });
+  try {
+    await db
+      .update(hospitalReports)
+      .set({ status: "resolved", resolvedAt: new Date() })
+      .where(eq(hospitalReports.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("PATCH /api/admin/reports/:id/resolve error:", err);
+    res.status(500).json({ error: "Failed to resolve report" });
+  }
 });
 
 router.patch("/admin/reports/:id/dismiss", requireAdmin, async (req, res) => {
@@ -128,11 +133,16 @@ router.patch("/admin/reports/:id/dismiss", requireAdmin, async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  await db
-    .update(hospitalReports)
-    .set({ status: "dismissed", resolvedAt: new Date() })
-    .where(eq(hospitalReports.id, id));
-  res.json({ success: true });
+  try {
+    await db
+      .update(hospitalReports)
+      .set({ status: "dismissed", resolvedAt: new Date() })
+      .where(eq(hospitalReports.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("PATCH /api/admin/reports/:id/dismiss error:", err);
+    res.status(500).json({ error: "Failed to dismiss report" });
+  }
 });
 
 export default router;
