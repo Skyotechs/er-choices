@@ -32,6 +32,7 @@ export default function HomeScreen() {
     locationError,
     locationPermission,
     serverError,
+    allHospitals,
     filteredHospitals,
     selectedFilter,
     availableFilters,
@@ -80,6 +81,33 @@ export default function HomeScreen() {
   }, []);
 
   const headerHeight = Platform.OS === "web" ? 67 : 0;
+
+  // Stable map element — deps exclude filter state so this reference is unchanged
+  // when the user taps filter chips. allHospitals (not filteredHospitals) is used
+  // so the map pins don't trigger a recompute on every filter change.
+  const mapHeader = useMemo(() => (
+    <View>
+      <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
+        <MapSection
+          latitude={location?.latitude ?? null}
+          longitude={location?.longitude ?? null}
+          hospitals={allHospitals}
+          onHospitalPress={handleHospitalPress}
+        />
+        <TouchableOpacity
+          style={[
+            styles.refreshBtn,
+            { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius - 4 },
+          ]}
+          onPress={refresh}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="my-location" size={18} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+      <LiveStatusBanner />
+    </View>
+  ), [location, allHospitals, handleHospitalPress, refresh, colors]);
 
   if (isLoading || isRefreshing) {
     return (
@@ -153,22 +181,7 @@ export default function HomeScreen() {
         { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? headerHeight : 0 },
       ]}
     >
-      {/* Map — rendered directly in the view hierarchy, NOT inside FlatList's
-          ListHeaderComponent. This means React uses normal in-place reconciliation
-          when filteredHospitals or location changes: props are updated without
-          unmounting the MapSection. When the map was in ListHeaderComponent, any
-          new reference caused FlatList to unmount + remount the entire header,
-          which crashed react-native-maps on iOS. */}
-      <MapArea
-        latitude={location?.latitude ?? null}
-        longitude={location?.longitude ?? null}
-        hospitals={filteredHospitals}
-        onHospitalPress={handleHospitalPress}
-        onRefresh={refresh}
-        colors={colors}
-      />
-
-      <LiveStatusBanner />
+      {mapHeader}
 
       {availableFilters.length > 1 && (
         <CategoryFilter
@@ -219,49 +232,6 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-interface MapAreaProps {
-  latitude: number | null;
-  longitude: number | null;
-  hospitals: Hospital[];
-  onHospitalPress: (hospital: Hospital) => void;
-  onRefresh: () => void;
-  colors: ReturnType<typeof useColors>;
-}
-
-const MapArea = React.memo(function MapArea({
-  latitude,
-  longitude,
-  hospitals,
-  onHospitalPress,
-  onRefresh,
-  colors,
-}: MapAreaProps) {
-  return (
-    <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
-      <MapSection
-        latitude={latitude}
-        longitude={longitude}
-        hospitals={hospitals}
-        onHospitalPress={onHospitalPress}
-      />
-      <TouchableOpacity
-        style={[
-          styles.refreshBtn,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderRadius: colors.radius - 4,
-          },
-        ]}
-        onPress={onRefresh}
-        activeOpacity={0.8}
-      >
-        <MaterialIcons name="my-location" size={18} color={colors.primary} />
-      </TouchableOpacity>
-    </View>
-  );
-});
 
 const styles = StyleSheet.create({
   container: {
