@@ -325,7 +325,9 @@ router.get("/admin-ui", (_req, res) => {
         <button class="filter-btn" onclick="setFilter('resolved', this)">Resolved</button>
         <button class="filter-btn" onclick="setFilter('dismissed', this)">Dismissed</button>
         <span class="count" id="report-count"></span>
+        <button onclick="downloadReportsCsv()" style="margin-left:auto;padding:6px 14px;font-size:12px;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#94a3b8;cursor:pointer;" title="Download all reports as CSV">⬇ Export CSV</button>
       </div>
+      <div id="reports-error" style="display:none;padding:12px 16px;background:#450a0a;border:1px solid #7f1d1d;border-radius:8px;color:#fca5a5;font-size:13px;margin-bottom:12px;"></div>
       <div id="reports-list"></div>
     </div>
 
@@ -545,10 +547,39 @@ async function startSeed() {
 }
 
 async function loadReports() {
-  const res = await fetch('/api/admin/reports', { headers: { Authorization: 'Bearer ' + secret } });
-  if (!res.ok) { logout(); return; }
-  allReports = await res.json();
-  render();
+  const errBox = document.getElementById('reports-error');
+  errBox.style.display = 'none';
+  try {
+    const res = await fetch('/api/admin/reports', { headers: { Authorization: 'Bearer ' + secret } });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      errBox.textContent = 'Failed to load reports (HTTP ' + res.status + '): ' + (data.error || 'Unknown error');
+      errBox.style.display = 'block';
+      return;
+    }
+    allReports = await res.json();
+    render();
+  } catch (err) {
+    errBox.textContent = 'Network error loading reports: ' + err.message + '. Make sure you are connected and the server is running.';
+    errBox.style.display = 'block';
+  }
+}
+
+async function downloadReportsCsv() {
+  try {
+    const r = await fetch('/api/admin/reports/export-csv', { headers: { Authorization: 'Bearer ' + secret } });
+    if (!r.ok) { alert('Export failed: ' + r.status); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hospital-reports-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Export failed: ' + err.message);
+  }
 }
 
 function switchTab(tab) {
@@ -809,7 +840,21 @@ function render() {
     const date = new Date(r.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const editUrl = osmEditUrl(r.osmId);
     const viewUrl = osmViewUrl(r.osmId);
-    const osmLink = viewUrl ? \`<a href="\${viewUrl}" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none;">\${r.osmId}</a>\` : r.osmId;
+
+    // Determine if this is a CMS-only hospital (no OSM match yet)
+    const isCmsId = r.osmId && r.osmId.startsWith('cms-');
+    const cmsId = isCmsId ? r.osmId.replace(/^cms-/, '') : null;
+
+    let idHtml;
+    if (isCmsId) {
+      idHtml = \`<span style="font-family:monospace;font-size:12px;">CMS ID: <strong style="color:#e2e8f0;">\${cmsId}</strong></span>
+        <span style="font-size:11px;color:#64748b;margin-left:6px;">(use this to find the row in the hospital CSV export)</span>\`;
+    } else if (viewUrl) {
+      idHtml = \`OSM: <a href="\${viewUrl}" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none;">\${r.osmId}</a>\`;
+    } else {
+      idHtml = \`ID: \${r.osmId}\`;
+    }
+
     const isPending = r.status === 'pending';
     const isWrongSpecialty = r.issueType === 'wrong_specialty';
     const actions = \`
@@ -827,7 +872,7 @@ function render() {
       </div>
       <div class="issue-type">\${ISSUE_LABELS[r.issueType] || r.issueType}</div>
       \${r.notes ? \`<div class="notes">"\${r.notes}"</div>\` : ''}
-      <div class="meta">OSM: \${osmLink} &nbsp;·&nbsp; Submitted \${date}</div>
+      <div class="meta">\${idHtml} &nbsp;·&nbsp; Submitted \${date}</div>
       \${editor}
       <div class="actions">\${actions}</div>
     </div>\`;
