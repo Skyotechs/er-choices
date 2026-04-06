@@ -3,6 +3,7 @@ import { HospitalProvider } from "@/context/HospitalContext";
 import { ConsentGate } from "@/components/ConsentGate";
 import { Home } from "@/pages/Home";
 import { About } from "@/pages/About";
+import { Legal } from "@/pages/Legal";
 
 type Tab = "home" | "about";
 
@@ -47,6 +48,10 @@ function AppShell() {
 }
 
 function App() {
+  const isLegal = window.location.pathname.endsWith("/legal");
+  if (isLegal) {
+    return <Legal />;
+  }
   return (
     <HospitalProvider>
       <ConsentGate>

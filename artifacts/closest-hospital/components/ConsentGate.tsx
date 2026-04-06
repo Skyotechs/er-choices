@@ -17,7 +17,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useHospital } from "@/context/HospitalContext";
 
 const CONSENT_KEY = "er_choices_consent_v1";
-const LEGAL_URL = "https://www.skyotechs.com/erlegal";
+const LEGAL_URL = "https://erchoices.com/legal";
 
 export function ConsentGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "required" | "agreed">("loading");

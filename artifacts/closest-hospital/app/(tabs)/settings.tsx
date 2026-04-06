@@ -99,13 +99,13 @@ export default function SettingsScreen() {
         <InfoRow
           icon={<MaterialIcons name="security" size={18} color={colors.primary} />}
           label="Privacy Policy"
-          onPress={() => Linking.openURL("https://www.skyotechs.com/erlegal")}
+          onPress={() => Linking.openURL("https://erchoices.com/legal")}
         />
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <InfoRow
           icon={<MaterialIcons name="description" size={18} color={colors.primary} />}
           label="Terms of Use"
-          onPress={() => Linking.openURL("https://www.skyotechs.com/erlegal")}
+          onPress={() => Linking.openURL("https://erchoices.com/legal")}
         />
       </View>
 

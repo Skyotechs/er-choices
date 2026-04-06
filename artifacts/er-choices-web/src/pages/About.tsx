@@ -1,6 +1,6 @@
 import React from "react";
 
-const LEGAL_URL = "https://www.skyotechs.com/erlegal";
+const LEGAL_URL = "https://erchoices.com/legal";
 const APP_VERSION = "1.0.0";
 
 export function About() {
