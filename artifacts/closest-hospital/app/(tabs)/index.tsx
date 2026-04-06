@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import { Hospital } from "@/types/hospital";
 
 const MAP_HEIGHT = 220;
 
-interface MapInHeaderProps {
+interface MapAreaProps {
   latitude: number | null;
   longitude: number | null;
   hospitals: Hospital[];
@@ -36,7 +36,7 @@ interface MapInHeaderProps {
   primaryColor: string;
 }
 
-const MapInHeader = React.memo(function MapInHeader({
+const MapArea = React.memo(function MapArea({
   latitude,
   longitude,
   hospitals,
@@ -46,7 +46,7 @@ const MapInHeader = React.memo(function MapInHeader({
   borderColor,
   borderRadius,
   primaryColor,
-}: MapInHeaderProps) {
+}: MapAreaProps) {
   return (
     <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
       <MapSection
@@ -123,45 +123,6 @@ export default function HomeScreen() {
 
   const headerHeight = Platform.OS === "web" ? 67 : 0;
 
-  const ListHeader = useMemo(() => (
-    <View>
-      <MapInHeader
-        latitude={location?.latitude ?? null}
-        longitude={location?.longitude ?? null}
-        hospitals={filteredHospitals}
-        onHospitalPress={handleHospitalPress}
-        onRefresh={refresh}
-        cardBg={colors.card}
-        borderColor={colors.border}
-        borderRadius={colors.radius - 4}
-        primaryColor={colors.primary}
-      />
-
-      <LiveStatusBanner />
-
-      {availableFilters.length > 1 && (
-        <CategoryFilter
-          selected={selectedFilter}
-          onSelect={setFilter}
-          availableFilters={availableFilters}
-        />
-      )}
-    </View>
-  ), [
-    location?.latitude,
-    location?.longitude,
-    filteredHospitals,
-    handleHospitalPress,
-    refresh,
-    colors.card,
-    colors.border,
-    colors.radius,
-    colors.primary,
-    availableFilters,
-    selectedFilter,
-    setFilter,
-  ]);
-
   if (isLoading || isRefreshing) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -234,53 +195,60 @@ export default function HomeScreen() {
         { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? headerHeight : 0 },
       ]}
     >
-      {filteredHospitals.length === 0 && !isLoading && location ? (
-        <FlatList
-          data={[]}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={
+      <MapArea
+        latitude={location?.latitude ?? null}
+        longitude={location?.longitude ?? null}
+        hospitals={filteredHospitals}
+        onHospitalPress={handleHospitalPress}
+        onRefresh={refresh}
+        cardBg={colors.card}
+        borderColor={colors.border}
+        borderRadius={colors.radius - 4}
+        primaryColor={colors.primary}
+      />
+
+      <LiveStatusBanner />
+
+      {availableFilters.length > 1 && (
+        <CategoryFilter
+          selected={selectedFilter}
+          onSelect={setFilter}
+          availableFilters={availableFilters}
+        />
+      )}
+
+      <FlatList
+        data={filteredHospitals}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <HospitalCard
+            hospital={item}
+            index={index}
+            onPress={handleHospitalPress}
+          />
+        )}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refresh}
+            tintColor={colors.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          location ? (
             <EmptyState
               icon="hospital"
               title="No Hospitals Found"
               description="We couldn't find any emergency rooms near your location."
             />
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={colors.primary}
-            />
-          }
-          keyExtractor={() => "empty"}
-          renderItem={() => null}
-        />
-      ) : (
-        <FlatList
-          data={filteredHospitals}
-          ListHeaderComponent={ListHeader}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <HospitalCard
-              hospital={item}
-              index={index}
-              onPress={handleHospitalPress}
-            />
-          )}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={colors.primary}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+          ) : null
+        }
+      />
 
       <NavigationSheet
         hospital={selectedHospital}
