@@ -32,7 +32,6 @@ export default function HomeScreen() {
     locationError,
     locationPermission,
     serverError,
-    allHospitals,
     filteredHospitals,
     selectedFilter,
     availableFilters,
@@ -82,16 +81,13 @@ export default function HomeScreen() {
 
   const headerHeight = Platform.OS === "web" ? 67 : 0;
 
-  // Stable map element — deps exclude filter state so this reference is unchanged
-  // when the user taps filter chips. allHospitals (not filteredHospitals) is used
-  // so the map pins don't trigger a recompute on every filter change.
-  const mapHeader = useMemo(() => (
+  const ListHeader = useMemo(() => (
     <View>
       <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
         <MapSection
           latitude={location?.latitude ?? null}
           longitude={location?.longitude ?? null}
-          hospitals={allHospitals}
+          hospitals={filteredHospitals}
           onHospitalPress={handleHospitalPress}
         />
         <TouchableOpacity
@@ -105,9 +101,18 @@ export default function HomeScreen() {
           <MaterialIcons name="my-location" size={18} color={colors.primary} />
         </TouchableOpacity>
       </View>
+
       <LiveStatusBanner />
+
+      {availableFilters.length > 1 && (
+        <CategoryFilter
+          selected={selectedFilter}
+          onSelect={setFilter}
+          availableFilters={availableFilters}
+        />
+      )}
     </View>
-  ), [location, allHospitals, handleHospitalPress, refresh, colors]);
+  ), [location, filteredHospitals, isRefreshing, refresh, availableFilters, selectedFilter, setFilter, colors, insets, handleHospitalPress]);
 
   if (isLoading || isRefreshing) {
     return (
@@ -181,48 +186,53 @@ export default function HomeScreen() {
         { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? headerHeight : 0 },
       ]}
     >
-      {mapHeader}
-
-      {availableFilters.length > 1 && (
-        <CategoryFilter
-          selected={selectedFilter}
-          onSelect={setFilter}
-          availableFilters={availableFilters}
-        />
-      )}
-
-      <FlatList
-        data={filteredHospitals}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <HospitalCard
-            hospital={item}
-            index={index}
-            onPress={handleHospitalPress}
-          />
-        )}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={refresh}
-            tintColor={colors.primary}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          location ? (
+      {filteredHospitals.length === 0 && !isLoading && location ? (
+        <FlatList
+          data={[]}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={
             <EmptyState
               icon="hospital"
               title="No Hospitals Found"
               description="We couldn't find any emergency rooms near your location."
             />
-          ) : null
-        }
-      />
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={colors.primary}
+            />
+          }
+          keyExtractor={() => "empty"}
+          renderItem={() => null}
+        />
+      ) : (
+        <FlatList
+          data={filteredHospitals}
+          ListHeaderComponent={ListHeader}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <HospitalCard
+              hospital={item}
+              index={index}
+              onPress={handleHospitalPress}
+            />
+          )}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={colors.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <NavigationSheet
         hospital={selectedHospital}
