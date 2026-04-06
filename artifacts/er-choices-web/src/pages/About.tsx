@@ -68,9 +68,7 @@ export function About() {
           </a>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center pb-4">
-          ER Choices — Made for EMS professionals
-        </p>
+
       </div>
     </div>
   );
