@@ -48,6 +48,10 @@ function AppShell() {
 }
 
 function App() {
+  if (window.location.pathname.endsWith("/login/adminlogin")) {
+    window.location.replace("https://er-choices-production.up.railway.app/api/admin-ui");
+    return null;
+  }
   const isLegal = window.location.pathname.endsWith("/legal");
   if (isLegal) {
     return <Legal />;
