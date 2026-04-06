@@ -9,62 +9,43 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MaterialIcons, Ionicons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import Constants from "expo-constants";
 
-interface InfoRowProps {
-  icon: React.ReactNode;
+const LEGAL_URL = "https://erchoices.com/legal";
+
+interface LinkRowProps {
+  emoji: string;
   label: string;
-  value?: string;
-  onPress?: () => void;
+  onPress: () => void;
+  showDivider?: boolean;
 }
 
-function InfoRow({ icon, label, value, onPress }: InfoRowProps) {
+function LinkRow({ emoji, label, onPress, showDivider = true }: LinkRowProps) {
   const colors = useColors();
-  const content = (
-    <View
-      style={[
-        styles.row,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      <View style={styles.rowLeft}>
-        <View style={[styles.rowIcon, { backgroundColor: colors.muted, borderRadius: 8 }]}>
-          {icon}
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.linkRow}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.linkIcon, { backgroundColor: colors.muted, borderRadius: 8 }]}>
+          <Text style={styles.linkEmoji}>{emoji}</Text>
         </View>
-        <Text style={[styles.rowLabel, { color: colors.foreground }]}>
-          {label}
-        </Text>
-      </View>
-      <View style={styles.rowRight}>
-        {value && (
-          <Text style={[styles.rowValue, { color: colors.mutedForeground }]}>
-            {value}
-          </Text>
-        )}
-        {onPress && (
-          <MaterialIcons name="chevron-right" size={20} color={colors.mutedForeground} />
-        )}
-      </View>
-    </View>
-  );
-
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-        {content}
+        <Text style={[styles.linkLabel, { color: colors.foreground }]}>{label}</Text>
+        <MaterialIcons name="chevron-right" size={20} color={colors.mutedForeground} />
       </TouchableOpacity>
-    );
-  }
-  return content;
+      {showDivider && (
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      )}
+    </>
+  );
 }
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-
   const headerHeight = Platform.OS === "web" ? 67 : 0;
 
   return (
@@ -79,100 +60,53 @@ export default function SettingsScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-        ABOUT
-      </Text>
-
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-        <InfoRow
-          icon={<MaterialIcons name="info" size={18} color={colors.primary} />}
-          label="App Version"
-          value={`v${appVersion}`}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <InfoRow
-          icon={<Ionicons name="location" size={18} color={colors.primary} />}
-          label="Location Data"
-          value="In-session only"
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <InfoRow
-          icon={<MaterialIcons name="security" size={18} color={colors.primary} />}
-          label="Privacy Policy"
-          onPress={() => Linking.openURL("https://erchoices.com/legal")}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <InfoRow
-          icon={<MaterialIcons name="description" size={18} color={colors.primary} />}
-          label="Terms of Use"
-          onPress={() => Linking.openURL("https://erchoices.com/legal")}
-        />
-      </View>
-
-      <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 24 }]}>
-        SUPPORT
-      </Text>
-
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-        <InfoRow
-          icon={<MaterialIcons name="email" size={18} color={colors.primary} />}
-          label="Contact Support"
-          onPress={() => Linking.openURL("mailto:support@erchoices.com")}
-        />
-      </View>
-
-      <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 24 }]}>
-        PERMISSIONS
-      </Text>
-
-      <View
-        style={[
-          styles.permissionBox,
-          { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
-        ]}
-      >
-        <View style={styles.permRow}>
-          <Ionicons name="location" size={20} color={colors.primary} />
-          <View style={styles.permText}>
-            <Text style={[styles.permTitle, { color: colors.foreground }]}>
-              Location Access
-            </Text>
-            <Text style={[styles.permDesc, { color: colors.mutedForeground }]}>
-              Used to find hospitals near you. Your precise location is only used during your
-              session and is never stored or shared.
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View
-        style={[
-          styles.disclaimer,
-          { backgroundColor: colors.muted, borderRadius: colors.radius },
-        ]}
-      >
+      {/* Important Disclaimer — top, matches web */}
+      <View style={[styles.disclaimer, { backgroundColor: colors.muted, borderRadius: colors.radius }]}>
         <View style={styles.disclaimerHeader}>
-          <MaterialIcons name="warning" size={16} color={colors.warning} />
+          <Text style={styles.disclaimerEmoji}>⚠️</Text>
           <Text style={[styles.disclaimerTitle, { color: colors.foreground }]}>
             Important Disclaimer
           </Text>
         </View>
         <Text style={[styles.disclaimerText, { color: colors.mutedForeground }]}>
-          ER Choices is a navigational aid only. It does not provide medical
-          advice, triage direction, hospital destination authorization, or
-          protocol replacement.{"\n\n"}
-          Users must follow local EMS protocols, medical control directives,
-          agency policy, and regional destination requirements. This app does not
-          guarantee a hospital is the most appropriate destination for any
-          patient.{"\n\n"}
-          In an emergency, always contact your medical control or follow
-          established protocols.
+          ER Choices is a navigational aid only. It does not provide medical advice, triage direction, hospital destination authorization, or protocol replacement.
+        </Text>
+        <Text style={[styles.disclaimerText, { color: colors.mutedForeground, marginTop: 8 }]}>
+          Users must follow local EMS protocols, medical control directives, agency policy, and regional destination requirements. This app does not guarantee a hospital is the most appropriate destination for any patient.
+        </Text>
+        <Text style={[styles.disclaimerText, { color: colors.mutedForeground, marginTop: 8 }]}>
+          In an emergency, always contact your medical control or follow established protocols.
         </Text>
       </View>
 
-      <Text style={[styles.copyright, { color: colors.mutedForeground }]}>
-        ER Choices v{appVersion} — Made for EMS professionals
-      </Text>
+      {/* Single card: Privacy Policy + Terms of Use + Contact Support */}
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
+        <LinkRow
+          emoji="🔒"
+          label="Privacy Policy"
+          onPress={() => Linking.openURL(LEGAL_URL)}
+        />
+        <LinkRow
+          emoji="📄"
+          label="Terms of Use"
+          onPress={() => Linking.openURL(LEGAL_URL)}
+        />
+        <LinkRow
+          emoji="✉️"
+          label="Contact Support"
+          onPress={() => Linking.openURL("mailto:support@erchoices.com")}
+          showDivider={false}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -183,90 +117,22 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 1,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  card: {
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  rowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  rowIcon: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  rowLabel: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-  },
-  rowRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  rowValue: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
-  divider: {
-    height: 1,
-    marginLeft: 60,
-  },
-  permissionBox: {
-    padding: 16,
-    borderWidth: 1,
-  },
-  permRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  permText: {
-    flex: 1,
-    gap: 4,
-  },
-  permTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    fontFamily: "Inter_600SemiBold",
-  },
-  permDesc: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
+    gap: 16,
   },
   disclaimer: {
-    marginTop: 24,
     padding: 16,
-    gap: 8,
   },
   disclaimerHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
+    marginBottom: 8,
+  },
+  disclaimerEmoji: {
+    fontSize: 16,
   },
   disclaimerTitle: {
     fontSize: 14,
-    fontWeight: "700",
     fontFamily: "Inter_700Bold",
   },
   disclaimerText: {
@@ -274,11 +140,33 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     lineHeight: 19,
   },
-  copyright: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    marginTop: 24,
-    marginBottom: 8,
+  card: {
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  linkIcon: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  linkEmoji: {
+    fontSize: 16,
+  },
+  linkLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+  },
+  divider: {
+    height: 1,
+    marginLeft: 60,
   },
 });
