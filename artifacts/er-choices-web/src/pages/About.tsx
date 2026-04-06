@@ -1,35 +1,29 @@
 import React from "react";
 
 const LEGAL_URL = "https://erchoices.com/legal";
-const APP_VERSION = "1.0.0";
 
 export function About() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
-        <p className="text-xs font-semibold text-muted-foreground tracking-widest">ABOUT</p>
+
+        <div className="bg-muted rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base">⚠️</span>
+            <p className="text-sm font-bold text-foreground">Important Disclaimer</p>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            ER Choices is a navigational aid only. It does not provide medical advice, triage direction, hospital destination authorization, or protocol replacement.
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+            Users must follow local EMS protocols, medical control directives, agency policy, and regional destination requirements. This app does not guarantee a hospital is the most appropriate destination for any patient.
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+            In an emergency, always contact your medical control or follow established protocols.
+          </p>
+        </div>
 
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                <span className="text-sm">ℹ️</span>
-              </div>
-              <span className="text-sm font-medium text-foreground">App Version</span>
-            </div>
-            <span className="text-sm text-muted-foreground">v{APP_VERSION}</span>
-          </div>
-          <div className="h-px bg-border ml-16" />
-          <div className="flex items-center justify-between px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                <span className="text-sm">📍</span>
-              </div>
-              <span className="text-sm font-medium text-foreground">Location Data</span>
-            </div>
-            <span className="text-sm text-muted-foreground">In-session only</span>
-          </div>
-          <div className="h-px bg-border ml-16" />
           <a
             href={LEGAL_URL}
             target="_blank"
@@ -59,11 +53,7 @@ export function About() {
             </div>
             <span className="text-muted-foreground">›</span>
           </a>
-        </div>
-
-        <p className="text-xs font-semibold text-muted-foreground tracking-widest">SUPPORT</p>
-
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="h-px bg-border ml-16" />
           <a
             href="mailto:support@erchoices.com"
             className="flex items-center justify-between px-4 py-3.5 hover:bg-muted/50 transition-colors"
@@ -78,39 +68,8 @@ export function About() {
           </a>
         </div>
 
-        <p className="text-xs font-semibold text-muted-foreground tracking-widest">PERMISSIONS</p>
-
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex gap-3">
-            <span className="text-xl mt-0.5">📍</span>
-            <div>
-              <p className="text-sm font-semibold text-foreground mb-1">Location Access</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Used to find hospitals near you. Your precise location is only used during your
-                session and is never stored or shared.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-muted rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-base">⚠️</span>
-            <p className="text-sm font-bold text-foreground">Important Disclaimer</p>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            ER Choices is a navigational aid only. It does not provide medical advice, triage direction, hospital destination authorization, or protocol replacement.
-          </p>
-          <p className="text-xs text-muted-foreground leading-relaxed mt-2">
-            Users must follow local EMS protocols, medical control directives, agency policy, and regional destination requirements. This app does not guarantee a hospital is the most appropriate destination for any patient.
-          </p>
-          <p className="text-xs text-muted-foreground leading-relaxed mt-2">
-            In an emergency, always contact your medical control or follow established protocols.
-          </p>
-        </div>
-
         <p className="text-xs text-muted-foreground text-center pb-4">
-          ER Choices v{APP_VERSION} — Made for EMS professionals
+          ER Choices — Made for EMS professionals
         </p>
       </div>
     </div>
