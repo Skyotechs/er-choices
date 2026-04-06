@@ -79,14 +79,11 @@ export default function HomeScreen() {
     setNavSheetVisible(false);
   }, []);
 
-  const headerHeight =
-    Platform.OS === "web" ? 67 : 0;
+  const headerHeight = Platform.OS === "web" ? 67 : 0;
 
   if (isLoading || isRefreshing) {
     return (
-      <View
-        style={[styles.centered, { backgroundColor: colors.background }]}
-      >
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -97,10 +94,7 @@ export default function HomeScreen() {
       <View
         style={[
           styles.centered,
-          {
-            backgroundColor: colors.background,
-            paddingTop: insets.top,
-          },
+          { backgroundColor: colors.background, paddingTop: insets.top },
         ]}
       >
         <EmptyState
@@ -119,10 +113,7 @@ export default function HomeScreen() {
       <View
         style={[
           styles.centered,
-          {
-            backgroundColor: colors.background,
-            paddingTop: headerHeight + insets.top,
-          },
+          { backgroundColor: colors.background, paddingTop: headerHeight + insets.top },
         ]}
       >
         <EmptyState
@@ -155,26 +146,27 @@ export default function HomeScreen() {
     );
   }
 
-  const ListHeader = useMemo(() => (
-    <View>
-      <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
-        <MapSection
-          latitude={location?.latitude ?? null}
-          longitude={location?.longitude ?? null}
-          hospitals={filteredHospitals}
-          onHospitalPress={handleHospitalPress}
-        />
-        <TouchableOpacity
-          style={[
-            styles.refreshBtn,
-            { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius - 4 },
-          ]}
-          onPress={refresh}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="my-location" size={18} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
+  return (
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? headerHeight : 0 },
+      ]}
+    >
+      {/* Map — rendered directly in the view hierarchy, NOT inside FlatList's
+          ListHeaderComponent. This means React uses normal in-place reconciliation
+          when filteredHospitals or location changes: props are updated without
+          unmounting the MapSection. When the map was in ListHeaderComponent, any
+          new reference caused FlatList to unmount + remount the entire header,
+          which crashed react-native-maps on iOS. */}
+      <MapArea
+        latitude={location?.latitude ?? null}
+        longitude={location?.longitude ?? null}
+        hospitals={filteredHospitals}
+        onHospitalPress={handleHospitalPress}
+        onRefresh={refresh}
+        colors={colors}
+      />
 
       <LiveStatusBanner />
 
@@ -185,63 +177,39 @@ export default function HomeScreen() {
           availableFilters={availableFilters}
         />
       )}
-    </View>
-  ), [location, filteredHospitals, isRefreshing, refresh, availableFilters, selectedFilter, setFilter, colors, insets, handleHospitalPress]);
 
-  return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? headerHeight : 0 },
-      ]}
-    >
-      {filteredHospitals.length === 0 && !isLoading && location ? (
-        <FlatList
-          data={[]}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={
+      <FlatList
+        data={filteredHospitals}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <HospitalCard
+            hospital={item}
+            index={index}
+            onPress={handleHospitalPress}
+          />
+        )}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refresh}
+            tintColor={colors.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          location ? (
             <EmptyState
               icon="hospital"
               title="No Hospitals Found"
               description="We couldn't find any emergency rooms near your location."
             />
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={colors.primary}
-            />
-          }
-          keyExtractor={() => "empty"}
-          renderItem={() => null}
-        />
-      ) : (
-        <FlatList
-          data={filteredHospitals}
-          ListHeaderComponent={ListHeader}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <HospitalCard
-              hospital={item}
-              index={index}
-              onPress={handleHospitalPress}
-            />
-          )}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={colors.primary}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+          ) : null
+        }
+      />
 
       <NavigationSheet
         hospital={selectedHospital}
@@ -251,6 +219,49 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+interface MapAreaProps {
+  latitude: number | null;
+  longitude: number | null;
+  hospitals: Hospital[];
+  onHospitalPress: (hospital: Hospital) => void;
+  onRefresh: () => void;
+  colors: ReturnType<typeof useColors>;
+}
+
+const MapArea = React.memo(function MapArea({
+  latitude,
+  longitude,
+  hospitals,
+  onHospitalPress,
+  onRefresh,
+  colors,
+}: MapAreaProps) {
+  return (
+    <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
+      <MapSection
+        latitude={latitude}
+        longitude={longitude}
+        hospitals={hospitals}
+        onHospitalPress={onHospitalPress}
+      />
+      <TouchableOpacity
+        style={[
+          styles.refreshBtn,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius - 4,
+          },
+        ]}
+        onPress={onRefresh}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="my-location" size={18} color={colors.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
