@@ -1,11 +1,24 @@
 import { Hospital, HospitalCategory, DesignationFilter } from "@/types/hospital";
 
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    return response;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
 /** Fetch the verified specialty map from the API server. Never throws. */
 export async function fetchVerifiedSpecialtyMap(
   apiBase: string
 ): Promise<Record<string, HospitalCategory[]>> {
   try {
-    const res = await fetch(`${apiBase}/specialties`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetchWithTimeout(`${apiBase}/specialties`, 8000);
     if (!res.ok) return {};
     const data = await res.json();
     if (typeof data !== "object" || Array.isArray(data)) return {};
@@ -26,7 +39,7 @@ export async function fetchHospitalOverrides(
   apiBase: string
 ): Promise<Record<string, HospitalOverride>> {
   try {
-    const res = await fetch(`${apiBase}/hospital-overrides`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetchWithTimeout(`${apiBase}/hospital-overrides`, 8000);
     if (!res.ok) return {};
     const data = await res.json();
     if (typeof data !== "object" || Array.isArray(data)) return {};
@@ -49,15 +62,20 @@ export async function fetchNearbyHospitals(
   latitude: number,
   longitude: number,
 ): Promise<Hospital[]> {
+  const url = `${apiBase}/hospitals/nearby?lat=${latitude}&lon=${longitude}&radius=50`;
   let response: Response;
   try {
     console.log("Querying hospital database for nearby hospitals...");
-    response = await fetch(
-      `${apiBase}/hospitals/nearby?lat=${latitude}&lon=${longitude}&radius=50`,
-      { signal: AbortSignal.timeout(30000) }
-    );
+    response = await fetchWithTimeout(url, 60000);
   } catch {
-    throw new NavigationServerError();
+    // First attempt failed — wait 3 s then try once more before giving up.
+    console.warn("Hospital fetch failed, retrying in 3 s...");
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      response = await fetchWithTimeout(url, 60000);
+    } catch {
+      throw new NavigationServerError();
+    }
   }
 
   if (!response.ok) {
