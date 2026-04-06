@@ -72,8 +72,8 @@ export function ReportModal({ hospital, visible, onClose }: ReportModalProps) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 z-[60]" onClick={handleClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-[70] bg-card border-t border-border rounded-t-2xl shadow-2xl max-h-[88vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
+      <div className="fixed inset-0 bg-black/60 z-[1100]" onClick={handleClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-[1101] bg-card border-t border-border rounded-t-2xl shadow-2xl max-h-[88vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
         <div className="w-9 h-1 bg-border rounded-full mx-auto mt-3 mb-4" />
 
         {status === "success" ? (
