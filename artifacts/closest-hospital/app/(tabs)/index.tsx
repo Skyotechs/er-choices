@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -155,7 +155,7 @@ export default function HomeScreen() {
     );
   }
 
-  const ListHeader = (
+  const ListHeader = useMemo(() => (
     <View>
       <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
         <MapSection
@@ -186,7 +186,7 @@ export default function HomeScreen() {
         />
       )}
     </View>
-  );
+  ), [location, filteredHospitals, isRefreshing, refresh, availableFilters, selectedFilter, setFilter, colors, insets, handleHospitalPress]);
 
   return (
     <View

@@ -59,7 +59,7 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         {(() => {
           const badge = hospital.actualDesignation
             ? normalizeDesignation(hospital.actualDesignation.split(";")[0].trim())
-            : (hospital.categories as string[]).filter((c) => c !== "All")[0] ?? null;
+            : ((hospital.categories ?? []) as string[]).filter((c) => c !== "All")[0] ?? null;
           return (badge || hospital.helipad) ? (
             <View style={styles.badgeRow}>
               {badge ? (
