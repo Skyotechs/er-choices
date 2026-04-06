@@ -66,7 +66,6 @@ const SECTIONS = [
     body: [
       "THE PLATFORM IS PROVIDED \"AS IS\" AND \"AS AVAILABLE\" WITHOUT WARRANTIES OF ANY KIND, INCLUDING WARRANTIES OF ACCURACY, RELIABILITY, AVAILABILITY, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.",
     ],
-    caps: true,
   },
   {
     num: "8",
@@ -192,11 +191,10 @@ export function Legal() {
             {sec.body.map((para, i) => (
               <p key={i} style={{
                 fontSize: 13,
-                color: (sec.num === "7" || (sec.num === "8" && i === 0)) ? "#94a3b8" : "#94a3b8",
+                color: "#94a3b8",
                 lineHeight: 1.65,
                 margin: 0,
                 marginTop: i > 0 ? 10 : 0,
-                fontVariant: (sec.num === "7" || (sec.num === "8" && i === 0)) ? undefined : undefined,
               }}>
                 {para}
               </p>
