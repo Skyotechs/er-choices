@@ -4,6 +4,7 @@ import { Hospital } from "@/types/hospital";
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { HospitalCard } from "@/components/HospitalCard";
 import { HospitalDetailPanel } from "@/components/HospitalDetailPanel";
+import { LiveStatusBanner } from "@/components/LiveStatusBanner";
 
 const HospitalMap = lazy(() => import("@/components/HospitalMap").then(m => ({ default: m.HospitalMap })));
 
@@ -174,6 +175,8 @@ export function Home() {
           availableFilters={availableFilters}
         />
       )}
+
+      <LiveStatusBanner />
 
       <div className="flex-1 overflow-y-auto">
         {filteredHospitals.length === 0 && !isLoading && location ? (
