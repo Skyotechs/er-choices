@@ -4,10 +4,6 @@ import { formatDistance } from "@/services/hospitalService";
 import { normalizeDesignation } from "@/services/designationUtils";
 import { ReportModal } from "./ReportModal";
 
-function specialtyLabel(key: string): string {
-  return key.replace(/ - /g, " – ");
-}
-
 interface HospitalDetailPanelProps {
   hospital: Hospital | null;
   onClose: () => void;
@@ -31,6 +27,19 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
     : `https://maps.apple.com/?daddr=${hospital.latitude},${hospital.longitude}&dirflg=d`;
 
   const wazeUrl = `https://waze.com/ul?ll=${hospital.latitude},${hospital.longitude}&navigate=yes`;
+
+  const primaryChips = (hospital.categories as string[]).filter((c) => c !== "All");
+
+  const secondaryLines: { icon: string; label: string }[] = [];
+  if (hospital.strokeDesignation) secondaryLines.push({ icon: "🧠", label: hospital.strokeDesignation });
+  if (hospital.burnDesignation) secondaryLines.push({ icon: "🔥", label: hospital.burnDesignation });
+  if (hospital.pciCapability) secondaryLines.push({ icon: "❤️", label: hospital.pciCapability });
+  if (hospital.helipad) secondaryLines.push({ icon: "✈️", label: "Helipad available" });
+
+  const hasDesignationSection =
+    primaryChips.length > 0 ||
+    hospital.actualDesignation ||
+    secondaryLines.length > 0;
 
   return (
     <>
@@ -65,28 +74,48 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
           )}
         </div>
 
-        {(hospital.actualDesignation || hospital.helipad || (hospital.categories as string[]).filter(c => c !== "All").length > 0 || (hospital.specialties && hospital.specialties.length > 0)) && (
+        {hasDesignationSection && (
           <>
             <div className="h-px bg-border" />
             <div className="px-5 py-4">
               <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">DESIGNATIONS</p>
-              <ul className="space-y-1">
-                {hospital.actualDesignation
-                  ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
-                      <li key={seg} className="text-sm text-foreground font-medium">
-                        {normalizeDesignation(seg)}
-                      </li>
-                    ))
-                  : (hospital.categories as string[]).filter((c) => c !== "All").map((cat) => (
-                      <li key={cat} className="text-sm text-foreground font-medium">
-                        {cat}
-                      </li>
-                    ))
-                }
-                {hospital.helipad && (
-                  <li className="text-sm text-foreground">✈️ Helipad available</li>
-                )}
-              </ul>
+
+              {primaryChips.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {primaryChips.map((cat) => (
+                    <span
+                      key={cat}
+                      className="px-3 py-1 rounded-full text-sm font-medium"
+                      style={{ backgroundColor: "rgba(192,57,43,0.1)", color: "#c0392b" }}
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {hospital.actualDesignation && (
+                <ul className="space-y-1 mb-2">
+                  {hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
+                    <li key={seg} className="text-sm text-muted-foreground">
+                      {normalizeDesignation(seg)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {secondaryLines.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {secondaryLines.map(({ icon, label }) => (
+                    <span
+                      key={label}
+                      className="px-3 py-1 rounded-full text-sm font-medium bg-muted text-foreground"
+                    >
+                      {icon} {label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
