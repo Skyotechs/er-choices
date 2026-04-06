@@ -15,8 +15,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
-
-const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+import { API_BASE } from "@/constants/api";
 
 type IssueType =
   | "wrong_name"

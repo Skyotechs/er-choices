@@ -14,10 +14,16 @@
       "autoIncrement": true,
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "er-choices-production.up.railway.app"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "er-choices-production.up.railway.app"
+      }
     }
   },
   "submit": {

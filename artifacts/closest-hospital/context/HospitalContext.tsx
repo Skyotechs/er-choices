@@ -17,8 +17,7 @@ import {
   NavigationServerError,
   type HospitalOverride,
 } from "@/services/hospitalService";
-
-const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+import { API_BASE } from "@/constants/api";
 
 interface LocationCoords {
   latitude: number;
