@@ -29,7 +29,7 @@
  */
 
 import { db, hospitalSpecialties } from "@workspace/db";
-import { and, isNull, isNotNull, ne, eq, or, sql } from "drizzle-orm";
+import { and, isNull, isNotNull, ne, eq } from "drizzle-orm";
 
 // ─── Haversine helper ─────────────────────────────────────────────────────────
 
