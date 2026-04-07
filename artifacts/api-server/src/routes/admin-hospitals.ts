@@ -754,6 +754,90 @@ router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {
   res.send(csv);
 });
 
+// ─── Coordinate Update Trigger ───────────────────────────────────────────────
+
+const COORD_UPDATE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "update-coords-from-osm.ts");
+
+let coordUpdateState: {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  updated: number;
+  skipped: number;
+  failed: number;
+  total: number;
+  error: string | null;
+} = {
+  status: "idle", startedAt: null, finishedAt: null,
+  updated: 0, skipped: 0, failed: 0, total: 0, error: null,
+};
+
+router.get("/admin/coord-update-status", requireAdmin, (_req, res) => {
+  res.json(coordUpdateState);
+});
+
+/**
+ * POST /api/admin/run-coord-update
+ *
+ * Triggers the OSM coordinate back-fill for all hospitals that have an osm_id.
+ * Returns 202 immediately; poll /api/admin/coord-update-status for progress.
+ */
+router.post("/admin/run-coord-update", requireAdmin, async (_req, res) => {
+  if (coordUpdateState.status === "running") {
+    res.status(409).json({ error: "Coordinate update already running", state: coordUpdateState });
+    return;
+  }
+
+  coordUpdateState = {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    updated: 0, skipped: 0, failed: 0, total: 0,
+    error: null,
+  };
+  res.status(202).json({ message: "Coordinate update started", state: coordUpdateState });
+
+  const tsxBin = findTsx();
+  console.log(`[Admin] Forking coord-update child process: ${tsxBin} ${COORD_UPDATE_SCRIPT}`);
+
+  execFileAsync(tsxBin, [COORD_UPDATE_SCRIPT], {
+    cwd: API_SERVER_DIR,
+    env: { ...process.env },
+    maxBuffer: 20 * 1024 * 1024,
+    timeout: 30 * 60 * 1000,
+  })
+    .then(({ stdout }) => {
+      const resultLine = stdout.split(/\r?\n/).find((l) => l.startsWith("COORD_UPDATE_RESULT:"));
+      if (!resultLine) {
+        throw new Error("Script did not emit a COORD_UPDATE_RESULT line");
+      }
+      const result = JSON.parse(resultLine.replace("COORD_UPDATE_RESULT:", "")) as {
+        updated: number; skipped: number; failed: number; unparseable: number; total: number;
+      };
+      coordUpdateState = {
+        status: "done",
+        startedAt: coordUpdateState.startedAt,
+        finishedAt: new Date().toISOString(),
+        updated: result.updated,
+        skipped: result.skipped,
+        failed: result.failed + result.unparseable,
+        total: result.total,
+        error: null,
+      };
+      console.log("[Admin] Coord update completed:", coordUpdateState);
+    })
+    .catch((err: unknown) => {
+      const msg = String((err as Error)?.message ?? err);
+      coordUpdateState = {
+        ...coordUpdateState,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        error: msg,
+      };
+      console.error("[Admin] Coord update failed:", err);
+    });
+});
+
 // ─── CMS Import Trigger ──────────────────────────────────────────────────────
 
 let importState: {

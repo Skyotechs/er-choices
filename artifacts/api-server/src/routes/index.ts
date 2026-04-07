@@ -11,8 +11,8 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(reportsRouter);
 router.use(specialtiesRouter);
-router.use(adminUiRouter);
 router.use(adminHospitalsRouter);
+router.use(adminUiRouter);
 router.use(hospitalsRouter);
 
 export default router;
