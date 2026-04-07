@@ -757,6 +757,7 @@ router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {
 // ─── Coordinate Update Trigger ───────────────────────────────────────────────
 
 const COORD_UPDATE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "update-coords-from-osm.ts");
+const GEOCODE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "geocode-addresses.ts");
 
 let coordUpdateState: {
   status: "idle" | "running" | "done" | "error";
@@ -835,6 +836,94 @@ router.post("/admin/run-coord-update", requireAdmin, async (_req, res) => {
         error: msg,
       };
       console.error("[Admin] Coord update failed:", err);
+    });
+});
+
+// ─── Address Geocode Trigger ──────────────────────────────────────────────────
+
+let geocodeState: {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  updated: number;
+  skipped: number;
+  noResult: number;
+  failed: number;
+  total: number;
+  error: string | null;
+} = {
+  status: "idle", startedAt: null, finishedAt: null,
+  updated: 0, skipped: 0, noResult: 0, failed: 0, total: 0, error: null,
+};
+
+router.get("/admin/geocode-status", requireAdmin, (_req, res) => {
+  res.json(geocodeState);
+});
+
+/**
+ * POST /api/admin/run-geocode
+ *
+ * Triggers the Nominatim address geocoding pass for all hospitals that have
+ * no OSM element link but do have a stored street address (ZIP centroid coords).
+ * Returns 202 immediately; poll /api/admin/geocode-status for progress.
+ *
+ * NOTE: This runs at 1 request/second (Nominatim rate limit). For ~3,276
+ * hospitals expect ~55 minutes. The timeout is set to 120 minutes.
+ */
+router.post("/admin/run-geocode", requireAdmin, async (_req, res) => {
+  if (geocodeState.status === "running") {
+    res.status(409).json({ error: "Geocoding already running", state: geocodeState });
+    return;
+  }
+
+  geocodeState = {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    updated: 0, skipped: 0, noResult: 0, failed: 0, total: 0,
+    error: null,
+  };
+  res.status(202).json({ message: "Geocoding started", state: geocodeState });
+
+  const tsxBin = findTsx();
+  console.log(`[Admin] Forking geocode child process: ${tsxBin} ${GEOCODE_SCRIPT}`);
+
+  execFileAsync(tsxBin, [GEOCODE_SCRIPT], {
+    cwd: API_SERVER_DIR,
+    env: { ...process.env },
+    maxBuffer: 20 * 1024 * 1024,
+    timeout: 120 * 60 * 1000, // 120 minutes — ~1 req/s for up to ~7,000 hospitals
+  })
+    .then(({ stdout }) => {
+      const resultLine = stdout.split(/\r?\n/).find((l) => l.startsWith("GEOCODE_RESULT:"));
+      if (!resultLine) {
+        throw new Error("Script did not emit a GEOCODE_RESULT line");
+      }
+      const result = JSON.parse(resultLine.replace("GEOCODE_RESULT:", "")) as {
+        updated: number; skipped: number; noResult: number; failed: number; total: number;
+      };
+      geocodeState = {
+        status: "done",
+        startedAt: geocodeState.startedAt,
+        finishedAt: new Date().toISOString(),
+        updated: result.updated,
+        skipped: result.skipped,
+        noResult: result.noResult,
+        failed: result.failed,
+        total: result.total,
+        error: null,
+      };
+      console.log("[Admin] Geocoding completed:", geocodeState);
+    })
+    .catch((err: unknown) => {
+      const msg = String((err as Error)?.message ?? err);
+      geocodeState = {
+        ...geocodeState,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        error: msg,
+      };
+      console.error("[Admin] Geocoding failed:", err);
     });
 });
 
