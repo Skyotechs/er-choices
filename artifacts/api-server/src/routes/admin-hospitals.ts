@@ -1042,14 +1042,41 @@ let censusBatchState: {
   noMatch: number;
   failed: number;
   total: number;
+  stillMissing: number;
+  reportPath: string | null;
   error: string | null;
 } = {
   status: "idle", startedAt: null, finishedAt: null,
-  updated: 0, skipped: 0, noMatch: 0, failed: 0, total: 0, error: null,
+  updated: 0, skipped: 0, noMatch: 0, failed: 0, total: 0,
+  stillMissing: 0, reportPath: null, error: null,
 };
 
 router.get("/admin/census-geocode-status", requireAdmin, (_req, res) => {
   res.json(censusBatchState);
+});
+
+/**
+ * GET /api/admin/missing-coords-report
+ *
+ * Downloads the CSV report of hospitals that still have no coordinates after
+ * the last full-pass Census geocoding run.
+ */
+router.get("/admin/missing-coords-report", requireAdmin, (_req, res) => {
+  const { createReadStream, existsSync } = require("fs") as typeof import("fs");
+  const reportPath = censusBatchState.reportPath ??
+    path.join(API_SERVER_DIR, "missing-hospital-coords.csv");
+
+  if (!existsSync(reportPath)) {
+    res.status(404).json({ error: "Report not generated yet — run the Census geocoder first." });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="missing-hospital-coords.csv"'
+  );
+  createReadStream(reportPath).pipe(res);
 });
 
 /**
@@ -1092,7 +1119,8 @@ router.post("/admin/run-census-geocode", requireAdmin, async (_req, res) => {
       const resultLine = stdout.split(/\r?\n/).find((l) => l.startsWith("GEOCODE_RESULT:"));
       if (!resultLine) throw new Error("Script did not emit a GEOCODE_RESULT line");
       const result = JSON.parse(resultLine.replace("GEOCODE_RESULT:", "")) as {
-        total: number; updated: number; skipped: number; noMatch: number; failed: number;
+        total: number; submitted: number; updated: number; skipped: number;
+        noMatch: number; failed: number; stillMissing: number; reportPath: string;
       };
       censusBatchState = {
         status: "done",
@@ -1103,6 +1131,8 @@ router.post("/admin/run-census-geocode", requireAdmin, async (_req, res) => {
         noMatch: result.noMatch,
         failed: result.failed,
         total: result.total,
+        stillMissing: result.stillMissing,
+        reportPath: result.reportPath,
         error: null,
       };
       console.log("[Admin] Census geocoding completed:", censusBatchState);

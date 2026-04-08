@@ -1,50 +1,59 @@
 /**
  * geocode-census-batch.ts
  *
- * Geocodes ALL non-OSM emergency hospitals using the US Census Bureau Batch
- * Geocoder (TIGER/Line street-level data).  Much more accurate than Nominatim
- * for US street addresses, completely free, and handles 1,000 rows per POST.
+ * Full geocoding pass over ALL 5,400+ hospitals using the US Census Bureau
+ * Batch Geocoder (TIGER/Line street-level data).
  *
  * Strategy:
- *   1. Query all emergency hospitals where osm_id IS NULL (OSM hospitals
- *      already have building-level coordinates — leave them alone).
+ *   1. Query EVERY hospital that has a street address (both emergency and
+ *      non-emergency, both OSM-linked and CMS-only).
  *   2. Split into batches of 1,000 and POST to the Census batch endpoint.
- *   3. For each match: if the result differs > UPDATE_THRESHOLD_METERS from
- *      the current stored value, update the DB.
- *   4. Emit GEOCODE_RESULT:{json} for the admin endpoint parser.
+ *   3. For each Census match: update lat/lon if the result differs > 10 m
+ *      from what is currently stored (or if coordinates are NULL).
+ *   4. After all batches: query every hospital still lacking coordinates and
+ *      write a CSV report to missing-hospital-coords.csv for admin review.
+ *   5. Emit GEOCODE_RESULT:{json} for the admin status parser.
  *
- * Uses only Node.js built-in fetch, FormData, and Blob (Node 18+).
+ * Uses only built-in Node.js 18+ APIs (fetch, FormData, Blob, fs).
  *
  * Usage:
  *   DATABASE_URL="$RAILWAY_DATABASE_URL" pnpm tsx scripts/geocode-census-batch.ts
  */
 
+import fs from "fs";
+import path from "path";
 import { db, hospitalSpecialties } from "@workspace/db";
-import { and, isNull, isNotNull, eq } from "drizzle-orm";
+import { isNotNull, ne, or, isNull, eq } from "drizzle-orm";
+
+// ─── Config ───────────────────────────────────────────────────────────────────
 
 const CENSUS_BATCH_URL =
   "https://geocoding.geo.census.gov/geocoder/locations/addressbatch";
 const BATCH_SIZE = 1000;
 const UPDATE_THRESHOLD_METERS = 10;
 
-// ─── Haversine distance ───────────────────────────────────────────────────────
+// Output report written next to this script
+const REPORT_PATH = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  "..",
+  "missing-hospital-coords.csv"
+);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function haversineMeters(
   lat1: number, lon1: number,
   lat2: number, lon2: number
 ): number {
   const R = 6_371_000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
+  const r = (d: number) => (d * Math.PI) / 180;
+  const dLat = r(lat2 - lat1);
+  const dLon = r(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) ** 2;
+    Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-
-// ─── Address cleaning ─────────────────────────────────────────────────────────
 
 function cleanAddress(raw: string): string {
   let s = raw.trim();
@@ -57,29 +66,22 @@ function cleanAddress(raw: string): string {
   return s;
 }
 
-// ─── CSV parser ───────────────────────────────────────────────────────────────
-
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
+  let cur = "";
+  let inQ = false;
   for (const ch of line) {
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === "," && !inQ) { result.push(cur.trim()); cur = ""; }
+    else { cur += ch; }
   }
-  result.push(current.trim());
+  result.push(cur.trim());
   return result;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface HospitalRow {
+interface HospRow {
   id: number;
   hospitalName: string;
   address: string | null;
@@ -88,6 +90,8 @@ interface HospitalRow {
   zip: string | null;
   latitude: number | null;
   longitude: number | null;
+  osmId: string | null;
+  emergencyServices: boolean | null;
 }
 
 interface CensusResult {
@@ -101,7 +105,7 @@ interface CensusResult {
 // ─── Census batch request ─────────────────────────────────────────────────────
 
 async function geocodeBatch(
-  rows: HospitalRow[]
+  rows: HospRow[]
 ): Promise<Map<number, CensusResult>> {
   const csvLines = rows.map((r) => {
     const addr = cleanAddress(r.address ?? "").replace(/"/g, "'");
@@ -109,12 +113,11 @@ async function geocodeBatch(
     const zip  = (r.zip  ?? "").replace(/[^0-9]/g, "").slice(0, 5);
     return `${r.id},"${addr}","${city}",${r.state},${zip}`;
   });
-  const csvContent = csvLines.join("\n");
 
   const form = new FormData();
   form.append(
     "addressFile",
-    new Blob([csvContent], { type: "text/csv" }),
+    new Blob([csvLines.join("\n")], { type: "text/csv" }),
     "addresses.csv"
   );
   form.append("benchmark", "Public_AR_Current");
@@ -123,12 +126,12 @@ async function geocodeBatch(
   const response = await fetch(CENSUS_BATCH_URL, {
     method: "POST",
     body: form,
-    signal: AbortSignal.timeout(180_000), // 3-min timeout
+    signal: AbortSignal.timeout(180_000),
   });
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(`Census HTTP ${response.status}: ${body.slice(0, 200)}`);
+    throw new Error(`Census HTTP ${response.status}: ${body.slice(0, 300)}`);
   }
 
   const text = await response.text();
@@ -136,11 +139,6 @@ async function geocodeBatch(
 
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
-
-    // Response CSV columns (Census):
-    //   0: ID  1: Input Address  2: Match (Match/No_Match/Tie)
-    //   3: Match Type (Exact/Non_Exact)  4: Matched Address
-    //   5: Coordinates (lon,lat)  6: Tiger Line ID  7: Tiger Line Side
     const parts = parseCSVLine(line);
     if (parts.length < 6) continue;
 
@@ -150,7 +148,7 @@ async function geocodeBatch(
     const matchStatus = parts[2]; // "Match" | "No_Match" | "Tie"
     if (matchStatus !== "Match" && matchStatus !== "Tie") continue;
 
-    const coordStr = parts[5]; // "lon,lat" — Census uses x=lon, y=lat
+    const coordStr = parts[5]; // "lon,lat" — Census x=lon, y=lat
     if (!coordStr) continue;
 
     const [lonStr, latStr] = coordStr.split(",");
@@ -158,13 +156,11 @@ async function geocodeBatch(
     const lat = parseFloat(latStr);
     if (isNaN(lat) || isNaN(lon)) continue;
 
-    // Sanity check: coordinates should be within the US bounding box
+    // Sanity: must be within US + territories bounding box
     if (lat < 17 || lat > 72 || lon < -180 || lon > -60) continue;
 
     results.set(id, {
-      id,
-      lat,
-      lon,
+      id, lat, lon,
       matchType: parts[3] ?? "",
       matchedAddress: parts[4] ?? "",
     });
@@ -176,9 +172,29 @@ async function geocodeBatch(
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("\n===== Census Batch Geocoder — Non-OSM Emergency Hospitals =====");
+  console.log("\n===== Census Full-Pass Geocoder — All 5,400+ Hospitals =====");
+  const startedAt = Date.now();
 
+  // Fetch every hospital that has an address (regardless of OSM link or type)
   const rows = (await db
+    .select({
+      id: hospitalSpecialties.id,
+      hospitalName: hospitalSpecialties.hospitalName,
+      address: hospitalSpecialties.address,
+      city: hospitalSpecialties.city,
+      state: hospitalSpecialties.state,
+      zip: hospitalSpecialties.zip,
+      latitude: hospitalSpecialties.latitude,
+      longitude: hospitalSpecialties.longitude,
+      osmId: hospitalSpecialties.osmId,
+      emergencyServices: hospitalSpecialties.emergencyServices,
+    })
+    .from(hospitalSpecialties)
+    .where(
+      isNotNull(hospitalSpecialties.address),
+    )) as HospRow[];
+
+  const noAddressRows = (await db
     .select({
       id: hospitalSpecialties.id,
       hospitalName: hospitalSpecialties.hospitalName,
@@ -191,25 +207,23 @@ async function main() {
     })
     .from(hospitalSpecialties)
     .where(
-      and(
-        isNull(hospitalSpecialties.osmId),
-        isNotNull(hospitalSpecialties.address),
-        eq(hospitalSpecialties.emergencyServices, true)
-      )
-    )) as HospitalRow[];
+      or(isNull(hospitalSpecialties.address), eq(hospitalSpecialties.address, ""))
+    ));
 
-  console.log(`Found ${rows.length} non-OSM emergency hospitals to geocode`);
+  console.log(`Hospitals with an address   : ${rows.length}`);
+  console.log(`Hospitals with no address   : ${noAddressRows.length}`);
+  console.log(`Total                       : ${rows.length + noAddressRows.length}`);
 
-  const batches: HospitalRow[][] = [];
+  const batches: HospRow[][] = [];
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     batches.push(rows.slice(i, i + BATCH_SIZE));
   }
-  console.log(`Split into ${batches.length} batch(es) of ≤${BATCH_SIZE}\n`);
+  console.log(`\nBatches of ≤${BATCH_SIZE}: ${batches.length} — est. ${Math.ceil(batches.length * 1.5)} min\n`);
 
-  let totalUpdated = 0;
-  let totalSkipped = 0;
-  let totalNoMatch = 0;
-  let totalFailed  = 0;
+  let totalUpdated  = 0;
+  let totalSkipped  = 0;
+  let totalNoMatch  = 0;
+  let totalFailed   = 0;
 
   for (let bIdx = 0; bIdx < batches.length; bIdx++) {
     const batch = batches[bIdx];
@@ -219,18 +233,15 @@ async function main() {
     try {
       censusResults = await geocodeBatch(batch);
     } catch (err) {
-      console.error(`  Batch ${bIdx + 1} request failed: ${(err as Error).message}`);
+      console.error(`  Batch ${bIdx + 1} request FAILED: ${(err as Error).message}`);
       totalFailed += batch.length;
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 5000));
       continue;
     }
 
-    console.log(`  Census returned ${censusResults.size} matches out of ${batch.length}`);
+    console.log(`  → ${censusResults.size} Census matches out of ${batch.length}`);
 
-    let bUpdated = 0;
-    let bSkipped = 0;
-    let bNoMatch = 0;
-    let bFailed  = 0;
+    let bUpdated = 0, bSkipped = 0, bNoMatch = 0, bFailed = 0;
 
     for (const row of batch) {
       const result = censusResults.get(row.id);
@@ -253,21 +264,23 @@ async function main() {
           .where(eq(hospitalSpecialties.id, row.id));
         bUpdated++;
 
-        if (bUpdated <= 5 || bUpdated % 200 === 0) {
-          const shift = distMeters != null ? `${Math.round(distMeters)}m shift` : "new coord";
+        if (bUpdated <= 3 || bUpdated % 250 === 0) {
+          const shift = distMeters != null ? `${Math.round(distMeters)}m shift` : "was NULL";
           console.log(
             `    [${result.matchType}] ${row.hospitalName}, ${row.state} ` +
             `→ (${result.lat.toFixed(5)},${result.lon.toFixed(5)}) — ${shift}`
           );
         }
       } catch (err) {
-        console.error(`    DB update failed for ${row.hospitalName}: ${(err as Error).message}`);
+        console.error(`    DB update failed: ${(err as Error).message}`);
         bFailed++;
       }
     }
 
+    const elapsed = Math.round((Date.now() - startedAt) / 1000);
     console.log(
-      `  → updated=${bUpdated} skipped=${bSkipped} no-match=${bNoMatch} failed=${bFailed}\n`
+      `  Batch ${bIdx + 1} done — updated=${bUpdated} skipped=${bSkipped} ` +
+      `no-match=${bNoMatch} failed=${bFailed} [${elapsed}s elapsed]\n`
     );
 
     totalUpdated += bUpdated;
@@ -280,17 +293,79 @@ async function main() {
     }
   }
 
-  console.log("===== Summary =====");
-  console.log(`Total     : ${rows.length}`);
-  console.log(`Updated   : ${totalUpdated}`);
-  console.log(`Skipped   : ${totalSkipped}  (already accurate ≤10 m)`);
-  console.log(`No match  : ${totalNoMatch}  (not in Census TIGER data)`);
-  console.log(`Failed    : ${totalFailed}`);
+  // ─── Build missing-coordinates report ──────────────────────────────────────
+
+  console.log("Querying hospitals still missing coordinates for the report...");
+
+  const missingCoords = await db
+    .select({
+      id: hospitalSpecialties.id,
+      hospitalName: hospitalSpecialties.hospitalName,
+      address: hospitalSpecialties.address,
+      city: hospitalSpecialties.city,
+      state: hospitalSpecialties.state,
+      zip: hospitalSpecialties.zip,
+      phone: hospitalSpecialties.phone,
+      emergencyServices: hospitalSpecialties.emergencyServices,
+      osmId: hospitalSpecialties.osmId,
+    })
+    .from(hospitalSpecialties)
+    .where(
+      or(
+        isNull(hospitalSpecialties.latitude),
+        isNull(hospitalSpecialties.longitude)
+      )
+    );
+
+  // Include hospitals that have no address (they can never be geocoded)
+  const allMissing = [...missingCoords, ...noAddressRows.filter(r => r.latitude == null || r.longitude == null)];
+
+  const csvHeader =
+    "id,hospital_name,address,city,state,zip,phone,emergency_services,osm_id,reason";
+  const csvRows = allMissing.map((r: any) => {
+    const reason = (!r.address || r.address === "") ? "no_address" : "no_census_match";
+    const fields = [
+      r.id,
+      `"${(r.hospitalName ?? "").replace(/"/g, "'")}"`,
+      `"${(r.address ?? "").replace(/"/g, "'")}"`,
+      `"${(r.city ?? "").replace(/"/g, "'")}"`,
+      r.state ?? "",
+      r.zip ?? "",
+      `"${(r.phone ?? "").replace(/"/g, "'")}"`,
+      r.emergencyServices ? "YES" : "NO",
+      r.osmId ?? "",
+      reason,
+    ];
+    return fields.join(",");
+  });
+
+  const csvContent = [csvHeader, ...csvRows].join("\n");
+  fs.writeFileSync(REPORT_PATH, csvContent, "utf8");
+  console.log(`\nMissing-coordinates report → ${REPORT_PATH}`);
+  console.log(`  ${allMissing.length} hospitals listed (${allMissing.filter((r: any) => r.emergencyServices).length} emergency)`);
+
+  // ─── Summary ───────────────────────────────────────────────────────────────
+
+  const totalSecs = Math.round((Date.now() - startedAt) / 1000);
+  console.log("\n===== Summary =====");
+  console.log(`Runtime         : ${Math.floor(totalSecs / 60)}m ${totalSecs % 60}s`);
+  console.log(`Total submitted : ${rows.length}`);
+  console.log(`Updated         : ${totalUpdated}`);
+  console.log(`Skipped (≤10m)  : ${totalSkipped}  (already accurate)`);
+  console.log(`No Census match : ${totalNoMatch}`);
+  console.log(`Failed          : ${totalFailed}`);
+  console.log(`Still missing   : ${allMissing.length}`);
   console.log("\nDone.");
 
   const resultObj = {
-    total: rows.length, updated: totalUpdated,
-    skipped: totalSkipped, noMatch: totalNoMatch, failed: totalFailed,
+    total: rows.length + noAddressRows.length,
+    submitted: rows.length,
+    updated: totalUpdated,
+    skipped: totalSkipped,
+    noMatch: totalNoMatch,
+    failed: totalFailed,
+    stillMissing: allMissing.length,
+    reportPath: REPORT_PATH,
   };
   console.log(`GEOCODE_RESULT:${JSON.stringify(resultObj)}`);
   process.exit(0);
