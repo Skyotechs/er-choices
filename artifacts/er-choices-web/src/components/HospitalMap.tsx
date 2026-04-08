@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Marker, TileLayer } from "leaflet";
 import { Hospital } from "@/types/hospital";
 
@@ -15,6 +15,7 @@ export function HospitalMap({ latitude, longitude, hospitals, onHospitalSelect }
   const markersRef = useRef<Marker[]>([]);
   const userMarkerRef = useRef<Marker | null>(null);
   const tileLayerRef = useRef<TileLayer | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -38,6 +39,7 @@ export function HospitalMap({ latitude, longitude, hospitals, onHospitalSelect }
       }).addTo(map);
 
       mapRef.current = map;
+      setMapReady(true);
     });
 
     return () => {
@@ -103,7 +105,7 @@ export function HospitalMap({ latitude, longitude, hospitals, onHospitalSelect }
         markersRef.current.push(marker);
       });
     });
-  }, [hospitals, onHospitalSelect]);
+  }, [hospitals, onHospitalSelect, mapReady]);
 
   return (
     <div ref={mapContainerRef} className="w-full h-full" />
