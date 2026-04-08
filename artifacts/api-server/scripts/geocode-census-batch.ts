@@ -94,6 +94,29 @@ interface HospRow {
   emergencyServices: boolean | null;
 }
 
+interface NoAddrRow {
+  id: number;
+  hospitalName: string;
+  address: string | null;
+  city: string | null;
+  state: string;
+  zip: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+interface MissingRow {
+  id: number;
+  hospitalName: string;
+  address: string | null;
+  city: string | null;
+  state: string;
+  zip: string | null;
+  phone: string | null;
+  emergencyServices: boolean | null;
+  osmId: string | null;
+}
+
 interface CensusResult {
   id: number;
   lat: number;
@@ -208,7 +231,7 @@ async function main() {
     .from(hospitalSpecialties)
     .where(
       or(isNull(hospitalSpecialties.address), eq(hospitalSpecialties.address, ""))
-    ));
+    )) as NoAddrRow[];
 
   console.log(`Hospitals with an address   : ${rows.length}`);
   console.log(`Hospitals with no address   : ${noAddressRows.length}`);
@@ -297,7 +320,7 @@ async function main() {
 
   console.log("Querying hospitals still missing coordinates for the report...");
 
-  const missingCoords = await db
+  const missingCoords = (await db
     .select({
       id: hospitalSpecialties.id,
       hospitalName: hospitalSpecialties.hospitalName,
@@ -315,14 +338,33 @@ async function main() {
         isNull(hospitalSpecialties.latitude),
         isNull(hospitalSpecialties.longitude)
       )
-    );
+    )) as MissingRow[];
 
-  // Include hospitals that have no address (they can never be geocoded)
-  const allMissing = [...missingCoords, ...noAddressRows.filter(r => r.latitude == null || r.longitude == null)];
+  // Convert noAddressRows that still lack coords into MissingRow shape for unified reporting
+  const noAddrMissing: MissingRow[] = noAddressRows
+    .filter((r) => r.latitude == null || r.longitude == null)
+    .map((r) => ({
+      id: r.id,
+      hospitalName: r.hospitalName,
+      address: r.address,
+      city: r.city,
+      state: r.state,
+      zip: r.zip,
+      phone: null,
+      emergencyServices: null,
+      osmId: null,
+    }));
+
+  // Deduplicate by id (missingCoords already covers hospitals with no address but has coords=NULL too)
+  const seenIds = new Set(missingCoords.map((r) => r.id));
+  const allMissing: MissingRow[] = [
+    ...missingCoords,
+    ...noAddrMissing.filter((r) => !seenIds.has(r.id)),
+  ];
 
   const csvHeader =
     "id,hospital_name,address,city,state,zip,phone,emergency_services,osm_id,reason";
-  const csvRows = allMissing.map((r: any) => {
+  const csvRows = allMissing.map((r) => {
     const reason = (!r.address || r.address === "") ? "no_address" : "no_census_match";
     const fields = [
       r.id,
@@ -342,7 +384,7 @@ async function main() {
   const csvContent = [csvHeader, ...csvRows].join("\n");
   fs.writeFileSync(REPORT_PATH, csvContent, "utf8");
   console.log(`\nMissing-coordinates report → ${REPORT_PATH}`);
-  console.log(`  ${allMissing.length} hospitals listed (${allMissing.filter((r: any) => r.emergencyServices).length} emergency)`);
+  console.log(`  ${allMissing.length} hospitals listed (${allMissing.filter((r) => r.emergencyServices).length} emergency)`);
 
   // ─── Summary ───────────────────────────────────────────────────────────────
 

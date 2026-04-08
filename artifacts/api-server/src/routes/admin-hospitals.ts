@@ -1097,6 +1097,7 @@ router.post("/admin/run-census-geocode", requireAdmin, async (_req, res) => {
     startedAt: new Date().toISOString(),
     finishedAt: null,
     updated: 0, skipped: 0, noMatch: 0, failed: 0, total: 0,
+    stillMissing: 0, reportPath: null,
     error: null,
   };
   res.status(202).json({ message: "Census geocoding started", state: censusBatchState });
