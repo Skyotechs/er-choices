@@ -30,7 +30,8 @@
     "production": {
       "ios": {
         "language": "en-US",
-        "appName": "ER Choices"
+        "appName": "ER Choices",
+        "ascAppId": "6761451449"
       }
     }
   }
