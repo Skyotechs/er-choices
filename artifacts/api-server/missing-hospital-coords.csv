@@ -1,0 +1,4 @@
+id,hospital_name,address,city,state,zip,phone,emergency_services,osm_id,reason
+27131,"osm-way-245391851","","",XX,,"",YES,osm-way-245391851,no_address
+4189,"HOSPITAL METROPOLITANO DE LA MONTANA","Calle Isaac Gonzalez Esquina Ledesma","Bda Nueva",PR,641,"(787) 933-1100",YES,,no_census_match
+27131,"osm-way-245391851","","",XX,,"",NO,,no_address
