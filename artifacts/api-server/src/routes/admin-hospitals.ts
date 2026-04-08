@@ -758,6 +758,7 @@ router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {
 
 const COORD_UPDATE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "update-coords-from-osm.ts");
 const GEOCODE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "geocode-addresses.ts");
+const GEOCODE_PASS2_SCRIPT = path.join(API_SERVER_DIR, "scripts", "geocode-addresses-pass2.ts");
 
 let coordUpdateState: {
   status: "idle" | "running" | "done" | "error";
@@ -931,6 +932,101 @@ router.post("/admin/run-geocode", requireAdmin, async (_req, res) => {
         error: msg,
       };
       console.error("[Admin] Geocoding failed:", err);
+    });
+});
+
+// ─── Address Geocode Pass 2 Trigger ──────────────────────────────────────────
+
+let geocodePass2State: {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  updated: number;
+  skipped: number;
+  noResult: number;
+  failed: number;
+  total: number;
+  error: string | null;
+} = {
+  status: "idle", startedAt: null, finishedAt: null,
+  updated: 0, skipped: 0, noResult: 0, failed: 0, total: 0, error: null,
+};
+
+router.get("/admin/geocode-pass2-status", requireAdmin, (_req, res) => {
+  res.json(geocodePass2State);
+});
+
+/**
+ * POST /api/admin/run-geocode-pass2
+ *
+ * Triggers the second Nominatim geocoding pass.  Targets only the ~765
+ * hospitals that were NOT updated by the first pass (timestamps before
+ * 2026-04-08 02:05:57).  Strips Suite/Box/Floor/Unit suffixes from
+ * addresses before geocoding and falls back to city+state+zip if the
+ * cleaned street address still returns no result.
+ * Returns 202 immediately; poll /api/admin/geocode-pass2-status for progress.
+ */
+router.post("/admin/run-geocode-pass2", requireAdmin, async (_req, res) => {
+  if (geocodePass2State.status === "running") {
+    res.status(409).json({ error: "Pass-2 geocoding already running", state: geocodePass2State });
+    return;
+  }
+  if (geocodeState.status === "running") {
+    res.status(409).json({ error: "Pass-1 geocoding is still running", state: geocodeState });
+    return;
+  }
+
+  geocodePass2State = {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    updated: 0, skipped: 0, noResult: 0, failed: 0, total: 0,
+    error: null,
+  };
+  res.status(202).json({ message: "Geocoding pass 2 started", state: geocodePass2State });
+
+  const tsxBin = findTsx();
+  console.log(`[Admin] Forking geocode-pass2 child: ${tsxBin} ${GEOCODE_PASS2_SCRIPT}`);
+
+  const geocodeEnv = { ...process.env };
+  if (process.env.RAILWAY_DATABASE_URL) {
+    geocodeEnv.DATABASE_URL = process.env.RAILWAY_DATABASE_URL;
+  }
+
+  execFileAsync(tsxBin, [GEOCODE_PASS2_SCRIPT], {
+    cwd: API_SERVER_DIR,
+    env: geocodeEnv,
+    maxBuffer: 20 * 1024 * 1024,
+    timeout: 60 * 60 * 1000, // 60 minutes — 765 hospitals × 1.1 s ≈ 14 min
+  })
+    .then(({ stdout }) => {
+      const resultLine = stdout.split(/\r?\n/).find((l) => l.startsWith("GEOCODE_RESULT:"));
+      if (!resultLine) throw new Error("Script did not emit a GEOCODE_RESULT line");
+      const result = JSON.parse(resultLine.replace("GEOCODE_RESULT:", "")) as {
+        updated: number; skipped: number; noResult: number; failed: number; total: number;
+      };
+      geocodePass2State = {
+        status: "done",
+        startedAt: geocodePass2State.startedAt,
+        finishedAt: new Date().toISOString(),
+        updated: result.updated,
+        skipped: result.skipped,
+        noResult: result.noResult,
+        failed: result.failed,
+        total: result.total,
+        error: null,
+      };
+      console.log("[Admin] Geocode pass 2 completed:", geocodePass2State);
+    })
+    .catch((err: unknown) => {
+      const msg = String((err as Error)?.message ?? err);
+      geocodePass2State = {
+        ...geocodePass2State,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        error: msg,
+      };
+      console.error("[Admin] Geocode pass 2 failed:", err);
     });
 });
 
