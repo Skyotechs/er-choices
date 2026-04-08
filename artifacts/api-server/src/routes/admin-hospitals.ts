@@ -888,9 +888,16 @@ router.post("/admin/run-geocode", requireAdmin, async (_req, res) => {
   const tsxBin = findTsx();
   console.log(`[Admin] Forking geocode child process: ${tsxBin} ${GEOCODE_SCRIPT}`);
 
+  // Override DATABASE_URL with RAILWAY_DATABASE_URL if set so the script runs
+  // against the production Railway database rather than the local dev DB.
+  const geocodeEnv = { ...process.env };
+  if (process.env.RAILWAY_DATABASE_URL) {
+    geocodeEnv.DATABASE_URL = process.env.RAILWAY_DATABASE_URL;
+  }
+
   execFileAsync(tsxBin, [GEOCODE_SCRIPT], {
     cwd: API_SERVER_DIR,
-    env: { ...process.env },
+    env: geocodeEnv,
     maxBuffer: 20 * 1024 * 1024,
     timeout: 120 * 60 * 1000, // 120 minutes — ~1 req/s for up to ~7,000 hospitals
   })

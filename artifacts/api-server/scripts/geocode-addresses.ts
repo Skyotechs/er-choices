@@ -31,6 +31,9 @@
 import { db, hospitalSpecialties } from "@workspace/db";
 import { and, isNull, isNotNull, ne, eq } from "drizzle-orm";
 
+// DATABASE_URL is set by the parent process (the admin endpoint overrides it
+// to RAILWAY_DATABASE_URL when triggering this script for production geocoding).
+
 // ─── Haversine helper ─────────────────────────────────────────────────────────
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
