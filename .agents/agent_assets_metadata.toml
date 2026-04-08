@@ -17,3 +17,9 @@ id = "FohpcqJsTHuyjLfGTvjiB"
 uri = "file://hospital-export.csv"
 type = "table"
 title = "ER Choices Hospital Database (5,428 hospitals)"
+
+[[outputs]]
+id = "DAiQya6JCOfUPbATFhFNl"
+uri = "file://artifacts/api-server/missing-hospital-coords.csv"
+type = "table"
+title = "Hospitals Missing Coordinates (Admin Review)"
