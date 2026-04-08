@@ -110,3 +110,18 @@ CMS Care Compare hospital baseline data. Populated by running `pnpm --filter @wo
 ## Import Scripts
 
 - `pnpm --filter @workspace/api-server run import-cms` — Fetches and upserts all CMS Hospital General Information records into `hospital_specialties`. Safe to re-run (idempotent via `ON CONFLICT DO UPDATE`).
+
+## Geocoding History
+All non-OSM emergency hospitals have been geocoded using:
+1. **Pass 1** (Nominatim): ~3,060 hospitals (April 8, 2026)
+2. **Pass 2** (Nominatim, cleaned addresses): ~736 hospitals (April 8, 2026)
+3. **Census Batch** (US Census Bureau TIGER data): 2,362 hospitals updated (April 8, 2026) — most accurate
+
+Final coverage (emergency hospitals):
+- 1,508 OSM building-level
+- 2,362 Census TIGER street-level
+- 623 Nominatim address-level
+- 6 private campus roads (need manual override)
+- 2 no coordinates
+
+Dev API server is configured to use RAILWAY_DATABASE_URL as DATABASE_URL (api-server/package.json dev script).

@@ -759,6 +759,7 @@ router.get("/admin/enrichment-csv", requireAdmin, (_req, res) => {
 const COORD_UPDATE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "update-coords-from-osm.ts");
 const GEOCODE_SCRIPT = path.join(API_SERVER_DIR, "scripts", "geocode-addresses.ts");
 const GEOCODE_PASS2_SCRIPT = path.join(API_SERVER_DIR, "scripts", "geocode-addresses-pass2.ts");
+const GEOCODE_CENSUS_SCRIPT = path.join(API_SERVER_DIR, "scripts", "geocode-census-batch.ts");
 
 let coordUpdateState: {
   status: "idle" | "running" | "done" | "error";
@@ -1027,6 +1028,94 @@ router.post("/admin/run-geocode-pass2", requireAdmin, async (_req, res) => {
         error: msg,
       };
       console.error("[Admin] Geocode pass 2 failed:", err);
+    });
+});
+
+// ─── Census Batch Geocode Trigger ────────────────────────────────────────────
+
+let censusBatchState: {
+  status: "idle" | "running" | "done" | "error";
+  startedAt: string | null;
+  finishedAt: string | null;
+  updated: number;
+  skipped: number;
+  noMatch: number;
+  failed: number;
+  total: number;
+  error: string | null;
+} = {
+  status: "idle", startedAt: null, finishedAt: null,
+  updated: 0, skipped: 0, noMatch: 0, failed: 0, total: 0, error: null,
+};
+
+router.get("/admin/census-geocode-status", requireAdmin, (_req, res) => {
+  res.json(censusBatchState);
+});
+
+/**
+ * POST /api/admin/run-census-geocode
+ *
+ * Triggers the US Census Bureau batch geocoder for all non-OSM emergency
+ * hospitals.  Returns 202 immediately; poll /api/admin/census-geocode-status.
+ * Typical runtime: 2–5 minutes for ~3,800 hospitals (4 batches of 1,000).
+ */
+router.post("/admin/run-census-geocode", requireAdmin, async (_req, res) => {
+  if (censusBatchState.status === "running") {
+    res.status(409).json({ error: "Census geocoding already running", state: censusBatchState });
+    return;
+  }
+
+  censusBatchState = {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    updated: 0, skipped: 0, noMatch: 0, failed: 0, total: 0,
+    error: null,
+  };
+  res.status(202).json({ message: "Census geocoding started", state: censusBatchState });
+
+  const tsxBin = findTsx();
+  console.log(`[Admin] Forking census-geocode child: ${tsxBin} ${GEOCODE_CENSUS_SCRIPT}`);
+
+  const geocodeEnv = { ...process.env };
+  if (process.env.RAILWAY_DATABASE_URL) {
+    geocodeEnv.DATABASE_URL = process.env.RAILWAY_DATABASE_URL;
+  }
+
+  execFileAsync(tsxBin, [GEOCODE_CENSUS_SCRIPT], {
+    cwd: API_SERVER_DIR,
+    env: geocodeEnv,
+    maxBuffer: 20 * 1024 * 1024,
+    timeout: 30 * 60 * 1000, // 30 minutes
+  })
+    .then(({ stdout }) => {
+      const resultLine = stdout.split(/\r?\n/).find((l) => l.startsWith("GEOCODE_RESULT:"));
+      if (!resultLine) throw new Error("Script did not emit a GEOCODE_RESULT line");
+      const result = JSON.parse(resultLine.replace("GEOCODE_RESULT:", "")) as {
+        total: number; updated: number; skipped: number; noMatch: number; failed: number;
+      };
+      censusBatchState = {
+        status: "done",
+        startedAt: censusBatchState.startedAt,
+        finishedAt: new Date().toISOString(),
+        updated: result.updated,
+        skipped: result.skipped,
+        noMatch: result.noMatch,
+        failed: result.failed,
+        total: result.total,
+        error: null,
+      };
+      console.log("[Admin] Census geocoding completed:", censusBatchState);
+    })
+    .catch((err: unknown) => {
+      const msg = String((err as Error)?.message ?? err);
+      censusBatchState = {
+        ...censusBatchState,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        error: msg,
+      };
+      console.error("[Admin] Census geocoding failed:", err);
     });
 });
 
