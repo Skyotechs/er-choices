@@ -1062,11 +1062,10 @@ router.get("/admin/census-geocode-status", requireAdmin, (_req, res) => {
  * the last full-pass Census geocoding run.
  */
 router.get("/admin/missing-coords-report", requireAdmin, (_req, res) => {
-  const { createReadStream, existsSync } = require("fs") as typeof import("fs");
   const reportPath = censusBatchState.reportPath ??
     path.join(API_SERVER_DIR, "missing-hospital-coords.csv");
 
-  if (!existsSync(reportPath)) {
+  if (!fs.existsSync(reportPath)) {
     res.status(404).json({ error: "Report not generated yet — run the Census geocoder first." });
     return;
   }
@@ -1076,7 +1075,7 @@ router.get("/admin/missing-coords-report", requireAdmin, (_req, res) => {
     "Content-Disposition",
     'attachment; filename="missing-hospital-coords.csv"'
   );
-  createReadStream(reportPath).pipe(res);
+  fs.createReadStream(reportPath).pipe(res);
 });
 
 /**
