@@ -60,19 +60,27 @@ export function MapSection({
         showsMyLocationButton={false}
         userInterfaceStyle="light"
       >
-        {hospitals.map((hospital) => (
-          <Marker
-            key={hospital.id}
-            coordinate={{
-              latitude: hospital.latitude,
-              longitude: hospital.longitude,
-            }}
-            title={hospital.name}
-            description={hospital.city ? `${hospital.city}, ${hospital.state}` : hospital.state}
-            pinColor={colors.mapPin}
-            onCalloutPress={() => onHospitalPress(hospital)}
-          />
-        ))}
+        {hospitals
+          .filter(
+            (h) =>
+              h.latitude != null &&
+              h.longitude != null &&
+              isFinite(h.latitude) &&
+              isFinite(h.longitude)
+          )
+          .map((hospital) => (
+            <Marker
+              key={hospital.id}
+              coordinate={{
+                latitude: hospital.latitude as number,
+                longitude: hospital.longitude as number,
+              }}
+              title={hospital.name}
+              description={hospital.city ? `${hospital.city}, ${hospital.state}` : hospital.state}
+              pinColor={colors.mapPin}
+              onCalloutPress={() => onHospitalPress(hospital)}
+            />
+          ))}
       </MapView>
     </View>
   );

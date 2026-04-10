@@ -78,6 +78,7 @@ export default function HomeScreen() {
     locationError,
     locationPermission,
     serverError,
+    allHospitals,
     filteredHospitals,
     selectedFilter,
     availableFilters,
@@ -208,13 +209,15 @@ export default function HomeScreen() {
         },
       ]}
     >
-      {/* Map rendered directly — never inside FlatList's ListHeaderComponent.
-          Tapping filter chips changes filteredHospitals but React reconciles
-          MapArea props in place; MapSection never unmounts. */}
+      {/* Map always receives the full allHospitals list, not filteredHospitals.
+          This prevents react-native-maps from rapidly adding/removing native
+          Marker nodes as the user taps filter chips, which caused crashes on
+          iOS (react-native-maps 1.18). The list below still shows filtered
+          results; the map gives full geographic context at all times. */}
       <MapArea
         latitude={location?.latitude ?? null}
         longitude={location?.longitude ?? null}
-        hospitals={filteredHospitals}
+        hospitals={allHospitals}
         onHospitalPress={handleHospitalPress}
         onRefresh={refresh}
         cardBg={colors.card}
