@@ -396,7 +396,8 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
 router.post("/admin/hospitals", requireAdmin, async (req, res) => {
   const body = req.body ?? {};
 
-  const name = (body.hospitalName ?? "").trim();
+  // Accept both `hospitalName` (canonical) and `name` (UI alias)
+  const name = ((body.hospitalName ?? body.name) as string | undefined ?? "").trim();
   const state = (body.state ?? "").trim();
 
   if (!name) {
@@ -414,6 +415,12 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
     if (v === null || v === undefined || v === "") return null;
     const n = Number(v);
     return isNaN(n) ? null : n;
+  };
+  const bool = (v: unknown): boolean | null => {
+    if (v === null || v === undefined) return null;
+    if (v === true || v === "true" || v === 1 || v === "1") return true;
+    if (v === false || v === "false" || v === 0 || v === "0") return false;
+    return null;
   };
 
   const specialtiesRaw = body.specialties;
@@ -447,7 +454,7 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
           strokeDesignation: str(body.strokeDesignation) ?? undefined,
           burnDesignation: str(body.burnDesignation) ?? undefined,
           pciCapability: str(body.pciCapability) ?? undefined,
-          helipad: body.helipad != null ? Boolean(body.helipad) : undefined,
+          helipad: bool(body.helipad) ?? undefined,
           beds: num(body.beds) ?? undefined,
           source: "admin",
           emergencyServices: true,
