@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
 import { eq, ilike } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -271,6 +272,19 @@ router.patch("/admin/hospitals/:id", requireAdmin, async (req, res) => {
       .where(eq(hospitalSpecialties.id, id))
       .limit(1);
 
+    // Clear any legacy override fields that were just edited so hospital_specialties values win.
+    // hospital_overrides is kept read-only for backward compat but must not shadow new edits.
+    if (saved.osmId && (patch.phone !== undefined || patch.latitude !== undefined || patch.longitude !== undefined)) {
+      const overrideClear: { phone?: null; latitude?: null; longitude?: null } = {};
+      if (patch.phone !== undefined) overrideClear.phone = null;
+      if (patch.latitude !== undefined) overrideClear.latitude = null;
+      if (patch.longitude !== undefined) overrideClear.longitude = null;
+      await db
+        .update(hospitalOverrides)
+        .set(overrideClear)
+        .where(eq(hospitalOverrides.osmId, saved.osmId));
+    }
+
     res.json({ success: true, hospital: saved });
   } catch (err) {
     console.error("PATCH /api/admin/hospitals/:id error:", err);
@@ -354,10 +368,6 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
     return isNaN(n) ? null : n;
   };
 
-  // Generate a unique cmsId for admin-created hospitals
-  const shortId = Math.random().toString(36).slice(2, 9).toUpperCase();
-  const cmsId = `ADMIN-${shortId}`;
-
   const specialtiesRaw = body.specialties;
   const specialties = Array.isArray(specialtiesRaw)
     ? specialtiesRaw.map(String).filter(Boolean)
@@ -365,37 +375,49 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
       ? specialtiesRaw.split(",").map((s: string) => s.trim()).filter(Boolean)
       : [];
 
-  try {
-    const [created] = await db
-      .insert(hospitalSpecialties)
-      .values({
-        cmsId,
-        hospitalName: name,
-        state,
-        address: str(body.address) ?? undefined,
-        city: str(body.city) ?? undefined,
-        zip: str(body.zip) ?? undefined,
-        phone: str(body.phone) ?? undefined,
-        latitude: num(body.latitude) ?? undefined,
-        longitude: num(body.longitude) ?? undefined,
-        specialties,
-        actualDesignation: str(body.actualDesignation) ?? undefined,
-        serviceLine: str(body.serviceLine) ?? undefined,
-        strokeDesignation: str(body.strokeDesignation) ?? undefined,
-        burnDesignation: str(body.burnDesignation) ?? undefined,
-        pciCapability: str(body.pciCapability) ?? undefined,
-        helipad: body.helipad != null ? Boolean(body.helipad) : undefined,
-        beds: num(body.beds) ?? undefined,
-        source: "admin",
-        emergencyServices: true,
-        verified: true,
-      })
-      .returning();
+  // Retry up to 5 times on unique constraint conflict (extremely unlikely with UUID-based IDs)
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    // Use a full UUID suffix to make collisions cryptographically infeasible
+    const cmsId = `ADMIN-${randomUUID()}`;
+    try {
+      const [created] = await db
+        .insert(hospitalSpecialties)
+        .values({
+          cmsId,
+          hospitalName: name,
+          state,
+          address: str(body.address) ?? undefined,
+          city: str(body.city) ?? undefined,
+          zip: str(body.zip) ?? undefined,
+          phone: str(body.phone) ?? undefined,
+          latitude: num(body.latitude) ?? undefined,
+          longitude: num(body.longitude) ?? undefined,
+          specialties,
+          actualDesignation: str(body.actualDesignation) ?? undefined,
+          serviceLine: str(body.serviceLine) ?? undefined,
+          strokeDesignation: str(body.strokeDesignation) ?? undefined,
+          burnDesignation: str(body.burnDesignation) ?? undefined,
+          pciCapability: str(body.pciCapability) ?? undefined,
+          helipad: body.helipad != null ? Boolean(body.helipad) : undefined,
+          beds: num(body.beds) ?? undefined,
+          source: "admin",
+          emergencyServices: true,
+          verified: true,
+        })
+        .returning();
 
-    res.status(201).json({ success: true, hospital: created });
-  } catch (err) {
-    console.error("POST /api/admin/hospitals error:", err);
-    res.status(500).json({ error: "Internal server error" });
+      return res.status(201).json({ success: true, hospital: created });
+    } catch (err: unknown) {
+      const pgErr = err as { code?: string };
+      if (pgErr?.code === "23505" && attempt < MAX_ATTEMPTS - 1) {
+        // Unique constraint violation on cmsId — retry with a fresh UUID
+        continue;
+      }
+      console.error("POST /api/admin/hospitals error:", err);
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
   }
 });
 

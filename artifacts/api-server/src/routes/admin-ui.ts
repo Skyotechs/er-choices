@@ -29,13 +29,6 @@ const SERVICE_LINE_OPTIONS = [
   ...SERVICE_LINES.map((s) => `<option value="${s}">${s}</option>`),
 ].join("");
 
-const KNOWN_SPECIALTIES = [
-  "Trauma","Stroke","Burn","Cardiac","Psychiatric","Pediatric","Obstetrics","Cancer",
-];
-
-const SPECIALTY_CHECKBOXES = KNOWN_SPECIALTIES.map(
-  (s) => `<label class="spec-cb"><input type="checkbox" name="spec" value="${s}"> ${s}</label>`,
-).join("");
 
 function buildPage(): string {
   return `<!DOCTYPE html>
@@ -271,7 +264,10 @@ function buildPage(): string {
             </div>
 
             <div class="section-title">Specialties</div>
-            <div class="spec-row">${SPECIALTY_CHECKBOXES}</div>
+            <div class="field full">
+              <label class="field-label">Specialties (comma-separated — preserves all existing values)</label>
+              <textarea name="specialties" rows="3" placeholder="e.g. Trauma, Stroke, Burn"></textarea>
+            </div>
 
             <div class="status-msg" id="edit-status"></div>
             <div class="form-actions">
@@ -359,7 +355,10 @@ function buildPage(): string {
             </div>
 
             <div class="section-title">Specialties</div>
-            <div class="spec-row">${SPECIALTY_CHECKBOXES}</div>
+            <div class="field full">
+              <label class="field-label">Specialties (comma-separated)</label>
+              <textarea name="specialties" rows="3" placeholder="e.g. Trauma, Stroke, Burn"></textarea>
+            </div>
 
             <div class="status-msg" id="add-status"></div>
             <div class="form-actions">
@@ -493,11 +492,10 @@ function populateEditForm(h) {
   set('helipad', h.helipad);
   set('beds', h.beds);
 
-  // Specialties checkboxes
+  // Specialties textarea — pre-fill with all existing values preserved
   const specs = h.specialties ?? [];
-  form.querySelectorAll('input[name="spec"]').forEach(cb => {
-    cb.checked = specs.includes(cb.value);
-  });
+  const specEl = form.elements['specialties'];
+  if (specEl) specEl.value = specs.join(', ');
 
   hideStatus('edit-status');
 }
@@ -577,8 +575,9 @@ function formToPayload(form) {
   const beds = fd.get('beds'); data.beds = beds ? parseInt(beds, 10) : null;
   // Boolean checkbox
   data.helipad = form.elements['helipad']?.checked ?? false;
-  // Specialties — all checked checkboxes
-  data.specialties = Array.from(form.querySelectorAll('input[name="spec"]:checked')).map(cb => cb.value);
+  // Specialties — free-text textarea, comma-separated, preserves any existing values
+  const specRaw = (fd.get('specialties') ?? '').toString().trim();
+  data.specialties = specRaw ? specRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
   return data;
 }
 
