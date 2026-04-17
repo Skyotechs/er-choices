@@ -397,8 +397,9 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
   const body = req.body ?? {};
 
   // Accept both `hospitalName` (canonical) and `name` (UI alias)
-  const name = ((body.hospitalName ?? body.name) as string | undefined ?? "").trim();
-  const state = (body.state ?? "").trim();
+  // String() guards against non-string primitives (e.g. a number passed in JSON)
+  const name = String(body.hospitalName ?? body.name ?? "").trim();
+  const state = String(body.state ?? "").trim();
 
   if (!name) {
     res.status(400).json({ error: "hospitalName is required" });
