@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
 import { execFile } from "child_process";
@@ -143,8 +143,10 @@ router.get("/hospital-overrides", async (_req, res) => {
 /**
  * GET /api/admin/hospitals/search?q=<name>
  * Searches hospitals by name. Returns all editable fields for the admin UI.
- * Phone, latitude, and longitude are the *effective* values (override wins over base)
- * so that the edit form pre-fills with exactly what users see in the app.
+ * Phone, latitude, and longitude reflect *effective* values — legacy override data
+ * (hospital_overrides) takes precedence, matching the nearby-hospitals read path.
+ * osmIds are normalized to app format (osm-*) before looking up overrides to ensure
+ * correct matching regardless of how the raw id is stored in hospital_specialties.
  */
 router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   const q = ((req.query.q as string) ?? "").trim();
@@ -154,6 +156,7 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   }
 
   try {
+    // Step 1: fetch hospitals from hospital_specialties
     const rows = await db
       .select({
         id: hospitalSpecialties.id,
@@ -164,9 +167,9 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         city: hospitalSpecialties.city,
         state: hospitalSpecialties.state,
         zip: hospitalSpecialties.zip,
-        basePhone: hospitalSpecialties.phone,
-        baseLatitude: hospitalSpecialties.latitude,
-        baseLongitude: hospitalSpecialties.longitude,
+        phone: hospitalSpecialties.phone,
+        latitude: hospitalSpecialties.latitude,
+        longitude: hospitalSpecialties.longitude,
         specialties: hospitalSpecialties.specialties,
         actualDesignation: hospitalSpecialties.actualDesignation,
         serviceLine: hospitalSpecialties.serviceLine,
@@ -176,17 +179,12 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         helipad: hospitalSpecialties.helipad,
         beds: hospitalSpecialties.beds,
         source: hospitalSpecialties.source,
-        // Legacy override fields — take precedence where non-null (mirrors nearby-hospitals logic)
-        overridePhone: hospitalOverrides.phone,
-        overrideLatitude: hospitalOverrides.latitude,
-        overrideLongitude: hospitalOverrides.longitude,
       })
       .from(hospitalSpecialties)
-      .leftJoin(hospitalOverrides, eq(hospitalSpecialties.osmId, hospitalOverrides.osmId))
       .where(ilike(hospitalSpecialties.hospitalName, `%${q}%`))
       .limit(50);
 
-    // Normalise osmIds; deduplicate
+    // Step 2: normalize osmIds and deduplicate, then look up any legacy overrides
     const seenKeys = new Set<string>();
     const unique = rows
       .map((r) => ({ ...r, osmId: r.osmId ? normaliseOsmId(r.osmId) : null }))
@@ -195,31 +193,52 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         if (seenKeys.has(key)) return false;
         seenKeys.add(key);
         return true;
-      });
+      })
+      .slice(0, 20);
 
-    const result = unique.slice(0, 20).map((r) => ({
-      id: r.id,
-      cmsId: r.cmsId,
-      osmId: r.osmId ?? null,
-      name: r.hospitalName,
-      address: r.address ?? null,
-      city: r.city ?? null,
-      state: r.state,
-      zip: r.zip ?? null,
-      // Return the effective values the app serves (override wins over base)
-      phone: r.overridePhone ?? r.basePhone ?? null,
-      latitude: r.overrideLatitude ?? r.baseLatitude ?? null,
-      longitude: r.overrideLongitude ?? r.baseLongitude ?? null,
-      specialties: (r.specialties as string[]) ?? [],
-      actualDesignation: r.actualDesignation ?? null,
-      serviceLine: r.serviceLine ?? null,
-      strokeDesignation: r.strokeDesignation ?? null,
-      burnDesignation: r.burnDesignation ?? null,
-      pciCapability: r.pciCapability ?? null,
-      helipad: r.helipad ?? null,
-      beds: r.beds ?? null,
-      source: r.source,
-    }));
+    // Fetch overrides for all osmIds in the result set.
+    // hospital_overrides always stores ids in app format (osm-*), which matches
+    // the normalized osmIds already computed above.
+    const osmIds = unique.map((r) => r.osmId).filter((id): id is string => !!id);
+    const overrideRows = osmIds.length > 0
+      ? await db
+          .select({
+            osmId: hospitalOverrides.osmId,
+            phone: hospitalOverrides.phone,
+            latitude: hospitalOverrides.latitude,
+            longitude: hospitalOverrides.longitude,
+          })
+          .from(hospitalOverrides)
+          .where(inArray(hospitalOverrides.osmId, osmIds))
+      : [];
+    const overrideMap = new Map(overrideRows.map((o) => [o.osmId, o]));
+
+    const result = unique.map((r) => {
+      const ov = r.osmId ? overrideMap.get(r.osmId) : undefined;
+      return {
+        id: r.id,
+        cmsId: r.cmsId,
+        osmId: r.osmId ?? null,
+        name: r.hospitalName,
+        address: r.address ?? null,
+        city: r.city ?? null,
+        state: r.state,
+        zip: r.zip ?? null,
+        // Effective values: override wins over base (matches nearby-hospitals API)
+        phone: ov?.phone ?? r.phone ?? null,
+        latitude: ov?.latitude ?? r.latitude ?? null,
+        longitude: ov?.longitude ?? r.longitude ?? null,
+        specialties: (r.specialties as string[]) ?? [],
+        actualDesignation: r.actualDesignation ?? null,
+        serviceLine: r.serviceLine ?? null,
+        strokeDesignation: r.strokeDesignation ?? null,
+        burnDesignation: r.burnDesignation ?? null,
+        pciCapability: r.pciCapability ?? null,
+        helipad: r.helipad ?? null,
+        beds: r.beds ?? null,
+        source: r.source,
+      };
+    });
 
     res.json(result);
   } catch (err) {
@@ -282,7 +301,10 @@ router.patch("/admin/hospitals/:id", requireAdmin, async (req, res) => {
 
     // Clear any legacy override fields that were just edited so hospital_specialties values win.
     // hospital_overrides is kept read-only for backward compat but must not shadow new edits.
+    // hospital_overrides.osmId is always in app format (osm-*). Normalize the DB osmId before
+    // matching to handle any hospital_specialties rows stored in raw format (node/...).
     if (saved.osmId && (patch.phone !== undefined || patch.latitude !== undefined || patch.longitude !== undefined)) {
+      const normOsmId = normaliseOsmId(saved.osmId);
       const overrideClear: { phone?: null; latitude?: null; longitude?: null } = {};
       if (patch.phone !== undefined) overrideClear.phone = null;
       if (patch.latitude !== undefined) overrideClear.latitude = null;
@@ -290,7 +312,7 @@ router.patch("/admin/hospitals/:id", requireAdmin, async (req, res) => {
       await db
         .update(hospitalOverrides)
         .set(overrideClear)
-        .where(eq(hospitalOverrides.osmId, saved.osmId));
+        .where(eq(hospitalOverrides.osmId, normOsmId));
     }
 
     res.json({ success: true, hospital: saved });
@@ -340,9 +362,9 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
       .limit(1);
 
     // Mirror the same override-clearing behavior as the numeric-id PATCH endpoint.
-    // OSM-matched hospitals may have legacy hospital_overrides rows; clear affected fields
-    // so that app reads immediately reflect the newly-written hospital_specialties values.
+    // Normalize osmId to app format (osm-*) before matching against hospital_overrides.
     if (saved.osmId && (patch.phone !== undefined || patch.latitude !== undefined || patch.longitude !== undefined)) {
+      const normOsmId = normaliseOsmId(saved.osmId);
       const overrideClear: { phone?: null; latitude?: null; longitude?: null } = {};
       if (patch.phone !== undefined) overrideClear.phone = null;
       if (patch.latitude !== undefined) overrideClear.latitude = null;
@@ -350,7 +372,7 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
       await db
         .update(hospitalOverrides)
         .set(overrideClear)
-        .where(eq(hospitalOverrides.osmId, saved.osmId));
+        .where(eq(hospitalOverrides.osmId, normOsmId));
     }
 
     res.json({ success: true, hospital: saved });
