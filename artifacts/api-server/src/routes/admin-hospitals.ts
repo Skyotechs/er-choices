@@ -331,6 +331,20 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
       .where(eq(hospitalSpecialties.cmsId, cmsId))
       .limit(1);
 
+    // Mirror the same override-clearing behavior as the numeric-id PATCH endpoint.
+    // OSM-matched hospitals may have legacy hospital_overrides rows; clear affected fields
+    // so that app reads immediately reflect the newly-written hospital_specialties values.
+    if (saved.osmId && (patch.phone !== undefined || patch.latitude !== undefined || patch.longitude !== undefined)) {
+      const overrideClear: { phone?: null; latitude?: null; longitude?: null } = {};
+      if (patch.phone !== undefined) overrideClear.phone = null;
+      if (patch.latitude !== undefined) overrideClear.latitude = null;
+      if (patch.longitude !== undefined) overrideClear.longitude = null;
+      await db
+        .update(hospitalOverrides)
+        .set(overrideClear)
+        .where(eq(hospitalOverrides.osmId, saved.osmId));
+    }
+
     res.json({ success: true, hospital: saved });
   } catch (err) {
     console.error("PATCH /api/admin/hospitals/cms error:", err);
