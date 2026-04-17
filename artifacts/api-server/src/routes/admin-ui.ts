@@ -79,6 +79,7 @@ function buildPage(): string {
   .result-item:hover{background:#152236}
   .result-item.active{background:#1a2c40;border-left:3px solid #c0392b}
   .result-name{font-size:13px;font-weight:600;color:#f1f5f9}
+  .result-meta{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .result-sub{font-size:11px;color:#64748b;margin-top:2px}
   .result-badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;margin-top:4px;background:#1e3352;color:#94a3b8}
   .result-badge.admin{background:#c0392b22;color:#c0392b}
@@ -441,6 +442,8 @@ async function runSearch(q) {
       <div class="result-item" data-id="\${r.id}" onclick="selectHospital(\${r.id}, this)" data-hospital='\${JSON.stringify(r).replace(/'/g,"&apos;")}'>
         <div class="result-name">\${esc(r.name)}</div>
         <div class="result-sub">\${esc([r.city, r.state].filter(Boolean).join(', ') || r.state)}</div>
+        \${r.phone ? \`<div class="result-meta">\${esc(r.phone)}</div>\` : ''}
+        \${r.actualDesignation ? \`<div class="result-meta" title="\${esc(r.actualDesignation)}">\${esc(r.actualDesignation)}</div>\` : ''}
         <span class="result-badge \${r.source === 'admin' ? 'admin' : ''}">\${r.source === 'admin' ? 'Admin-created' : 'CMS'}</span>
       </div>
     \`).join('');

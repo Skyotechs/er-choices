@@ -44,8 +44,12 @@ function buildHospitalPatch(body: Record<string, unknown>): HospitalUpdateFields
     const n = Number(v);
     return isNaN(n) ? null : n;
   };
-  const bool = (v: unknown): boolean | null =>
-    v === null || v === undefined ? null : Boolean(v);
+  const bool = (v: unknown): boolean | null => {
+    if (v === null || v === undefined) return null;
+    if (v === true || v === "true" || v === 1 || v === "1") return true;
+    if (v === false || v === "false" || v === 0 || v === "0") return false;
+    return null; // coercing unknown string values to boolean is error-prone; treat as no-op
+  };
 
   if ("hospitalName" in body && body.hospitalName) patch.hospitalName = String(body.hospitalName);
   if ("address" in body) patch.address = str(body.address);
