@@ -519,7 +519,7 @@ async function submitEdit(e) {
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
-    await apiFetch('/api/admin/hospitals/by-id/' + selectedHospitalId, {
+    await apiFetch('/api/admin/hospitals/' + selectedHospitalId, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });

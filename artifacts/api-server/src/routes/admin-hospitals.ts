@@ -7,6 +7,72 @@ import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
 
+/** All fields that can be edited via the admin PATCH endpoint. */
+type HospitalUpdateFields = {
+  hospitalName?: string;
+  address?: string | null;
+  city?: string | null;
+  state?: string;
+  zip?: string | null;
+  phone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  specialties?: string[];
+  actualDesignation?: string | null;
+  serviceLine?: string | null;
+  strokeDesignation?: string | null;
+  burnDesignation?: string | null;
+  pciCapability?: string | null;
+  helipad?: boolean | null;
+  beds?: number | null;
+  updatedAt?: Date;
+};
+
+/**
+ * Build a typed patch object from an incoming request body.
+ * Only fields explicitly present in the body are included so callers
+ * can perform partial updates without accidentally overwriting unrelated data.
+ */
+function buildHospitalPatch(body: Record<string, unknown>): HospitalUpdateFields {
+  const patch: HospitalUpdateFields = { updatedAt: new Date() };
+
+  const str = (v: unknown): string | null =>
+    v === null || v === undefined || v === "" ? null : String(v);
+  const num = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return isNaN(n) ? null : n;
+  };
+  const bool = (v: unknown): boolean | null =>
+    v === null || v === undefined ? null : Boolean(v);
+
+  if ("hospitalName" in body && body.hospitalName) patch.hospitalName = String(body.hospitalName);
+  if ("address" in body) patch.address = str(body.address);
+  if ("city" in body) patch.city = str(body.city);
+  if ("state" in body && body.state) patch.state = String(body.state);
+  if ("zip" in body) patch.zip = str(body.zip);
+  if ("phone" in body) patch.phone = str(body.phone);
+  if ("latitude" in body) patch.latitude = num(body.latitude);
+  if ("longitude" in body) patch.longitude = num(body.longitude);
+  if ("actualDesignation" in body) patch.actualDesignation = str(body.actualDesignation);
+  if ("serviceLine" in body) patch.serviceLine = str(body.serviceLine);
+  if ("strokeDesignation" in body) patch.strokeDesignation = str(body.strokeDesignation);
+  if ("burnDesignation" in body) patch.burnDesignation = str(body.burnDesignation);
+  if ("pciCapability" in body) patch.pciCapability = str(body.pciCapability);
+  if ("helipad" in body) patch.helipad = body.helipad === null ? null : bool(body.helipad);
+  if ("beds" in body) patch.beds = body.beds === null || body.beds === "" ? null : num(body.beds);
+  if ("specialties" in body) {
+    const raw = body.specialties;
+    patch.specialties = Array.isArray(raw)
+      ? (raw as unknown[]).map(String).filter(Boolean)
+      : typeof raw === "string"
+        ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+  }
+
+  return patch;
+}
+
 const execFileAsync = promisify(execFile);
 
 // pnpm scripts run from the package directory, so process.cwd() =
@@ -154,217 +220,31 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
 });
 
 /**
- * PATCH /api/admin/hospitals/:osmId
- * Upserts phone, latitude, and longitude overrides for a hospital.
- * Any field included in the body will be saved (null clears it).
+ * PATCH /api/admin/hospitals/:id
+ * Universal full-field editor by numeric primary key.
+ * Writes any subset of editable fields directly to hospital_specialties.
+ * Works for all hospitals regardless of OSM match status.
+ *
+ * Legacy osmId callers (osm-*) receive HTTP 410 Gone with an upgrade hint.
  */
-router.patch("/admin/hospitals/:osmId", requireAdmin, async (req, res) => {
-  const osmId = decodeURIComponent(req.params.osmId);
-  if (!osmId || !osmId.startsWith("osm-")) {
-    res.status(400).json({ error: "Invalid osmId — must start with 'osm-'" });
-    return;
-  }
+router.patch("/admin/hospitals/:id", requireAdmin, async (req, res) => {
+  const raw = decodeURIComponent(req.params.id ?? "");
 
-  const body = req.body ?? {};
-  const hasPhone = "phone" in body;
-  const hasLat = "latitude" in body;
-  const hasLon = "longitude" in body;
-
-  if (!hasPhone && !hasLat && !hasLon) {
-    res.status(400).json({ error: "At least one of phone, latitude, or longitude must be provided" });
-    return;
-  }
-
-  if (hasPhone && body.phone !== null && typeof body.phone !== "string") {
-    res.status(400).json({ error: "phone must be a string or null" });
-    return;
-  }
-  if (hasLat && body.latitude !== null && typeof body.latitude !== "number") {
-    res.status(400).json({ error: "latitude must be a number or null" });
-    return;
-  }
-  if (hasLon && body.longitude !== null && typeof body.longitude !== "number") {
-    res.status(400).json({ error: "longitude must be a number or null" });
-    return;
-  }
-
-  try {
-    const existing = await db
-      .select()
-      .from(hospitalOverrides)
-      .where(eq(hospitalOverrides.osmId, osmId))
-      .limit(1);
-
-    if (existing.length > 0) {
-      const updateValues: Partial<{
-        phone: string | null;
-        latitude: number | null;
-        longitude: number | null;
-        updatedAt: Date;
-      }> = { updatedAt: new Date() };
-
-      if (hasPhone) updateValues.phone = body.phone ?? null;
-      if (hasLat) updateValues.latitude = body.latitude ?? null;
-      if (hasLon) updateValues.longitude = body.longitude ?? null;
-
-      await db
-        .update(hospitalOverrides)
-        .set(updateValues)
-        .where(eq(hospitalOverrides.osmId, osmId));
-    } else {
-      await db.insert(hospitalOverrides).values({
-        osmId,
-        phone: hasPhone ? (body.phone ?? null) : null,
-        latitude: hasLat ? (body.latitude ?? null) : null,
-        longitude: hasLon ? (body.longitude ?? null) : null,
-        updatedAt: new Date(),
-      });
-    }
-
-    const [saved] = await db
-      .select()
-      .from(hospitalOverrides)
-      .where(eq(hospitalOverrides.osmId, osmId))
-      .limit(1);
-
-    res.json({
-      success: true,
-      osmId,
-      phone: saved.phone ?? null,
-      latitude: saved.latitude ?? null,
-      longitude: saved.longitude ?? null,
+  if (raw.startsWith("osm-")) {
+    res.status(410).json({
+      error: "Editing via osmId is no longer supported.",
+      hint: "Use GET /api/admin/hospitals/search to find the hospital's numeric id, then PATCH /api/admin/hospitals/:numericId.",
     });
-  } catch (err) {
-    console.error("PATCH /api/admin/hospitals error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-/**
- * PATCH /api/admin/hospitals/cms/:cmsId
- * Updates phone, latitude, and longitude directly on hospitalSpecialties for CMS-only hospitals
- * (hospitals with no OSM match). Any field included in the body will be saved (null clears it).
- */
-router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
-  const cmsId = decodeURIComponent(req.params.cmsId);
-  if (!cmsId) {
-    res.status(400).json({ error: "Invalid cmsId" });
     return;
   }
 
-  const body = req.body ?? {};
-  const hasPhone = "phone" in body;
-  const hasLat = "latitude" in body;
-  const hasLon = "longitude" in body;
-
-  if (!hasPhone && !hasLat && !hasLon) {
-    res.status(400).json({ error: "At least one of phone, latitude, or longitude must be provided" });
-    return;
-  }
-
-  if (hasPhone && body.phone !== null && typeof body.phone !== "string") {
-    res.status(400).json({ error: "phone must be a string or null" });
-    return;
-  }
-  if (hasLat && body.latitude !== null && typeof body.latitude !== "number") {
-    res.status(400).json({ error: "latitude must be a number or null" });
-    return;
-  }
-  if (hasLon && body.longitude !== null && typeof body.longitude !== "number") {
-    res.status(400).json({ error: "longitude must be a number or null" });
-    return;
-  }
-
-  try {
-    const existing = await db
-      .select()
-      .from(hospitalSpecialties)
-      .where(eq(hospitalSpecialties.cmsId, cmsId))
-      .limit(1);
-
-    if (existing.length === 0) {
-      res.status(404).json({ error: "Hospital not found" });
-      return;
-    }
-
-    const updateValues: Partial<{ phone: string | null; latitude: string | null; longitude: string | null }> = {};
-    if (hasPhone) updateValues.phone = body.phone ?? null;
-    if (hasLat) updateValues.latitude = body.latitude != null ? String(body.latitude) : null;
-    if (hasLon) updateValues.longitude = body.longitude != null ? String(body.longitude) : null;
-
-    await db.update(hospitalSpecialties).set(updateValues).where(eq(hospitalSpecialties.cmsId, cmsId));
-
-    const [saved] = await db
-      .select()
-      .from(hospitalSpecialties)
-      .where(eq(hospitalSpecialties.cmsId, cmsId))
-      .limit(1);
-
-    res.json({
-      success: true,
-      cmsId,
-      phone: saved.phone ?? null,
-      latitude: saved.latitude != null ? Number(saved.latitude) : null,
-      longitude: saved.longitude != null ? Number(saved.longitude) : null,
-    });
-  } catch (err) {
-    console.error("PATCH /api/admin/hospitals/cms error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-/**
- * PATCH /api/admin/hospitals/by-id/:id
- * Universal full-field editor. Writes any subset of editable fields directly
- * to hospital_specialties by numeric primary-key id. Works for all hospitals
- * regardless of whether they have an OSM match.
- */
-router.patch("/admin/hospitals/by-id/:id", requireAdmin, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(raw, 10);
   if (isNaN(id) || id <= 0) {
     res.status(400).json({ error: "id must be a positive integer" });
     return;
   }
 
-  const body = req.body ?? {};
-
-  // Build the patch object — only include keys explicitly sent in the body
-  const patch: Record<string, unknown> = { updatedAt: new Date() };
-
-  const str = (v: unknown): string | null =>
-    v === null || v === undefined || v === "" ? null : String(v);
-  const num = (v: unknown): number | null => {
-    if (v === null || v === undefined || v === "") return null;
-    const n = Number(v);
-    return isNaN(n) ? null : n;
-  };
-  const bool = (v: unknown): boolean | null =>
-    v === null || v === undefined ? null : Boolean(v);
-
-  if ("hospitalName" in body) patch.hospitalName = str(body.hospitalName) ?? "";
-  if ("address" in body) patch.address = str(body.address);
-  if ("city" in body) patch.city = str(body.city);
-  if ("state" in body && body.state) patch.state = String(body.state);
-  if ("zip" in body) patch.zip = str(body.zip);
-  if ("phone" in body) patch.phone = str(body.phone);
-  if ("latitude" in body) patch.latitude = num(body.latitude);
-  if ("longitude" in body) patch.longitude = num(body.longitude);
-  if ("actualDesignation" in body) patch.actualDesignation = str(body.actualDesignation);
-  if ("serviceLine" in body) patch.serviceLine = str(body.serviceLine);
-  if ("strokeDesignation" in body) patch.strokeDesignation = str(body.strokeDesignation);
-  if ("burnDesignation" in body) patch.burnDesignation = str(body.burnDesignation);
-  if ("pciCapability" in body) patch.pciCapability = str(body.pciCapability);
-  if ("helipad" in body) patch.helipad = body.helipad === null ? null : bool(body.helipad);
-  if ("beds" in body) patch.beds = body.beds === null || body.beds === "" ? null : num(body.beds);
-  if ("specialties" in body) {
-    const raw = body.specialties;
-    const arr = Array.isArray(raw)
-      ? raw.map(String).filter(Boolean)
-      : typeof raw === "string"
-        ? raw.split(",").map((s) => s.trim()).filter(Boolean)
-        : [];
-    patch.specialties = arr;
-  }
+  const patch = buildHospitalPatch(req.body ?? {});
 
   if (Object.keys(patch).length <= 1) {
     res.status(400).json({ error: "No editable fields provided" });
@@ -383,7 +263,7 @@ router.patch("/admin/hospitals/by-id/:id", requireAdmin, async (req, res) => {
       return;
     }
 
-    await db.update(hospitalSpecialties).set(patch as any).where(eq(hospitalSpecialties.id, id));
+    await db.update(hospitalSpecialties).set(patch).where(eq(hospitalSpecialties.id, id));
 
     const [saved] = await db
       .select()
@@ -393,10 +273,57 @@ router.patch("/admin/hospitals/by-id/:id", requireAdmin, async (req, res) => {
 
     res.json({ success: true, hospital: saved });
   } catch (err) {
-    console.error("PATCH /api/admin/hospitals/by-id error:", err);
+    console.error("PATCH /api/admin/hospitals/:id error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+/**
+ * PATCH /api/admin/hospitals/cms/:cmsId
+ * Full-field editor by CMS ID. Writes any editable field directly to hospital_specialties.
+ * Useful for hospitals with no OSM match where only a cmsId is known.
+ */
+router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
+  const cmsId = decodeURIComponent(req.params.cmsId);
+  if (!cmsId) {
+    res.status(400).json({ error: "Invalid cmsId" });
+    return;
+  }
+
+  const patch = buildHospitalPatch(req.body ?? {});
+
+  if (Object.keys(patch).length <= 1) {
+    res.status(400).json({ error: "No editable fields provided" });
+    return;
+  }
+
+  try {
+    const existing = await db
+      .select({ id: hospitalSpecialties.id })
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.cmsId, cmsId))
+      .limit(1);
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Hospital not found" });
+      return;
+    }
+
+    await db.update(hospitalSpecialties).set(patch).where(eq(hospitalSpecialties.cmsId, cmsId));
+
+    const [saved] = await db
+      .select()
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.cmsId, cmsId))
+      .limit(1);
+
+    res.json({ success: true, hospital: saved });
+  } catch (err) {
+    console.error("PATCH /api/admin/hospitals/cms error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 /**
  * POST /api/admin/hospitals
