@@ -75,8 +75,7 @@ router.get("/hospital-overrides", async (_req, res) => {
 
 /**
  * GET /api/admin/hospitals/search?q=<name>
- * Searches hospitals by name from the specialties table (which has CMS + admin records).
- * Returns osmId, name, current phone, latitude, longitude (with admin overrides merged).
+ * Searches hospitals by name. Returns all editable fields for the admin UI.
  */
 router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   const q = ((req.query.q as string) ?? "").trim();
@@ -92,22 +91,31 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         cmsId: hospitalSpecialties.cmsId,
         osmId: hospitalSpecialties.osmId,
         hospitalName: hospitalSpecialties.hospitalName,
-        cmsPhone: hospitalSpecialties.phone,
+        address: hospitalSpecialties.address,
+        city: hospitalSpecialties.city,
+        state: hospitalSpecialties.state,
+        zip: hospitalSpecialties.zip,
+        phone: hospitalSpecialties.phone,
         latitude: hospitalSpecialties.latitude,
         longitude: hospitalSpecialties.longitude,
         specialties: hospitalSpecialties.specialties,
+        actualDesignation: hospitalSpecialties.actualDesignation,
+        serviceLine: hospitalSpecialties.serviceLine,
+        strokeDesignation: hospitalSpecialties.strokeDesignation,
+        burnDesignation: hospitalSpecialties.burnDesignation,
+        pciCapability: hospitalSpecialties.pciCapability,
+        helipad: hospitalSpecialties.helipad,
+        beds: hospitalSpecialties.beds,
+        source: hospitalSpecialties.source,
       })
       .from(hospitalSpecialties)
       .where(ilike(hospitalSpecialties.hospitalName, `%${q}%`))
       .limit(50);
 
-    // Normalise osmIds; keep all hospitals (OSM-matched and CMS-only)
+    // Normalise osmIds; deduplicate
     const seenKeys = new Set<string>();
     const unique = rows
-      .map((r) => ({
-        ...r,
-        osmId: r.osmId ? normaliseOsmId(r.osmId) : null,
-      }))
+      .map((r) => ({ ...r, osmId: r.osmId ? normaliseOsmId(r.osmId) : null }))
       .filter((r) => {
         const key = r.osmId ?? r.cmsId;
         if (seenKeys.has(key)) return false;
@@ -115,37 +123,30 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         return true;
       });
 
-    // Fetch overrides for OSM-matched hospitals
-    const osmIds = unique.map((r) => r.osmId).filter((id): id is string => !!id);
-    const allOverrides = osmIds.length > 0
-      ? await Promise.all(
-          osmIds.map((id) =>
-            db.select().from(hospitalOverrides).where(eq(hospitalOverrides.osmId, id)).limit(1)
-          )
-        ).then((results) => results.flat())
-      : [];
+    const result = unique.slice(0, 20).map((r) => ({
+      id: r.id,
+      cmsId: r.cmsId,
+      osmId: r.osmId ?? null,
+      name: r.hospitalName,
+      address: r.address ?? null,
+      city: r.city ?? null,
+      state: r.state,
+      zip: r.zip ?? null,
+      phone: r.phone ?? null,
+      latitude: r.latitude ?? null,
+      longitude: r.longitude ?? null,
+      specialties: (r.specialties as string[]) ?? [],
+      actualDesignation: r.actualDesignation ?? null,
+      serviceLine: r.serviceLine ?? null,
+      strokeDesignation: r.strokeDesignation ?? null,
+      burnDesignation: r.burnDesignation ?? null,
+      pciCapability: r.pciCapability ?? null,
+      helipad: r.helipad ?? null,
+      beds: r.beds ?? null,
+      source: r.source,
+    }));
 
-    const overrideMap: Record<string, { phone: string | null; latitude: number | null; longitude: number | null }> = {};
-    for (const o of allOverrides) {
-      overrideMap[o.osmId] = { phone: o.phone ?? null, latitude: o.latitude ?? null, longitude: o.longitude ?? null };
-    }
-
-    const merged = unique.slice(0, 20).map((r) => {
-      const override = r.osmId ? overrideMap[r.osmId] : undefined;
-      return {
-        id: r.id,
-        cmsId: r.cmsId,
-        osmId: r.osmId ?? null,
-        name: r.hospitalName,
-        phone: override?.phone ?? r.cmsPhone ?? null,
-        latitude: override?.latitude ?? r.latitude ?? null,
-        longitude: override?.longitude ?? r.longitude ?? null,
-        specialties: (r.specialties as string[]) ?? [],
-        hasAdminOverride: !!override,
-      };
-    });
-
-    res.json(merged);
+    res.json(result);
   } catch (err) {
     console.error("GET /api/admin/hospitals/search error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -312,7 +313,166 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
   }
 });
 
-// ─── CSV Export ──────────────────────────────────────────────────────────────
+/**
+ * PATCH /api/admin/hospitals/by-id/:id
+ * Universal full-field editor. Writes any subset of editable fields directly
+ * to hospital_specialties by numeric primary-key id. Works for all hospitals
+ * regardless of whether they have an OSM match.
+ */
+router.patch("/admin/hospitals/by-id/:id", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    res.status(400).json({ error: "id must be a positive integer" });
+    return;
+  }
+
+  const body = req.body ?? {};
+
+  // Build the patch object — only include keys explicitly sent in the body
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+
+  const str = (v: unknown): string | null =>
+    v === null || v === undefined || v === "" ? null : String(v);
+  const num = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return isNaN(n) ? null : n;
+  };
+  const bool = (v: unknown): boolean | null =>
+    v === null || v === undefined ? null : Boolean(v);
+
+  if ("hospitalName" in body) patch.hospitalName = str(body.hospitalName) ?? "";
+  if ("address" in body) patch.address = str(body.address);
+  if ("city" in body) patch.city = str(body.city);
+  if ("state" in body && body.state) patch.state = String(body.state);
+  if ("zip" in body) patch.zip = str(body.zip);
+  if ("phone" in body) patch.phone = str(body.phone);
+  if ("latitude" in body) patch.latitude = num(body.latitude);
+  if ("longitude" in body) patch.longitude = num(body.longitude);
+  if ("actualDesignation" in body) patch.actualDesignation = str(body.actualDesignation);
+  if ("serviceLine" in body) patch.serviceLine = str(body.serviceLine);
+  if ("strokeDesignation" in body) patch.strokeDesignation = str(body.strokeDesignation);
+  if ("burnDesignation" in body) patch.burnDesignation = str(body.burnDesignation);
+  if ("pciCapability" in body) patch.pciCapability = str(body.pciCapability);
+  if ("helipad" in body) patch.helipad = body.helipad === null ? null : bool(body.helipad);
+  if ("beds" in body) patch.beds = body.beds === null || body.beds === "" ? null : num(body.beds);
+  if ("specialties" in body) {
+    const raw = body.specialties;
+    const arr = Array.isArray(raw)
+      ? raw.map(String).filter(Boolean)
+      : typeof raw === "string"
+        ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+    patch.specialties = arr;
+  }
+
+  if (Object.keys(patch).length <= 1) {
+    res.status(400).json({ error: "No editable fields provided" });
+    return;
+  }
+
+  try {
+    const existing = await db
+      .select({ id: hospitalSpecialties.id })
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.id, id))
+      .limit(1);
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Hospital not found" });
+      return;
+    }
+
+    await db.update(hospitalSpecialties).set(patch as any).where(eq(hospitalSpecialties.id, id));
+
+    const [saved] = await db
+      .select()
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.id, id))
+      .limit(1);
+
+    res.json({ success: true, hospital: saved });
+  } catch (err) {
+    console.error("PATCH /api/admin/hospitals/by-id error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/admin/hospitals
+ * Creates a new hospital record in hospital_specialties.
+ * Required: hospitalName, state.
+ * Optional: all other fields.
+ */
+router.post("/admin/hospitals", requireAdmin, async (req, res) => {
+  const body = req.body ?? {};
+
+  const name = (body.hospitalName ?? "").trim();
+  const state = (body.state ?? "").trim();
+
+  if (!name) {
+    res.status(400).json({ error: "hospitalName is required" });
+    return;
+  }
+  if (!state) {
+    res.status(400).json({ error: "state is required" });
+    return;
+  }
+
+  const str = (v: unknown): string | null =>
+    v === null || v === undefined || v === "" ? null : String(v);
+  const num = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return isNaN(n) ? null : n;
+  };
+
+  // Generate a unique cmsId for admin-created hospitals
+  const shortId = Math.random().toString(36).slice(2, 9).toUpperCase();
+  const cmsId = `ADMIN-${shortId}`;
+
+  const specialtiesRaw = body.specialties;
+  const specialties = Array.isArray(specialtiesRaw)
+    ? specialtiesRaw.map(String).filter(Boolean)
+    : typeof specialtiesRaw === "string"
+      ? specialtiesRaw.split(",").map((s: string) => s.trim()).filter(Boolean)
+      : [];
+
+  try {
+    const [created] = await db
+      .insert(hospitalSpecialties)
+      .values({
+        cmsId,
+        hospitalName: name,
+        state,
+        address: str(body.address) ?? undefined,
+        city: str(body.city) ?? undefined,
+        zip: str(body.zip) ?? undefined,
+        phone: str(body.phone) ?? undefined,
+        latitude: num(body.latitude) ?? undefined,
+        longitude: num(body.longitude) ?? undefined,
+        specialties,
+        actualDesignation: str(body.actualDesignation) ?? undefined,
+        serviceLine: str(body.serviceLine) ?? undefined,
+        strokeDesignation: str(body.strokeDesignation) ?? undefined,
+        burnDesignation: str(body.burnDesignation) ?? undefined,
+        pciCapability: str(body.pciCapability) ?? undefined,
+        helipad: body.helipad != null ? Boolean(body.helipad) : undefined,
+        beds: num(body.beds) ?? undefined,
+        source: "admin",
+        emergencyServices: true,
+        verified: true,
+      })
+      .returning();
+
+    res.status(201).json({ success: true, hospital: created });
+  } catch (err) {
+    console.error("POST /api/admin/hospitals error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── CSV Export ───────────────────────────────────────────────────────────────
 
 function escapeCsv(value: unknown): string {
   if (value === null || value === undefined) return "";
