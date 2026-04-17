@@ -11,7 +11,8 @@
     "import-cms": "tsx scripts/run-cms-import.ts",
     "enrich-specialties": "tsx scripts/run-enrich-specialties.ts",
     "update-coords": "tsx scripts/update-coords-from-osm.ts",
-    "geocode-addresses": "tsx scripts/geocode-addresses.ts"
+    "geocode-addresses": "tsx scripts/geocode-addresses.ts",
+    "merge-overrides": "tsx scripts/merge-overrides-to-specialties.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
