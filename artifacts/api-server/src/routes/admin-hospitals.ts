@@ -143,6 +143,8 @@ router.get("/hospital-overrides", async (_req, res) => {
 /**
  * GET /api/admin/hospitals/search?q=<name>
  * Searches hospitals by name. Returns all editable fields for the admin UI.
+ * Phone, latitude, and longitude are the *effective* values (override wins over base)
+ * so that the edit form pre-fills with exactly what users see in the app.
  */
 router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   const q = ((req.query.q as string) ?? "").trim();
@@ -162,9 +164,9 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         city: hospitalSpecialties.city,
         state: hospitalSpecialties.state,
         zip: hospitalSpecialties.zip,
-        phone: hospitalSpecialties.phone,
-        latitude: hospitalSpecialties.latitude,
-        longitude: hospitalSpecialties.longitude,
+        basePhone: hospitalSpecialties.phone,
+        baseLatitude: hospitalSpecialties.latitude,
+        baseLongitude: hospitalSpecialties.longitude,
         specialties: hospitalSpecialties.specialties,
         actualDesignation: hospitalSpecialties.actualDesignation,
         serviceLine: hospitalSpecialties.serviceLine,
@@ -174,8 +176,13 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         helipad: hospitalSpecialties.helipad,
         beds: hospitalSpecialties.beds,
         source: hospitalSpecialties.source,
+        // Legacy override fields — take precedence where non-null (mirrors nearby-hospitals logic)
+        overridePhone: hospitalOverrides.phone,
+        overrideLatitude: hospitalOverrides.latitude,
+        overrideLongitude: hospitalOverrides.longitude,
       })
       .from(hospitalSpecialties)
+      .leftJoin(hospitalOverrides, eq(hospitalSpecialties.osmId, hospitalOverrides.osmId))
       .where(ilike(hospitalSpecialties.hospitalName, `%${q}%`))
       .limit(50);
 
@@ -199,9 +206,10 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
       city: r.city ?? null,
       state: r.state,
       zip: r.zip ?? null,
-      phone: r.phone ?? null,
-      latitude: r.latitude ?? null,
-      longitude: r.longitude ?? null,
+      // Return the effective values the app serves (override wins over base)
+      phone: r.overridePhone ?? r.basePhone ?? null,
+      latitude: r.overrideLatitude ?? r.baseLatitude ?? null,
+      longitude: r.overrideLongitude ?? r.baseLongitude ?? null,
       specialties: (r.specialties as string[]) ?? [],
       actualDesignation: r.actualDesignation ?? null,
       serviceLine: r.serviceLine ?? null,
