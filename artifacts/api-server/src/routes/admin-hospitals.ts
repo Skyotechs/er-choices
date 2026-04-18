@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
-import { and, eq, ilike, inArray } from "drizzle-orm";
+import { and, count, eq, ilike, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
 import { execFile } from "child_process";
@@ -140,6 +140,24 @@ router.get("/hospital-overrides", async (_req, res) => {
     res.json(result);
   } catch (err) {
     console.error("GET /api/hospital-overrides error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/admin/hospitals/deactivated-count
+ * Returns the total count of deactivated hospitals across the entire database.
+ * Used by the admin UI to show an at-a-glance badge without requiring a search.
+ */
+router.get("/admin/hospitals/deactivated-count", requireAdmin, async (_req, res) => {
+  try {
+    const [row] = await db
+      .select({ total: count() })
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.active, false));
+    res.json({ count: row?.total ?? 0 });
+  } catch (err) {
+    console.error("GET /api/admin/hospitals/deactivated-count error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

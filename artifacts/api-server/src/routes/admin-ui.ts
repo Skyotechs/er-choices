@@ -90,6 +90,9 @@ function buildPage(): string {
   .btn-warn:hover{background:#b45309}
   .show-inactive-wrap{padding:8px 12px;border-bottom:1px solid #1e3352;display:flex;align-items:center;gap:7px;font-size:12px;color:#64748b}
   .show-inactive-wrap input{width:auto;padding:0}
+  .deactivated-badge{display:none;padding:4px 10px;border-bottom:1px solid #1e3352;background:#78350f22;cursor:pointer;font-size:11px;color:#fbbf24;transition:background .15s}
+  .deactivated-badge:hover{background:#78350f44}
+  .deactivated-badge span{font-weight:700}
 
   /* ── Edit + Add panels (right) ── */
   .edit-area{flex:1;overflow-y:auto;display:flex;flex-direction:column}
@@ -172,6 +175,9 @@ function buildPage(): string {
       <div class="panel-head">Search Hospitals</div>
       <div class="search-box-wrap">
         <input type="text" id="search-input" placeholder="Type hospital name…" oninput="onSearch(this.value)">
+      </div>
+      <div class="deactivated-badge" id="deactivated-badge" onclick="onDeactivatedBadgeClick()">
+        &#9888; <span id="deactivated-count">0</span> deactivated — click to show
       </div>
       <div class="show-inactive-wrap">
         <input type="checkbox" id="show-inactive-cb" onchange="rerunSearch()">
@@ -407,6 +413,7 @@ function doLogin() {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
       document.getElementById('login-err').style.display = 'none';
+      loadDeactivatedCount();
     })
     .catch(() => {
       TOKEN = '';
@@ -434,6 +441,36 @@ async function apiFetch(url, opts = {}) {
     throw new Error(body.error || ('HTTP ' + res.status));
   }
   return res.json();
+}
+
+// ── Deactivated count badge ───────────────────────────────────────────────────
+async function loadDeactivatedCount() {
+  try {
+    const data = await apiFetch('/api/admin/hospitals/deactivated-count');
+    updateDeactivatedBadge(data.count);
+  } catch (_) {
+    // silently ignore — badge stays hidden on error
+  }
+}
+
+function updateDeactivatedBadge(count) {
+  const badge = document.getElementById('deactivated-badge');
+  const countEl = document.getElementById('deactivated-count');
+  if (!badge || !countEl) return;
+  if (count > 0) {
+    countEl.textContent = count;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function onDeactivatedBadgeClick() {
+  const cb = document.getElementById('show-inactive-cb');
+  if (!cb.checked) {
+    cb.checked = true;
+    rerunSearch();
+  }
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -636,6 +673,7 @@ async function toggleActiveState() {
     }
 
     showStatus('edit-status', willDeactivate ? 'Hospital deactivated.' : 'Hospital reactivated.', true);
+    loadDeactivatedCount();
   } catch (err) {
     btn.textContent = origText;
     showStatus('edit-status', 'Error: ' + err.message, false);
