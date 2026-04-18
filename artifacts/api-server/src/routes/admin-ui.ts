@@ -281,6 +281,11 @@ function buildPage(): string {
               <textarea name="specialties" rows="3" placeholder="e.g. Trauma, Stroke, Burn"></textarea>
             </div>
 
+            <div id="deactivated-reason-row" style="display:none;grid-column:1/-1;background:#78350f22;border:1px solid #b4530944;border-radius:6px;padding:10px 14px;margin-top:4px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#b45309;margin-bottom:4px">Deactivation Reason</div>
+              <div id="deactivated-reason-text" style="font-size:13px;color:#fde68a"></div>
+            </div>
+
             <div class="status-msg" id="edit-status"></div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -533,6 +538,17 @@ function populateEditForm(h) {
     }
   }
 
+  // Show deactivation reason if present
+  const reasonRow = document.getElementById('deactivated-reason-row');
+  const reasonText = document.getElementById('deactivated-reason-text');
+  if (!selectedHospitalActive && h.deactivatedReason) {
+    reasonText.textContent = h.deactivatedReason;
+    reasonRow.style.display = 'block';
+  } else {
+    reasonRow.style.display = 'none';
+    reasonText.textContent = '';
+  }
+
   hideStatus('edit-status');
 }
 
@@ -541,6 +557,8 @@ function clearEdit() {
   selectedHospitalActive = true;
   document.getElementById('edit-form').style.display = 'none';
   document.getElementById('edit-empty').style.display = 'flex';
+  document.getElementById('deactivated-reason-row').style.display = 'none';
+  document.getElementById('deactivated-reason-text').textContent = '';
   document.querySelectorAll('.result-item').forEach(i => i.classList.remove('active'));
 }
 
@@ -553,6 +571,13 @@ async function toggleActiveState() {
     : 'Reactivate this hospital? It will appear in public search results again.';
   if (!confirm(confirmMsg)) return;
 
+  let reason = null;
+  if (willDeactivate) {
+    const input = prompt('Reason for deactivating (optional):\ne.g. "Duplicate record", "Permanently closed"', '');
+    if (input === null) return; // cancelled prompt
+    reason = input.trim() || null;
+  }
+
   const btn = document.getElementById('deactivate-btn');
   const origText = btn.textContent;
   btn.disabled = true;
@@ -560,7 +585,8 @@ async function toggleActiveState() {
 
   try {
     const action = willDeactivate ? 'deactivate' : 'activate';
-    await apiFetch('/api/admin/hospitals/' + selectedHospitalId + '/' + action, { method: 'PATCH' });
+    const body = willDeactivate ? JSON.stringify({ reason }) : undefined;
+    await apiFetch('/api/admin/hospitals/' + selectedHospitalId + '/' + action, { method: 'PATCH', body });
 
     // Update local state
     selectedHospitalActive = !willDeactivate;
@@ -577,6 +603,11 @@ async function toggleActiveState() {
     if (activeItem) {
       const old = JSON.parse(activeItem.dataset.hospital);
       old.active = selectedHospitalActive;
+      if (!selectedHospitalActive) {
+        old.deactivatedReason = reason;
+      } else {
+        old.deactivatedReason = null;
+      }
       activeItem.dataset.hospital = JSON.stringify(old);
       if (selectedHospitalActive) {
         activeItem.classList.remove('inactive-row');
@@ -591,6 +622,17 @@ async function toggleActiveState() {
           activeItem.appendChild(badge);
         }
       }
+    }
+
+    // Update the deactivation reason display in the edit panel
+    const reasonRow = document.getElementById('deactivated-reason-row');
+    const reasonText = document.getElementById('deactivated-reason-text');
+    if (!selectedHospitalActive && reason) {
+      reasonText.textContent = reason;
+      reasonRow.style.display = 'block';
+    } else {
+      reasonRow.style.display = 'none';
+      reasonText.textContent = '';
     }
 
     showStatus('edit-status', willDeactivate ? 'Hospital deactivated.' : 'Hospital reactivated.', true);

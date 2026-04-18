@@ -83,6 +83,8 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
   hifldMatchConfidence: text("hifld_match_confidence"),
   /** Whether this record is active. False = soft-deleted; excluded from nearby-hospitals query. */
   active: boolean("active").notNull().default(true),
+  /** Optional admin-supplied reason for deactivation (e.g. "duplicate", "permanently closed"). */
+  deactivatedReason: text("deactivated_reason"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

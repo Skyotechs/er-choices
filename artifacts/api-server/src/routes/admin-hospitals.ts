@@ -186,6 +186,7 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         beds: hospitalSpecialties.beds,
         source: hospitalSpecialties.source,
         active: hospitalSpecialties.active,
+        deactivatedReason: hospitalSpecialties.deactivatedReason,
       })
       .from(hospitalSpecialties)
       .where(
@@ -252,6 +253,7 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         beds: r.beds ?? null,
         source: r.source,
         active: r.active,
+        deactivatedReason: r.deactivatedReason ?? null,
       };
     });
 
@@ -401,6 +403,7 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
 /**
  * PATCH /api/admin/hospitals/:id/deactivate
  * Soft-deletes a hospital by setting active = false.
+ * Accepts an optional `reason` string in the request body.
  * The record is retained in the database but excluded from all public queries.
  */
 router.patch("/admin/hospitals/:id/deactivate", requireAdmin, async (req, res) => {
@@ -409,6 +412,10 @@ router.patch("/admin/hospitals/:id/deactivate", requireAdmin, async (req, res) =
     res.status(400).json({ error: "id must be a positive integer" });
     return;
   }
+  const reason: string | null =
+    typeof req.body?.reason === "string" && req.body.reason.trim()
+      ? req.body.reason.trim()
+      : null;
   try {
     const existing = await db
       .select({ id: hospitalSpecialties.id })
@@ -421,7 +428,7 @@ router.patch("/admin/hospitals/:id/deactivate", requireAdmin, async (req, res) =
     }
     await db
       .update(hospitalSpecialties)
-      .set({ active: false, updatedAt: new Date() })
+      .set({ active: false, deactivatedReason: reason, updatedAt: new Date() })
       .where(eq(hospitalSpecialties.id, id));
     res.json({ success: true });
   } catch (err) {
@@ -452,7 +459,7 @@ router.patch("/admin/hospitals/:id/activate", requireAdmin, async (req, res) => 
     }
     await db
       .update(hospitalSpecialties)
-      .set({ active: true, updatedAt: new Date() })
+      .set({ active: true, deactivatedReason: null, updatedAt: new Date() })
       .where(eq(hospitalSpecialties.id, id));
     res.json({ success: true });
   } catch (err) {
