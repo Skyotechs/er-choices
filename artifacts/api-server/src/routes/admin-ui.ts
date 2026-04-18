@@ -610,7 +610,7 @@ async function toggleActiveState() {
 
   let reason = null;
   if (willDeactivate) {
-    const input = prompt('Reason for deactivating (optional):\ne.g. "Duplicate record", "Permanently closed"', '');
+    const input = prompt('Reason for deactivating (optional — e.g. Duplicate record, Permanently closed):', '');
     if (input === null) return; // cancelled prompt
     reason = input.trim() || null;
   }
