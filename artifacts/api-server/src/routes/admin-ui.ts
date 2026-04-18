@@ -83,6 +83,13 @@ function buildPage(): string {
   .result-sub{font-size:11px;color:#64748b;margin-top:2px}
   .result-badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;margin-top:4px;background:#1e3352;color:#94a3b8}
   .result-badge.admin{background:#c0392b22;color:#c0392b}
+  .result-badge.inactive{background:#78350f44;color:#fbbf24}
+  .result-item.inactive-row{opacity:.55}
+  .result-item.inactive-row .result-name{text-decoration:line-through;color:#94a3b8}
+  .btn-warn{background:#92400e;color:#fde68a;border:1px solid #b45309}
+  .btn-warn:hover{background:#b45309}
+  .show-inactive-wrap{padding:8px 12px;border-bottom:1px solid #1e3352;display:flex;align-items:center;gap:7px;font-size:12px;color:#64748b}
+  .show-inactive-wrap input{width:auto;padding:0}
 
   /* ── Edit + Add panels (right) ── */
   .edit-area{flex:1;overflow-y:auto;display:flex;flex-direction:column}
@@ -165,6 +172,10 @@ function buildPage(): string {
       <div class="panel-head">Search Hospitals</div>
       <div class="search-box-wrap">
         <input type="text" id="search-input" placeholder="Type hospital name…" oninput="onSearch(this.value)">
+      </div>
+      <div class="show-inactive-wrap">
+        <input type="checkbox" id="show-inactive-cb" onchange="rerunSearch()">
+        <label for="show-inactive-cb">Show deactivated hospitals</label>
       </div>
       <div class="results-list" id="results-list">
         <div class="empty-state" style="padding:30px 16px">
@@ -274,6 +285,7 @@ function buildPage(): string {
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Save Changes</button>
               <button type="button" class="btn btn-outline" onclick="clearEdit()">Clear</button>
+              <button type="button" class="btn btn-danger btn-sm" id="deactivate-btn" onclick="toggleActiveState()" style="margin-left:auto">Deactivate</button>
             </div>
           </div>
         </form>
@@ -376,6 +388,7 @@ function buildPage(): string {
 <script>
 let TOKEN = '';
 let selectedHospitalId = null;
+let selectedHospitalActive = true;
 let searchTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -429,22 +442,29 @@ function onSearch(val) {
   searchTimer = setTimeout(() => runSearch(val), 300);
 }
 
+function rerunSearch() {
+  const val = document.getElementById('search-input').value;
+  if (val.length >= 2) runSearch(val);
+}
+
 async function runSearch(q) {
   const list = document.getElementById('results-list');
   list.innerHTML = '<div class="empty-state" style="padding:30px 16px"><p>Searching…</p></div>';
+  const showInactive = document.getElementById('show-inactive-cb').checked;
   try {
-    const results = await apiFetch('/api/admin/hospitals/search?q=' + encodeURIComponent(q));
+    const results = await apiFetch('/api/admin/hospitals/search?q=' + encodeURIComponent(q) + (showInactive ? '&showInactive=true' : ''));
     if (!results.length) {
       list.innerHTML = '<div class="empty-state" style="padding:30px 16px"><p>No hospitals found</p></div>';
       return;
     }
     list.innerHTML = results.map(r => \`
-      <div class="result-item" data-id="\${r.id}" onclick="selectHospital(\${r.id}, this)" data-hospital='\${JSON.stringify(r).replace(/'/g,"&apos;")}'>
+      <div class="result-item\${r.active === false ? ' inactive-row' : ''}" data-id="\${r.id}" onclick="selectHospital(\${r.id}, this)" data-hospital='\${JSON.stringify(r).replace(/'/g,"&apos;")}'>
         <div class="result-name">\${esc(r.name)}</div>
         <div class="result-sub">\${esc([r.city, r.state].filter(Boolean).join(', ') || r.state)}</div>
         \${r.phone ? \`<div class="result-meta">\${esc(r.phone)}</div>\` : ''}
         \${r.actualDesignation ? \`<div class="result-meta" title="\${esc(r.actualDesignation)}">\${esc(r.actualDesignation)}</div>\` : ''}
         <span class="result-badge \${r.source === 'admin' ? 'admin' : ''}">\${r.source === 'admin' ? 'Admin-created' : 'CMS'}</span>
+        \${r.active === false ? '<span class="result-badge inactive">Deactivated</span>' : ''}
       </div>
     \`).join('');
   } catch (e) {
@@ -500,14 +520,86 @@ function populateEditForm(h) {
   const specEl = form.elements['specialties'];
   if (specEl) specEl.value = specs.join(', ');
 
+  // Track active state and update deactivate button label/style
+  selectedHospitalActive = h.active !== false;
+  const deactivateBtn = document.getElementById('deactivate-btn');
+  if (deactivateBtn) {
+    if (selectedHospitalActive) {
+      deactivateBtn.textContent = 'Deactivate';
+      deactivateBtn.className = 'btn btn-danger btn-sm';
+    } else {
+      deactivateBtn.textContent = 'Reactivate';
+      deactivateBtn.className = 'btn btn-warn btn-sm';
+    }
+  }
+
   hideStatus('edit-status');
 }
 
 function clearEdit() {
   selectedHospitalId = null;
+  selectedHospitalActive = true;
   document.getElementById('edit-form').style.display = 'none';
   document.getElementById('edit-empty').style.display = 'flex';
   document.querySelectorAll('.result-item').forEach(i => i.classList.remove('active'));
+}
+
+// ── Deactivate / Reactivate ───────────────────────────────────────────────────
+async function toggleActiveState() {
+  if (!selectedHospitalId) return;
+  const willDeactivate = selectedHospitalActive;
+  const confirmMsg = willDeactivate
+    ? 'Deactivate this hospital? It will be hidden from all public search results.'
+    : 'Reactivate this hospital? It will appear in public search results again.';
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById('deactivate-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = willDeactivate ? 'Deactivating…' : 'Reactivating…';
+
+  try {
+    const action = willDeactivate ? 'deactivate' : 'activate';
+    await apiFetch('/api/admin/hospitals/' + selectedHospitalId + '/' + action, { method: 'PATCH' });
+
+    // Update local state
+    selectedHospitalActive = !willDeactivate;
+    if (selectedHospitalActive) {
+      btn.textContent = 'Deactivate';
+      btn.className = 'btn btn-danger btn-sm';
+    } else {
+      btn.textContent = 'Reactivate';
+      btn.className = 'btn btn-warn btn-sm';
+    }
+
+    // Update the result-item in the sidebar
+    const activeItem = document.querySelector('.result-item.active');
+    if (activeItem) {
+      const old = JSON.parse(activeItem.dataset.hospital);
+      old.active = selectedHospitalActive;
+      activeItem.dataset.hospital = JSON.stringify(old);
+      if (selectedHospitalActive) {
+        activeItem.classList.remove('inactive-row');
+        const badge = activeItem.querySelector('.result-badge.inactive');
+        if (badge) badge.remove();
+      } else {
+        activeItem.classList.add('inactive-row');
+        if (!activeItem.querySelector('.result-badge.inactive')) {
+          const badge = document.createElement('span');
+          badge.className = 'result-badge inactive';
+          badge.textContent = 'Deactivated';
+          activeItem.appendChild(badge);
+        }
+      }
+    }
+
+    showStatus('edit-status', willDeactivate ? 'Hospital deactivated.' : 'Hospital reactivated.', true);
+  } catch (err) {
+    btn.textContent = origText;
+    showStatus('edit-status', 'Error: ' + err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ── Submit edit ───────────────────────────────────────────────────────────────

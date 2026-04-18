@@ -115,6 +115,7 @@ router.get("/hospitals/nearby", async (req, res) => {
       .where(
         and(
           eq(hospitalSpecialties.emergencyServices, true),
+          eq(hospitalSpecialties.active, true),
           isNotNull(hospitalSpecialties.latitude),
           isNotNull(hospitalSpecialties.longitude),
           sql`${distanceSql} < ${radiusMiles}`

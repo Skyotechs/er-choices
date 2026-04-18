@@ -81,6 +81,8 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
   pciCapability: text("pci_capability"),
   /** HIFLD match confidence: HIGH | MEDIUM | LOW | UNMATCHED */
   hifldMatchConfidence: text("hifld_match_confidence"),
+  /** Whether this record is active. False = soft-deleted; excluded from nearby-hospitals query. */
+  active: boolean("active").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

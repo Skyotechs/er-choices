@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
-import { eq, ilike, inArray } from "drizzle-orm";
+import { and, eq, ilike, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
 import { execFile } from "child_process";
@@ -161,6 +161,8 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
 
   try {
     // Step 1: fetch hospitals from hospital_specialties
+    const showInactive = req.query.showInactive === "true";
+
     const rows = await db
       .select({
         id: hospitalSpecialties.id,
@@ -183,9 +185,17 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         helipad: hospitalSpecialties.helipad,
         beds: hospitalSpecialties.beds,
         source: hospitalSpecialties.source,
+        active: hospitalSpecialties.active,
       })
       .from(hospitalSpecialties)
-      .where(ilike(hospitalSpecialties.hospitalName, `%${q}%`))
+      .where(
+        showInactive
+          ? ilike(hospitalSpecialties.hospitalName, `%${q}%`)
+          : and(
+              ilike(hospitalSpecialties.hospitalName, `%${q}%`),
+              eq(hospitalSpecialties.active, true)
+            )
+      )
       .limit(50);
 
     // Step 2: normalize osmIds and deduplicate, then look up any legacy overrides
@@ -241,6 +251,7 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         helipad: r.helipad ?? null,
         beds: r.beds ?? null,
         source: r.source,
+        active: r.active,
       };
     });
 
@@ -386,6 +397,69 @@ router.patch("/admin/hospitals/cms/:cmsId", requireAdmin, async (req, res) => {
   }
 });
 
+
+/**
+ * PATCH /api/admin/hospitals/:id/deactivate
+ * Soft-deletes a hospital by setting active = false.
+ * The record is retained in the database but excluded from all public queries.
+ */
+router.patch("/admin/hospitals/:id/deactivate", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    res.status(400).json({ error: "id must be a positive integer" });
+    return;
+  }
+  try {
+    const existing = await db
+      .select({ id: hospitalSpecialties.id })
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.id, id))
+      .limit(1);
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Hospital not found" });
+      return;
+    }
+    await db
+      .update(hospitalSpecialties)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(hospitalSpecialties.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("PATCH /api/admin/hospitals/:id/deactivate error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/admin/hospitals/:id/activate
+ * Re-activates a previously deactivated hospital (sets active = true).
+ */
+router.patch("/admin/hospitals/:id/activate", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    res.status(400).json({ error: "id must be a positive integer" });
+    return;
+  }
+  try {
+    const existing = await db
+      .select({ id: hospitalSpecialties.id })
+      .from(hospitalSpecialties)
+      .where(eq(hospitalSpecialties.id, id))
+      .limit(1);
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Hospital not found" });
+      return;
+    }
+    await db
+      .update(hospitalSpecialties)
+      .set({ active: true, updatedAt: new Date() })
+      .where(eq(hospitalSpecialties.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("PATCH /api/admin/hospitals/:id/activate error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 /**
  * POST /api/admin/hospitals
