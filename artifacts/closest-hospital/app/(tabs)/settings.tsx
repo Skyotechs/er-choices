@@ -60,6 +60,26 @@ export default function SettingsScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
+      {/* Real-Time States Section */}
+      <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <View style={styles.disclaimerHeader}>
+          <Text style={styles.disclaimerEmoji}>📡</Text>
+          <Text style={[styles.disclaimerTitle, { color: colors.foreground }]}>
+            Real-Time Hospital Status
+          </Text>
+        </View>
+        <Text style={[styles.disclaimerText, { color: colors.mutedForeground }]}>
+          Four states —{" "}
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>
+            New Jersey, Pennsylvania, Maryland, and Connecticut
+          </Text>
+          {" "}— provide real-time hospital status dashboards that show diversion status, wait times, and capacity.
+        </Text>
+        <Text style={[styles.disclaimerText, { color: colors.mutedForeground, marginTop: 8 }]}>
+          When you are physically located in one of these states, a link to that state's live dashboard will appear at the top of your results. Tap it to view current status information directly from the state's system.
+        </Text>
+      </View>
+
       {/* Important Disclaimer — top, matches web */}
       <View style={[styles.disclaimer, { backgroundColor: colors.muted, borderRadius: colors.radius }]}>
         <View style={styles.disclaimerHeader}>
@@ -118,6 +138,10 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     gap: 16,
+  },
+  infoCard: {
+    padding: 16,
+    borderWidth: 1,
   },
   disclaimer: {
     padding: 16,

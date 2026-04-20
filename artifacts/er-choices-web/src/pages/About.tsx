@@ -7,6 +7,19 @@ export function About() {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
 
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base">📡</span>
+            <p className="text-sm font-bold text-foreground">Real-Time Hospital Status</p>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Four states — <span className="font-medium text-foreground">New Jersey, Pennsylvania, Maryland, and Connecticut</span> — provide real-time hospital status dashboards that show diversion status, wait times, and capacity.
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+            When you are physically located in one of these states, a link to that state's live dashboard will appear at the top of your results. Tap it to view current status information directly from the state's system.
+          </p>
+        </div>
+
         <div className="bg-muted rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-base">⚠️</span>
