@@ -97,6 +97,19 @@ export async function fetchNearbyHospitals(
       categories: HospitalCategory[];
       specialties: string[];
       phone: string | null;
+      // Enriched fields
+      actualDesignation: string | null;
+      serviceLine: string | null;
+      advancedCapabilities: string | null;
+      emsTags: string | null;
+      helipad: boolean | null;
+      beds: number | null;
+      hifldOwner: string | null;
+      hifldWebsite: string | null;
+      strokeDesignation: string | null;
+      burnDesignation: string | null;
+      pciCapability: string | null;
+      hifldMatchConfidence: string | null;
     }>;
   };
   try {
@@ -117,8 +130,22 @@ export async function fetchNearbyHospitals(
     phone: row.phone ?? undefined,
     categories: row.categories ?? [],
     verifiedSpecialties: row.categories ?? [],
+    specialties: row.specialties ?? [],
     distance: row.distance,
-    hospitalType: "Emergency Room",
+    hospitalType: row.serviceLine ?? "Emergency Room",
+    // Enriched fields
+    actualDesignation: row.actualDesignation ?? null,
+    serviceLine: row.serviceLine ?? null,
+    advancedCapabilities: row.advancedCapabilities ?? null,
+    emsTags: row.emsTags ?? null,
+    helipad: row.helipad ?? null,
+    beds: row.beds ?? null,
+    hifldOwner: row.hifldOwner ?? null,
+    hifldWebsite: row.hifldWebsite ?? null,
+    strokeDesignation: row.strokeDesignation ?? null,
+    burnDesignation: row.burnDesignation ?? null,
+    pciCapability: row.pciCapability ?? null,
+    hifldMatchConfidence: row.hifldMatchConfidence ?? null,
   }));
 
   console.log(`Loaded ${hospitals.length} hospitals from CMS database`);

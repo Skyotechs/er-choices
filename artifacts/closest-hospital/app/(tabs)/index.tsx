@@ -229,14 +229,14 @@ export default function HomeScreen() {
       <LiveStatusBanner />
 
       {/* Filter chips outside FlatList so selection changes never affect
-          the FlatList's ListHeaderComponent reference. */}
-      {allHospitals.length > 0 && (
-        <CategoryFilter
-          selected={selectedFilter}
-          onSelect={setFilter}
-          availableFilters={availableFilters}
-        />
-      )}
+          the FlatList's ListHeaderComponent reference. Always rendered once
+          past the loading/error/permission gates so users can pre-select
+          a filter type before the hospital list loads. */}
+      <CategoryFilter
+        selected={selectedFilter}
+        onSelect={setFilter}
+        availableFilters={availableFilters}
+      />
 
       {/* Single FlatList — no conditional branch between empty/non-empty.
           The previous dual-FlatList pattern caused React to unmount one
