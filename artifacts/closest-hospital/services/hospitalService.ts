@@ -210,12 +210,6 @@ export function matchesDesignationFilter(
         !!(hospital.burnDesignation) ||
         cats.includes("Burn")
       );
-    case "PCI/STEMI":
-      return (
-        specs.some((s) => /^cardiac\b/i.test(s)) ||
-        !!(hospital.pciCapability) ||
-        cats.includes("Cardiac")
-      );
     case "Critical Access":
       return sl === "Critical Access";
     case "Psychiatric":
@@ -278,13 +272,6 @@ export function buildDesignationGroups(hospital: Hospital): DesignationGroup[] {
           .filter((s) => /^burn - /i.test(s))
           .map((s) => s.replace(/^burn - /i, "").trim());
         subs = fromSpecs.length > 0 ? fromSpecs : hospital.burnDesignation ? [hospital.burnDesignation] : [];
-        break;
-      }
-      case "PCI/STEMI": {
-        const fromSpecs = specs
-          .filter((s) => /^cardiac - /i.test(s))
-          .map((s) => s.replace(/^cardiac - /i, "").trim());
-        subs = fromSpecs.length > 0 ? fromSpecs : hospital.pciCapability ? [hospital.pciCapability] : [];
         break;
       }
       // Pediatric, Obstetrics, Psychiatric, Critical Access: chip only, no sub-lines

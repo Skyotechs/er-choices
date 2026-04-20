@@ -21,7 +21,6 @@ export type DesignationFilter =
   | "Pediatric"
   | "Obstetrics"
   | "Burn"
-  | "PCI/STEMI"
   | "Critical Access"
   | "Psychiatric";
 
@@ -32,7 +31,6 @@ export const DESIGNATION_FILTERS: DesignationFilter[] = [
   "Pediatric",
   "Obstetrics",
   "Burn",
-  "PCI/STEMI",
   "Critical Access",
   "Psychiatric",
 ];

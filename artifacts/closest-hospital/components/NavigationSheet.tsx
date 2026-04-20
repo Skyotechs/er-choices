@@ -146,7 +146,7 @@ export function NavigationSheet({
 
           {(() => {
             const groups = buildDesignationGroups(hospital);
-            if (groups.length === 0 && !hospital.helipad) return null;
+            if (groups.length === 0 && !hospital.helipad && !hospital.pciCapability) return null;
             return (
               <View style={styles.designationBlock}>
                 {groups.map((group) => (
@@ -167,6 +167,9 @@ export function NavigationSheet({
                     )}
                   </View>
                 ))}
+                {hospital.pciCapability && (
+                  <Text style={[styles.helipadText, { color: colors.foreground }]}>❤️ PCI/STEMI capable</Text>
+                )}
                 {hospital.helipad && (
                   <Text style={[styles.helipadText, { color: colors.foreground }]}>✈️ Helipad available</Text>
                 )}

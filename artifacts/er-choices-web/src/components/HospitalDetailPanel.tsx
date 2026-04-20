@@ -29,7 +29,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
   const wazeUrl = `https://waze.com/ul?ll=${hospital.latitude},${hospital.longitude}&navigate=yes`;
 
   const designationGroups = buildDesignationGroups(hospital);
-  const hasDesignationSection = designationGroups.length > 0 || hospital.helipad;
+  const hasDesignationSection = designationGroups.length > 0 || hospital.helipad || hospital.pciCapability;
 
   return (
     <>
@@ -90,6 +90,9 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
                     )}
                   </div>
                 ))}
+                {hospital.pciCapability && (
+                  <p className="text-sm text-foreground">❤️ PCI/STEMI capable</p>
+                )}
                 {hospital.helipad && (
                   <p className="text-sm text-foreground">✈️ Helipad available</p>
                 )}

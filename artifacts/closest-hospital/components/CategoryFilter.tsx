@@ -23,7 +23,6 @@ const FILTER_ICONS: Record<DesignationFilter, IconSpec> = {
   Pediatric:         { lib: "fa5", name: "baby" },
   Obstetrics:        { lib: "mci", name: "mother-nurse" },
   Burn:              { lib: "fa5", name: "fire" },
-  "PCI/STEMI":       { lib: "fa5", name: "heartbeat" },
   "Critical Access": { lib: "mci", name: "hospital-building" },
   Psychiatric:       { lib: "mci", name: "head-cog" },
 };
