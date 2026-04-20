@@ -13,7 +13,6 @@ import {
   fetchVerifiedSpecialtyMap,
   fetchHospitalOverrides,
   filterAndSortHospitals,
-  matchesDesignationFilter,
   NavigationServerError,
   type HospitalOverride,
 } from "@/services/hospitalService";
@@ -79,22 +78,6 @@ async function requestPermissionNative(): Promise<PermStatus> {
   return status as PermStatus;
 }
 
-/**
- * Derive which designation filters are applicable to the current hospital list.
- * "All" is always first. A filter is included only if at least one nearby
- * hospital matches it, so the chip bar only shows relevant options.
- */
-function computeAvailableFilters(hospitals: Hospital[]): DesignationFilter[] {
-  const available: DesignationFilter[] = ["All"];
-  for (const f of DESIGNATION_FILTERS) {
-    if (f === "All") continue;
-    if (hospitals.some((h) => matchesDesignationFilter(h, f))) {
-      available.push(f);
-    }
-  }
-  return available;
-}
-
 export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -116,7 +99,7 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const overrideMapRef = useRef<Record<string, HospitalOverride>>({});
 
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedFilter, 10);
-  const availableFilters = computeAvailableFilters(allHospitals);
+  const availableFilters = DESIGNATION_FILTERS;
 
   useEffect(() => {
     fetchVerifiedSpecialtyMap(API_BASE).then((map) => {

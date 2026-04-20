@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
-import { normalizeDesignation } from "@/services/designationUtils";
+import { buildDesignationGroups } from "@/services/designationUtils";
 import { ReportModal } from "./ReportModal";
 
 interface HospitalDetailPanelProps {
@@ -28,18 +28,8 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
 
   const wazeUrl = `https://waze.com/ul?ll=${hospital.latitude},${hospital.longitude}&navigate=yes`;
 
-  const primaryChips = (hospital.categories as string[]).filter((c) => c !== "All");
-
-  const secondaryLines: { icon: string; label: string }[] = [];
-  if (hospital.strokeDesignation) secondaryLines.push({ icon: "🧠", label: hospital.strokeDesignation });
-  if (hospital.burnDesignation) secondaryLines.push({ icon: "🔥", label: hospital.burnDesignation });
-  if (hospital.pciCapability) secondaryLines.push({ icon: "❤️", label: hospital.pciCapability });
-  if (hospital.helipad) secondaryLines.push({ icon: "✈️", label: "Helipad available" });
-
-  const hasDesignationSection =
-    primaryChips.length > 0 ||
-    hospital.actualDesignation ||
-    secondaryLines.length > 0;
+  const designationGroups = buildDesignationGroups(hospital);
+  const hasDesignationSection = designationGroups.length > 0 || hospital.helipad;
 
   return (
     <>
@@ -80,42 +70,30 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
             <div className="px-5 py-4">
               <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">DESIGNATIONS</p>
 
-              {primaryChips.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {primaryChips.map((cat) => (
+              <div className="flex flex-col gap-3">
+                {designationGroups.map((group) => (
+                  <div key={group.label}>
                     <span
-                      key={cat}
-                      className="px-3 py-1 rounded-full text-sm font-medium"
+                      className="inline-block px-3 py-1 rounded-full text-sm font-semibold"
                       style={{ backgroundColor: "rgba(192,57,43,0.1)", color: "#c0392b" }}
                     >
-                      {cat}
+                      {group.label}
                     </span>
-                  ))}
-                </div>
-              )}
-
-              {hospital.actualDesignation && (
-                <ul className="space-y-1 mb-2">
-                  {hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map((seg) => (
-                    <li key={seg} className="text-sm text-muted-foreground">
-                      {normalizeDesignation(seg)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {secondaryLines.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {secondaryLines.map(({ icon, label }) => (
-                    <span
-                      key={label}
-                      className="px-3 py-1 rounded-full text-sm font-medium bg-muted text-foreground"
-                    >
-                      {icon} {label}
-                    </span>
-                  ))}
-                </div>
-              )}
+                    {group.subs.length > 0 && (
+                      <ul className="mt-1 pl-1 space-y-0.5">
+                        {group.subs.map((sub) => (
+                          <li key={sub} className="text-xs text-muted-foreground">
+                            {sub}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+                {hospital.helipad && (
+                  <p className="text-sm text-foreground">✈️ Helipad available</p>
+                )}
+              </div>
             </div>
           </>
         )}

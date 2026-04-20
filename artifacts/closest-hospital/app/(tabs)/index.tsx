@@ -230,7 +230,7 @@ export default function HomeScreen() {
 
       {/* Filter chips outside FlatList so selection changes never affect
           the FlatList's ListHeaderComponent reference. */}
-      {availableFilters.length > 1 && (
+      {allHospitals.length > 0 && (
         <CategoryFilter
           selected={selectedFilter}
           onSelect={setFilter}
@@ -270,8 +270,12 @@ export default function HomeScreen() {
           location ? (
             <EmptyState
               icon="hospital"
-              title="No Hospitals Found"
-              description="We couldn't find any emergency rooms near your location."
+              title={selectedFilter === "All" ? "No Hospitals Found" : `No ${selectedFilter} Hospitals Nearby`}
+              description={
+                selectedFilter === "All"
+                  ? "We couldn't find any emergency rooms near your location."
+                  : `There are no ${selectedFilter} hospitals within range. Try a different filter or refresh your location.`
+              }
             />
           ) : null
         }

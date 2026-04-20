@@ -13,7 +13,7 @@ import { FontAwesome5, MaterialIcons, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
-import { formatDistance, normalizeDesignation } from "@/services/hospitalService";
+import { formatDistance, buildDesignationGroups } from "@/services/hospitalService";
 import { ReportModal } from "./ReportModal";
 
 interface NavigationSheetProps {
@@ -144,55 +144,35 @@ export function NavigationSheet({
             </View>
           )}
 
-          {(hospital.actualDesignation || (hospital.categories as string[]).filter(c => c !== "All").length > 0) && (
-            <View style={styles.designationBlock}>
-              {(hospital.actualDesignation
-                ? hospital.actualDesignation.split(";").map((seg) => seg.trim()).filter(Boolean).map(normalizeDesignation)
-                : (hospital.categories as string[]).filter((c) => c !== "All")
-              ).map((seg) => (
-                <View
-                  key={seg}
-                  style={[styles.designationBadge, { backgroundColor: colors.primary + "18" }]}
-                >
-                  <Text style={[styles.designationBadgeText, { color: colors.primary }]}>
-                    {seg}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {(hospital.strokeDesignation || hospital.burnDesignation || hospital.pciCapability) && (
-            <View style={styles.secondaryBadgesRow}>
-              {hospital.strokeDesignation ? (
-                <View style={[styles.secondaryBadge, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.secondaryBadgeText, { color: colors.foreground }]}>
-                    🧠 {hospital.strokeDesignation}
-                  </Text>
-                </View>
-              ) : null}
-              {hospital.burnDesignation ? (
-                <View style={[styles.secondaryBadge, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.secondaryBadgeText, { color: colors.foreground }]}>
-                    🔥 {hospital.burnDesignation}
-                  </Text>
-                </View>
-              ) : null}
-              {hospital.pciCapability ? (
-                <View style={[styles.secondaryBadge, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.secondaryBadgeText, { color: colors.foreground }]}>
-                    ❤️ {hospital.pciCapability}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          )}
-
-          {hospital.helipad && (
-            <View style={styles.helipadRow}>
-              <Text style={[styles.helipadText, { color: colors.foreground }]}>✈️ Helipad available</Text>
-            </View>
-          )}
+          {(() => {
+            const groups = buildDesignationGroups(hospital);
+            if (groups.length === 0 && !hospital.helipad) return null;
+            return (
+              <View style={styles.designationBlock}>
+                {groups.map((group) => (
+                  <View key={group.label} style={styles.designationGroup}>
+                    <View style={[styles.designationBadge, { backgroundColor: colors.primary + "18" }]}>
+                      <Text style={[styles.designationBadgeText, { color: colors.primary }]}>
+                        {group.label}
+                      </Text>
+                    </View>
+                    {group.subs.length > 0 && (
+                      <View style={styles.subDetailList}>
+                        {group.subs.map((sub) => (
+                          <Text key={sub} style={[styles.subDetailText, { color: colors.mutedForeground }]}>
+                            {sub}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {hospital.helipad && (
+                  <Text style={[styles.helipadText, { color: colors.foreground }]}>✈️ Helipad available</Text>
+                )}
+              </View>
+            );
+          })()}
 
           {hospital.phone && (
             <TouchableOpacity
@@ -320,8 +300,11 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
   },
   designationBlock: {
-    gap: 5,
+    gap: 8,
     marginTop: 8,
+  },
+  designationGroup: {
+    gap: 3,
   },
   designationBadge: {
     alignSelf: "flex-start",
@@ -334,27 +317,18 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 0.1,
   },
-  secondaryBadgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 6,
+  subDetailList: {
+    paddingLeft: 4,
+    gap: 1,
   },
-  secondaryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
-  },
-  secondaryBadgeText: {
+  subDetailText: {
     fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-  helipadRow: {
-    marginTop: 6,
+    fontFamily: "Inter_400Regular",
   },
   helipadText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
+    marginTop: 2,
   },
   callBtn: {
     flexDirection: "row",
