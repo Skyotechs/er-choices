@@ -88,6 +88,10 @@ function buildPage(): string {
   .result-item.inactive-row .result-name{text-decoration:line-through;color:#94a3b8}
   .btn-warn{background:#92400e;color:#fde68a;border:1px solid #b45309}
   .btn-warn:hover{background:#b45309}
+  .state-filter-wrap{padding:6px 12px 0;display:flex;gap:8px;align-items:center}
+  .state-filter-wrap select{flex:1;background:#0d1b2e;color:#f1f5f9;border:1px solid #1e3352;border-radius:6px;padding:6px 8px;font-size:12px}
+  .state-filter-wrap select option{background:#0d1b2e}
+  .state-count{font-size:11px;color:#475569;padding:4px 12px 6px;border-bottom:1px solid #1e3352}
   .show-inactive-wrap{padding:8px 12px;border-bottom:1px solid #1e3352;display:flex;align-items:center;gap:7px;font-size:12px;color:#64748b}
   .show-inactive-wrap input{width:auto;padding:0}
   .deactivated-badge{display:none;padding:4px 10px;border-bottom:1px solid #1e3352;background:#78350f22;cursor:pointer;font-size:11px;color:#fbbf24;transition:background .15s}
@@ -173,9 +177,29 @@ function buildPage(): string {
     <!-- Search sidebar -->
     <div class="search-panel">
       <div class="panel-head">Search Hospitals</div>
-      <div class="search-box-wrap">
-        <input type="text" id="search-input" placeholder="Type hospital name…" oninput="onSearch(this.value)">
+      <div class="state-filter-wrap">
+        <select id="state-select" onchange="onStateChange(this.value)">
+          <option value="">All states</option>
+          <option>AL</option><option>AK</option><option>AZ</option><option>AR</option>
+          <option>CA</option><option>CO</option><option>CT</option><option>DE</option>
+          <option>DC</option><option>FL</option><option>GA</option><option>GU</option>
+          <option>HI</option><option>ID</option><option>IL</option><option>IN</option>
+          <option>IA</option><option>KS</option><option>KY</option><option>LA</option>
+          <option>ME</option><option>MD</option><option>MA</option><option>MI</option>
+          <option>MN</option><option>MS</option><option>MO</option><option>MT</option>
+          <option>NE</option><option>NV</option><option>NH</option><option>NJ</option>
+          <option>NM</option><option>NY</option><option>NC</option><option>ND</option>
+          <option>OH</option><option>OK</option><option>OR</option><option>PA</option>
+          <option>PR</option><option>RI</option><option>SC</option><option>SD</option>
+          <option>TN</option><option>TX</option><option>UT</option><option>VT</option>
+          <option>VA</option><option>VI</option><option>WA</option><option>WV</option>
+          <option>WI</option><option>WY</option>
+        </select>
       </div>
+      <div class="search-box-wrap">
+        <input type="text" id="search-input" placeholder="Filter by name (optional)…" oninput="onSearch(this.value)">
+      </div>
+      <div class="state-count" id="state-count" style="display:none"></div>
       <div class="deactivated-badge" id="deactivated-badge" onclick="onDeactivatedBadgeClick()">
         &#9888; <span id="deactivated-count">0</span> deactivated — click to show
       </div>
@@ -474,31 +498,53 @@ function onDeactivatedBadgeClick() {
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
+function onStateChange(state) {
+  clearTimeout(searchTimer);
+  const nameVal = document.getElementById('search-input').value.trim();
+  if (state || nameVal.length >= 2) {
+    runSearch(nameVal, state);
+  } else {
+    document.getElementById('results-list').innerHTML =
+      '<div class="empty-state" style="padding:30px 16px"><p>Select a state or type a hospital name</p></div>';
+    document.getElementById('state-count').style.display = 'none';
+  }
+}
+
 function onSearch(val) {
   clearTimeout(searchTimer);
-  if (val.length < 2) {
+  const state = document.getElementById('state-select').value;
+  if (val.length < 2 && !state) {
     document.getElementById('results-list').innerHTML =
-      '<div class="empty-state" style="padding:30px 16px"><p>Type at least 2 characters to search</p></div>';
+      '<div class="empty-state" style="padding:30px 16px"><p>Select a state or type at least 2 characters</p></div>';
+    document.getElementById('state-count').style.display = 'none';
     return;
   }
-  searchTimer = setTimeout(() => runSearch(val), 300);
+  searchTimer = setTimeout(() => runSearch(val, state), 300);
 }
 
 function rerunSearch() {
   const val = document.getElementById('search-input').value;
-  if (val.length >= 2) runSearch(val);
+  const state = document.getElementById('state-select').value;
+  if (val.length >= 2 || state) runSearch(val, state);
 }
 
-async function runSearch(q) {
+async function runSearch(q, state) {
   const list = document.getElementById('results-list');
   list.innerHTML = '<div class="empty-state" style="padding:30px 16px"><p>Searching…</p></div>';
   const showInactive = document.getElementById('show-inactive-cb').checked;
+  const params = new URLSearchParams();
+  if (q && q.length >= 2) params.set('q', q);
+  if (state) params.set('state', state);
+  if (showInactive) params.set('showInactive', 'true');
   try {
-    const results = await apiFetch('/api/admin/hospitals/search?q=' + encodeURIComponent(q) + (showInactive ? '&showInactive=true' : ''));
+    const results = await apiFetch('/api/admin/hospitals/search?' + params.toString());
     if (!results.length) {
       list.innerHTML = '<div class="empty-state" style="padding:30px 16px"><p>No hospitals found</p></div>';
       return;
     }
+    const countEl = document.getElementById('state-count');
+    countEl.textContent = results.length + ' hospital' + (results.length === 1 ? '' : 's') + (results.length === 300 ? ' (showing first 300)' : '');
+    countEl.style.display = 'block';
     list.innerHTML = results.map(r => \`
       <div class="result-item\${r.active === false ? ' inactive-row' : ''}" data-id="\${r.id}" onclick="selectHospital(\${r.id}, this)" data-hospital='\${JSON.stringify(r).replace(/'/g,"&apos;")}'>
         <div class="result-name">\${esc(r.name)}</div>
@@ -510,6 +556,7 @@ async function runSearch(q) {
       </div>
     \`).join('');
   } catch (e) {
+    document.getElementById('state-count').style.display = 'none';
     list.innerHTML = '<div class="empty-state" style="padding:30px 16px"><p style="color:#fca5a5">Error: ' + esc(e.message) + '</p></div>';
   }
 }

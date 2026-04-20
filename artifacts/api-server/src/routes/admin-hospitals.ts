@@ -172,15 +172,29 @@ router.get("/admin/hospitals/deactivated-count", requireAdmin, async (_req, res)
  */
 router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
   const q = ((req.query.q as string) ?? "").trim();
-  if (!q || q.length < 2) {
-    res.status(400).json({ error: "Query must be at least 2 characters" });
+  const stateFilter = ((req.query.state as string) ?? "").trim().toUpperCase();
+  const showInactive = req.query.showInactive === "true";
+
+  const hasNameQuery = q.length >= 2;
+  const hasStateFilter = stateFilter.length >= 2;
+
+  if (!hasNameQuery && !hasStateFilter) {
+    res.status(400).json({ error: "Provide a name query (2+ chars) and/or a state code" });
     return;
   }
 
   try {
-    // Step 1: fetch hospitals from hospital_specialties
-    const showInactive = req.query.showInactive === "true";
+    // Build WHERE conditions — all undefined entries are ignored by and()
+    const whereClause = and(
+      hasNameQuery ? ilike(hospitalSpecialties.hospitalName, `%${q}%`) : undefined,
+      hasStateFilter ? eq(hospitalSpecialties.state, stateFilter) : undefined,
+      showInactive ? undefined : eq(hospitalSpecialties.active, true),
+    );
 
+    // Allow more results when browsing by state (no name query)
+    const fetchLimit = hasStateFilter && !hasNameQuery ? 300 : 50;
+
+    // Step 1: fetch hospitals from hospital_specialties
     const rows = await db
       .select({
         id: hospitalSpecialties.id,
@@ -207,17 +221,12 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         deactivatedReason: hospitalSpecialties.deactivatedReason,
       })
       .from(hospitalSpecialties)
-      .where(
-        showInactive
-          ? ilike(hospitalSpecialties.hospitalName, `%${q}%`)
-          : and(
-              ilike(hospitalSpecialties.hospitalName, `%${q}%`),
-              eq(hospitalSpecialties.active, true)
-            )
-      )
-      .limit(50);
+      .where(whereClause)
+      .orderBy(hospitalSpecialties.hospitalName)
+      .limit(fetchLimit);
 
     // Step 2: normalize osmIds and deduplicate, then look up any legacy overrides
+    const displayLimit = hasStateFilter && !hasNameQuery ? 300 : 20;
     const seenKeys = new Set<string>();
     const unique = rows
       .map((r) => ({ ...r, osmId: r.osmId ? normaliseOsmId(r.osmId) : null }))
@@ -227,7 +236,7 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
         seenKeys.add(key);
         return true;
       })
-      .slice(0, 20);
+      .slice(0, displayLimit);
 
     // Fetch overrides for all osmIds in the result set.
     // hospital_overrides always stores ids in app format (osm-*), which matches
