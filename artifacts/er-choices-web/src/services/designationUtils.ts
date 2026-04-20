@@ -85,74 +85,65 @@ export interface DesignationGroup {
   subs: string[];
 }
 
-const PREFIX_TO_LABEL: Record<string, string> = {
-  trauma: "Trauma",
-  stroke: "Stroke",
-  burn: "Burn",
-  cardiac: "PCI/STEMI",
-};
-
-const STANDALONE_TO_LABEL: Record<string, string> = {
-  "pediatric care": "Pediatric",
-  obstetrics: "Obstetrics",
-  "behavioral health": "Psychiatric",
-};
-
 /**
- * Builds a consolidated list of designation groups for display in the
- * hospital detail view. Each group has a broad chip label and a list
- * of specific sub-designations (e.g. "Adult Level 1 & 2").
- *
- * Prefers the specialties array; falls back to legacy fields.
+ * Builds a consolidated list of designation groups for display in the hospital
+ * detail view. Chips are always drawn from the fixed DesignationFilter set by
+ * running matchesDesignationFilter for each filter — guaranteeing only known
+ * broad categories appear. Sub-lines are extracted from specialties[] first,
+ * then fall back to legacy enriched fields.
  */
 export function buildDesignationGroups(hospital: Hospital): DesignationGroup[] {
   const specs = hospital.specialties ?? [];
-
-  if (specs.length > 0) {
-    const groupMap = new Map<string, string[]>();
-
-    for (const s of specs) {
-      const dashIdx = s.indexOf(" - ");
-      if (dashIdx !== -1) {
-        const prefix = s.slice(0, dashIdx).trim().toLowerCase();
-        const suffix = s.slice(dashIdx + 3).trim();
-        const label = PREFIX_TO_LABEL[prefix] ?? s.slice(0, dashIdx).trim();
-        if (!groupMap.has(label)) groupMap.set(label, []);
-        if (suffix) groupMap.get(label)!.push(suffix);
-      } else {
-        const label = STANDALONE_TO_LABEL[s.toLowerCase()] ?? s;
-        if (!groupMap.has(label)) groupMap.set(label, []);
-      }
-    }
-
-    return Array.from(groupMap.entries()).map(([label, subs]) => ({ label, subs }));
-  }
-
-  // Fallback: derive from categories + enriched fields
   const groups: DesignationGroup[] = [];
-  const cats = (hospital.categories as string[]).filter((c) => c !== "All");
 
-  for (const cat of cats) {
-    const subs: string[] = [];
-    if (cat === "Trauma" && hospital.actualDesignation) {
-      hospital.actualDesignation.split(";")
-        .map((s) => s.trim())
-        .filter((s) => /\btrauma\b/i.test(s) || /\blevel\b/i.test(s))
-        .forEach((s) => subs.push(normalizeDesignation(s)));
-    } else if (cat === "Stroke" && hospital.strokeDesignation) {
-      subs.push(hospital.strokeDesignation);
-    } else if (cat === "Burn" && hospital.burnDesignation) {
-      subs.push(hospital.burnDesignation);
-    } else if (cat === "Cardiac" && hospital.pciCapability) {
-      subs.push(hospital.pciCapability);
+  for (const filter of DESIGNATION_FILTERS) {
+    if (filter === "All") continue;
+    if (!matchesDesignationFilter(hospital, filter)) continue;
+
+    let subs: string[] = [];
+
+    switch (filter) {
+      case "Trauma": {
+        const fromSpecs = specs
+          .filter((s) => /^trauma - /i.test(s))
+          .map((s) => s.replace(/^trauma - /i, "").trim());
+        if (fromSpecs.length > 0) {
+          subs = fromSpecs;
+        } else if (hospital.actualDesignation) {
+          hospital.actualDesignation.split(";")
+            .map((s) => s.trim())
+            .filter((s) => /\btrauma\b/i.test(s) || /\blevel\b/i.test(s))
+            .forEach((s) => subs.push(normalizeDesignation(s)));
+        }
+        break;
+      }
+      case "Stroke": {
+        const fromSpecs = specs
+          .filter((s) => /^stroke - /i.test(s))
+          .map((s) => s.replace(/^stroke - /i, "").trim());
+        subs = fromSpecs.length > 0 ? fromSpecs : hospital.strokeDesignation ? [hospital.strokeDesignation] : [];
+        break;
+      }
+      case "Burn": {
+        const fromSpecs = specs
+          .filter((s) => /^burn - /i.test(s))
+          .map((s) => s.replace(/^burn - /i, "").trim());
+        subs = fromSpecs.length > 0 ? fromSpecs : hospital.burnDesignation ? [hospital.burnDesignation] : [];
+        break;
+      }
+      case "PCI/STEMI": {
+        const fromSpecs = specs
+          .filter((s) => /^cardiac - /i.test(s))
+          .map((s) => s.replace(/^cardiac - /i, "").trim());
+        subs = fromSpecs.length > 0 ? fromSpecs : hospital.pciCapability ? [hospital.pciCapability] : [];
+        break;
+      }
+      // Pediatric, Obstetrics, Psychiatric, Critical Access: chip only, no sub-lines
+      default:
+        subs = [];
     }
-    groups.push({ label: cat === "Cardiac" ? "PCI/STEMI" : cat, subs });
-  }
 
-  if (cats.length === 0) {
-    if (hospital.strokeDesignation) groups.push({ label: "Stroke", subs: [hospital.strokeDesignation] });
-    if (hospital.burnDesignation) groups.push({ label: "Burn", subs: [hospital.burnDesignation] });
-    if (hospital.pciCapability) groups.push({ label: "PCI/STEMI", subs: [hospital.pciCapability] });
+    groups.push({ label: filter, subs });
   }
 
   return groups;

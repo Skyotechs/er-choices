@@ -183,8 +183,14 @@ export function Home() {
           <div className="flex items-center justify-center p-8">
             <div className="text-center max-w-xs">
               <div className="text-5xl mb-4">🏥</div>
-              <h2 className="text-lg font-bold text-foreground mb-2">No Hospitals Found</h2>
-              <p className="text-sm text-muted-foreground">We couldn't find any emergency rooms near your location.</p>
+              <h2 className="text-lg font-bold text-foreground mb-2">
+                {selectedFilter === "All" ? "No Hospitals Found" : `No ${selectedFilter} Hospitals Nearby`}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {selectedFilter === "All"
+                  ? "We couldn't find any emergency rooms near your location."
+                  : `There are no ${selectedFilter} hospitals within range. Try a different filter or refresh your location.`}
+              </p>
             </div>
           </div>
         ) : (
