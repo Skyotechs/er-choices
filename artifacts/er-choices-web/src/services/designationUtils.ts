@@ -56,8 +56,6 @@ export function matchesDesignationFilter(
         !!(hospital.burnDesignation) ||
         cats.includes("Burn")
       );
-    case "Critical Access":
-      return sl === "Critical Access";
     case "Psychiatric":
       return (
         specs.some((s) => /^behavioral health$/i.test(s) || /\b(psychiatric|behavioral)\b/i.test(s)) ||

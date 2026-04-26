@@ -8,7 +8,6 @@ const FILTER_ICONS: Record<DesignationFilter, string> = {
   Pediatric: "👶",
   Obstetrics: "🤱",
   Burn: "🔥",
-  "Critical Access": "🏨",
   Psychiatric: "🧩",
 };
 
