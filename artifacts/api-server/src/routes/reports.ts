@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, hospitalReports } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { sendReportAlert } from "../lib/email";
 
 const router = Router();
 
@@ -40,9 +41,19 @@ router.post("/reports", async (req, res) => {
       .insert(hospitalReports)
       .values({ osmId, hospitalName, issueType, notes })
       .returning({ id: hospitalReports.id });
+
+    // Fire-and-forget — email failure must not affect the user's response
+    sendReportAlert({
+      reportId: report.id,
+      hospitalName,
+      hospitalId: osmId,
+      issueType,
+      notes,
+    }).catch(() => {/* already logged inside sendReportAlert */});
+
     res.status(201).json({ success: true, id: report.id });
   } catch (err) {
-    console.error("POST /api/reports error:", err);
+    req.log.error({ err }, "POST /api/reports error");
     res.status(500).json({ error: "Failed to save report" });
   }
 });
