@@ -32,6 +32,10 @@
         "language": "en-US",
         "appName": "ER Choices",
         "ascAppId": "6761451449"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal"
       }
     }
   }
