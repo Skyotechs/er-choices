@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from "react";
 import { Platform } from "react-native";
+import type { LocationObject } from "expo-location";
 import { Hospital, HospitalCategory, DesignationFilter, DESIGNATION_FILTERS } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
@@ -43,11 +44,32 @@ interface HospitalContextValue {
 
 const HospitalContext = createContext<HospitalContextValue | null>(null);
 
-async function getLocationNative(): Promise<LocationCoords> {
-  const Location = require("expo-location");
-  const loc = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
   });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function getLocationNative(): Promise<LocationCoords> {
+  const Location = require("expo-location") as typeof import("expo-location");
+  const loc = await withTimeout<LocationObject>(
+    Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    }),
+    15_000,
+    "Timed out while getting your location",
+  );
   return {
     latitude: loc.coords.latitude,
     longitude: loc.coords.longitude,
@@ -202,7 +224,9 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
       setLocation(coords);
       await loadHospitals(coords);
     } catch (err) {
-      setLocationError("Unable to get your location. Please try again.");
+      setLocationError(
+        "We couldn't get your location. Check that Location is enabled, then try again.",
+      );
     } finally {
       setIsLoading(false);
     }

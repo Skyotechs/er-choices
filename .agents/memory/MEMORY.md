@@ -1,0 +1,1 @@
+- [Android Maps release safety](android-maps-release-safety.md) — avoid initializing the native map in a standalone Android build until a Google Maps key is configured.

@@ -3,6 +3,10 @@
   "compilerOptions": {
     "baseUrl": ".",
     "strict": true,
+    "moduleSuffixes": [
+      ".native",
+      ""
+    ],
     "paths": {
       "@/*": [
         "./*"

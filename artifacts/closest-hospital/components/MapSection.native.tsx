@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { View, StyleSheet, Platform, Text } from "react-native";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
+import Constants from "expo-constants";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
 
@@ -19,6 +20,9 @@ export function MapSection({
 }: MapSectionProps) {
   const colors = useColors();
   const mapRef = useRef<MapView>(null);
+  const hasAndroidMapsKey = Boolean(
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey,
+  );
 
   useEffect(() => {
     if (latitude && longitude && mapRef.current) {
@@ -39,6 +43,19 @@ export function MapSection({
       <View style={[styles.placeholder, { backgroundColor: colors.muted }]}>
         <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>
           Enable location to see map
+        </Text>
+      </View>
+    );
+  }
+
+  // A standalone Android app crashes or displays a blank map when Google Maps
+  // is initialized without a configured Android Maps API key. Keep the main
+  // hospital list available while the key is being configured instead.
+  if (Platform.OS === "android" && !hasAndroidMapsKey) {
+    return (
+      <View style={[styles.placeholder, { backgroundColor: colors.muted }]}>
+        <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>
+          Map view is temporarily unavailable
         </Text>
       </View>
     );

@@ -94,12 +94,6 @@ export default function HomeScreen() {
   const [retryCountdown, setRetryCountdown] = useState(30);
 
   useEffect(() => {
-    if (!isLoading && !location) {
-      requestLocationPermission();
-    }
-  }, []);
-
-  useEffect(() => {
     if (!serverError) {
       setRetryCountdown(30);
       return;
