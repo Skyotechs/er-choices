@@ -20,6 +20,7 @@
       }
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_DOMAIN": "er-choices-production.up.railway.app"

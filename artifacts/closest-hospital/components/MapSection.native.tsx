@@ -20,9 +20,9 @@ export function MapSection({
 }: MapSectionProps) {
   const colors = useColors();
   const mapRef = useRef<MapView>(null);
-  const hasAndroidMapsKey = Boolean(
-    Constants.expoConfig?.android?.config?.googleMaps?.apiKey,
-  );
+  const canUseAndroidMap =
+    Constants.executionEnvironment === "storeClient" ||
+    Constants.expoConfig?.extra?.androidMapsConfigured === true;
 
   useEffect(() => {
     if (latitude && longitude && mapRef.current) {
@@ -51,7 +51,7 @@ export function MapSection({
   // A standalone Android app crashes or displays a blank map when Google Maps
   // is initialized without a configured Android Maps API key. Keep the main
   // hospital list available while the key is being configured instead.
-  if (Platform.OS === "android" && !hasAndroidMapsKey) {
+  if (Platform.OS === "android" && !canUseAndroidMap) {
     return (
       <View style={[styles.placeholder, { backgroundColor: colors.muted }]}>
         <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>
