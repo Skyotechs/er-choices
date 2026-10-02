@@ -17,17 +17,18 @@ of source control, app.json, chat, and screenshots.
 
 ## Build environment
 
-In the ER Choices project on expo.dev, open Environment variables and add:
+In the ER Choices project on expo.dev, open Environment variables and add
+`GOOGLE_MAPS_ANDROID_API_KEY` separately to both environments:
 
-- Name: `GOOGLE_MAPS_ANDROID_API_KEY`
-- Environment: `production`
-- Visibility: `Sensitive` (available during local EAS config resolution and
-  masked in build logs)
+- **preview** — for the internal APK/device test
+- **production** — for Play Store builds
+- Visibility: **Sensitive** (available during build configuration and masked
+  in build logs)
 
 The production profile explicitly selects this environment. Replit Secrets
 are separate from EAS environment variables: a key saved in Replit alone does
-not provision a remote EAS build. For local configuration validation, use the
-same name in Replit Secrets.
+not provision a remote EAS build. The preview profile selects the preview
+environment.
 
 The dynamic Expo config injects the key into Android native configuration.
 Only a key-present boolean is published to the runtime manifest. Google Maps
