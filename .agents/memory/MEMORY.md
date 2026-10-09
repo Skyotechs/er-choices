@@ -1,1 +1,2 @@
 - [Android Maps release safety](android-maps-release-safety.md) — avoid initializing the native map in a standalone Android build until a Google Maps key is configured.
+- [Cloud frozen installs](cloud-frozen-installs.md) — check pnpm compatibility before regenerating a valid lockfile after an external build fails.
