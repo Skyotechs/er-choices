@@ -15,3 +15,11 @@ that the repository's dependency configuration is inconsistent.
 same pnpm version. Verify a frozen install with that version, and ensure
 the external rebuild uses the updated source commit. Do not disable
 frozen installation as the default fix.
+
+When source files are uploaded manually, check the actual remote files at their
+original monorepo paths. A committed root package-manager pin does not establish
+that the app-subdirectory cloud build configuration was updated; a duplicate
+configuration uploaded at the repository root is not a substitute.
+
+**Why:** Manual uploads can leave the cloud builder reading an older app-specific
+configuration even though a new repository commit exists.
