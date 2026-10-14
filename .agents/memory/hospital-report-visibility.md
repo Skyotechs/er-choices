@@ -21,3 +21,14 @@ old records, not the newly submitted reports.
 **How to apply:** Compare the deployed writer and reader, including read-only
 database checks. Simulated UI tests cannot confirm production data visibility.
 Do not move or delete records to mask a connection mismatch.
+
+Use the existing Railway database as the source of truth for hospital reports,
+without switching the unrelated hospital-data stores.
+
+**Why:** The user approved connecting the admin Reports view to the Android
+app's existing Railway report database after the split was demonstrated.
+
+**How to apply:** Keep report reading, submission, export, and status changes
+on the same store. Configure the Railway report connection on each server that
+hosts these endpoints; missing configuration must not silently select another
+database.

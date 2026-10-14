@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, hospitalReports } from "@workspace/db";
+import { getReportsDb, hospitalReports } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { sendReportAlert } from "../lib/email";
 
@@ -37,7 +37,7 @@ router.post("/reports", async (req, res) => {
     return;
   }
   try {
-    const [report] = await db
+    const [report] = await getReportsDb()
       .insert(hospitalReports)
       .values({ osmId, hospitalName, issueType, notes })
       .returning({ id: hospitalReports.id });
@@ -58,22 +58,23 @@ router.post("/reports", async (req, res) => {
   }
 });
 
-router.get("/admin/reports", requireAdmin, async (_req, res) => {
+router.get("/admin/reports", requireAdmin, async (req, res) => {
   try {
-    const reports = await db
+    const reports = await getReportsDb()
       .select()
       .from(hospitalReports)
       .orderBy(desc(hospitalReports.submittedAt));
+    res.setHeader("Cache-Control", "no-store");
     res.json(reports);
   } catch (err) {
-    console.error("GET /api/admin/reports error:", err);
+    req.log.error({ err }, "GET /api/admin/reports error");
     res.status(500).json({ error: "Failed to load reports" });
   }
 });
 
-router.get("/admin/reports/export-csv", requireAdmin, async (_req, res) => {
+router.get("/admin/reports/export-csv", requireAdmin, async (req, res) => {
   try {
-    const reports = await db
+    const reports = await getReportsDb()
       .select()
       .from(hospitalReports)
       .orderBy(desc(hospitalReports.submittedAt));
@@ -115,7 +116,7 @@ router.get("/admin/reports/export-csv", requireAdmin, async (_req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="hospital-reports-${new Date().toISOString().slice(0, 10)}.csv"`);
     res.send(csv);
   } catch (err) {
-    console.error("GET /api/admin/reports/export-csv error:", err);
+    req.log.error({ err }, "GET /api/admin/reports/export-csv error");
     res.status(500).json({ error: "Failed to export reports" });
   }
 });
@@ -127,13 +128,13 @@ router.patch("/admin/reports/:id/resolve", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    await db
+    await getReportsDb()
       .update(hospitalReports)
       .set({ status: "resolved", resolvedAt: new Date() })
       .where(eq(hospitalReports.id, id));
     res.json({ success: true });
   } catch (err) {
-    console.error("PATCH /api/admin/reports/:id/resolve error:", err);
+    req.log.error({ err }, "PATCH /api/admin/reports/:id/resolve error");
     res.status(500).json({ error: "Failed to resolve report" });
   }
 });
@@ -145,13 +146,13 @@ router.patch("/admin/reports/:id/dismiss", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    await db
+    await getReportsDb()
       .update(hospitalReports)
       .set({ status: "dismissed", resolvedAt: new Date() })
       .where(eq(hospitalReports.id, id));
     res.json({ success: true });
   } catch (err) {
-    console.error("PATCH /api/admin/reports/:id/dismiss error:", err);
+    req.log.error({ err }, "PATCH /api/admin/reports/:id/dismiss error");
     res.status(500).json({ error: "Failed to dismiss report" });
   }
 });
