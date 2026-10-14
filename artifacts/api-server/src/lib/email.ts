@@ -1,7 +1,7 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import { logger } from "./logger";
 
-const ADMIN_EMAIL = "operations@erchoices.com";
+const ADMIN_EMAIL = "jason.deluca@skyotechs.com";
 // Use onboarding@resend.dev until erchoices.com domain is verified on Resend.
 // Once verified at https://resend.com/domains, switch to: "ER Choices <alerts@erchoices.com>"
 const FROM_EMAIL = "ER Choices <onboarding@resend.dev>";
