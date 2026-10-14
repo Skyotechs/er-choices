@@ -60,7 +60,7 @@ export async function sendReportAlert(params: ReportEmailParams): Promise<void> 
         </table>
 
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f1f5f9">
-          <a href="https://er-choices-production.up.railway.app/api/admin#reports"
+          <a href="https://er-choices-production.up.railway.app/api/admin-ui"
              style="display:inline-block;background:#c0392b;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 20px;border-radius:8px">
             Review in Admin Dashboard →
           </a>
@@ -81,7 +81,7 @@ export async function sendReportAlert(params: ReportEmailParams): Promise<void> 
     notes ? `Notes: ${notes}` : null,
     `Hospital ID: ${hospitalId}`,
     ``,
-    `Review at: https://er-choices-production.up.railway.app/api/admin`,
+    `Review at: https://er-choices-production.up.railway.app/api/admin-ui`,
   ]
     .filter((l) => l !== null)
     .join("\n");
