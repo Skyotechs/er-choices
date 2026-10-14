@@ -2,6 +2,7 @@ import { ReplitConnectors } from "@replit/connectors-sdk";
 import { logger } from "./logger";
 
 const ADMIN_EMAIL = "jason.deluca@skyotechs.com";
+const ADMIN_REPORTS_URL = "https://erchoices.com/api/admin-ui#reports";
 // Use onboarding@resend.dev until erchoices.com domain is verified on Resend.
 // Once verified at https://resend.com/domains, switch to: "ER Choices <alerts@erchoices.com>"
 const FROM_EMAIL = "ER Choices <onboarding@resend.dev>";
@@ -60,7 +61,7 @@ export async function sendReportAlert(params: ReportEmailParams): Promise<void> 
         </table>
 
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f1f5f9">
-          <a href="https://er-choices-production.up.railway.app/api/admin-ui"
+          <a href="${ADMIN_REPORTS_URL}"
              style="display:inline-block;background:#c0392b;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 20px;border-radius:8px">
             Review in Admin Dashboard →
           </a>
@@ -81,7 +82,7 @@ export async function sendReportAlert(params: ReportEmailParams): Promise<void> 
     notes ? `Notes: ${notes}` : null,
     `Hospital ID: ${hospitalId}`,
     ``,
-    `Review at: https://er-choices-production.up.railway.app/api/admin-ui`,
+    `Review at: ${ADMIN_REPORTS_URL}`,
   ]
     .filter((l) => l !== null)
     .join("\n");

@@ -1,4 +1,11 @@
 import { Router } from "express";
+import {
+  REPORTS_STYLE,
+  REPORTS_HEADER_BUTTON,
+  REPORTS_TAB,
+  REPORTS_CONTENT,
+  REPORTS_SCRIPT,
+} from "./admin-reports-ui";
 
 const router = Router();
 
@@ -137,6 +144,7 @@ function buildPage(): string {
   .login-err{color:#fca5a5;font-size:12px;margin-top:8px;display:none}
 
   /* ── Scrollbar ── */
+${REPORTS_STYLE}
   ::-webkit-scrollbar{width:6px}
   ::-webkit-scrollbar-track{background:#09121f}
   ::-webkit-scrollbar-thumb{background:#1e3352;border-radius:3px}
@@ -168,6 +176,7 @@ function buildPage(): string {
       <div class="header-sub">Hospital Database Manager</div>
     </div>
     <div class="header-right">
+      ${REPORTS_HEADER_BUTTON}
       <button class="btn btn-outline btn-sm" onclick="switchTab('add')">+ Add Hospital</button>
       <button class="btn btn-outline btn-sm" onclick="doLogout()">Sign Out</button>
     </div>
@@ -219,6 +228,7 @@ function buildPage(): string {
       <div class="tabs">
         <div class="tab active" id="tab-edit" onclick="switchTab('edit')">Edit Hospital</div>
         <div class="tab" id="tab-add" onclick="switchTab('add')">Add Hospital</div>
+        ${REPORTS_TAB}
       </div>
 
       <!-- EDIT TAB -->
@@ -326,6 +336,7 @@ function buildPage(): string {
         </form>
       </div>
 
+${REPORTS_CONTENT}
       <!-- ADD TAB -->
       <div class="tab-content" id="content-add">
         <form id="add-form" onsubmit="submitAdd(event)">
@@ -438,6 +449,8 @@ function doLogin() {
       document.getElementById('app').style.display = 'flex';
       document.getElementById('login-err').style.display = 'none';
       loadDeactivatedCount();
+      reportsStart();
+      if (location.hash === '#reports') switchTab('reports');
     })
     .catch(() => {
       TOKEN = '';
@@ -445,6 +458,7 @@ function doLogin() {
     });
 }
 function doLogout() {
+  reportsStop();
   TOKEN = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
@@ -816,11 +830,14 @@ function hideStatus(id) {
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(name) {
+  document.body.classList.toggle('admin-reports-mode', name === 'reports');
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('content-' + name).classList.add('active');
+  if (name === 'reports') reportsOnShow();
 }
+${REPORTS_SCRIPT}
 </script>
 </body>
 </html>`;
