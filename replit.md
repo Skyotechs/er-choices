@@ -72,7 +72,7 @@ Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client insta
 - `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
 - Exports: `.` (pool, db, schema), `./schema` (schema only)
 
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+Routine builds, publishing, and restarts must not run schema pushes or hospital data maintenance. Schema changes require separate explicit approval for the exact database and operation; see `RAILWAY_SETUP.md`. The database push scripts target `DATABASE_URL`, not the dedicated `RAILWAY_DATABASE_URL` hospital store. Never use a forced push as an automatic fallback.
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 

@@ -5,6 +5,7 @@
 - Merge this change before publishing the API update. No publishing was performed during implementation.
 - `RAILWAY_DATABASE_URL` is required for all hospital data. Its existence in the production environment was verified securely; no credentials were printed or changed.
 - Keep the existing `DATABASE_URL` for unrelated/default data. Do not replace it with the Railway connection string.
+- Before a future Railway container release, securely confirm that service's `RAILWAY_DATABASE_URL` reference and existing `ADMIN_SECRET`, and remove any schema/data maintenance Build, Start, or Pre-deploy overrides. Earlier connection verification does not establish the current Railway service settings. Hospital connections are lazy, so `/api/healthz` alone cannot validate them. See `RAILWAY_SETUP.md` for the full checklist.
 - Do **not** run a schema push, migration, data import, geocoding, enrichment, merge, or synchronization as part of this release. The API artifact's development and production-build commands no longer run automatic schema pushes; application startup no longer seeds specialty definitions.
 - Refresh `/api/admin-ui` after the API release and select hospitals from a newly loaded search/state list. Old numeric-ID edit/status requests are rejected with a reload requirement.
 - No web/mobile endpoint configuration or Android binary changes are needed.
@@ -86,3 +87,17 @@ code update. Also, the existing `/admin/seed`
 subprocess points at the module exporting the importer rather than its CLI
 runner. Its routing/configuration is aligned here, but its pre-existing job
 behavior was not changed or exercised against live data.
+
+## Container startup-safety verification
+
+- The root Dockerfile now starts Node directly, with no forced schema push.
+- Isolated connection and route tests plus the container/release regression
+  checks pass: `node --test lib/db/tests/*.test.cjs artifacts/api-server/tests/*.test.cjs`
+  (30 checks). They use fixtures, not live databases or maintenance jobs.
+- The API bundle builds with both `DATABASE_URL` and `RAILWAY_DATABASE_URL`
+  removed from the build environment. The development API restarted cleanly
+  and `/api/healthz` returned `{ "status": "ok" }`.
+- No Railway container build/deployment, migration, external configuration
+  change, or live-record edit was performed to verify startup safety.
+- The Railway dashboard's current variables and command overrides still need
+  the documented review before an approved future release.

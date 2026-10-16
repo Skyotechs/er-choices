@@ -31,7 +31,15 @@ test("Railway settings and Replit API release commands do not reintroduce automa
   const manifest = read("artifacts/api-server/.replit-artifact/artifact.toml");
   assert.doesNotMatch(manifest, forbidden);
   const scripts = JSON.parse(read("artifacts/api-server/package.json")).scripts;
-  for (const name of ["dev", "build", "start"]) assert.doesNotMatch(scripts[name], forbidden);
+  for (const name of ["dev", "build", "start"]) {
+    assert.equal(typeof scripts[name], "string");
+    assert.doesNotMatch(scripts[name], forbidden);
+    assert.equal(scripts[`pre${name}`], undefined, `no hidden pre${name} maintenance hook`);
+    assert.equal(scripts[`post${name}`], undefined, `no hidden post${name} maintenance hook`);
+  }
+  assert.equal(scripts.build, "node ./build.mjs");
+  assert.equal(scripts.start, "node --enable-source-maps ./dist/index.mjs");
+  assert.doesNotMatch(read("artifacts/api-server/build.mjs"), forbidden);
 });
 
 test("Railway setup separates deployment from approved database maintenance", () => {

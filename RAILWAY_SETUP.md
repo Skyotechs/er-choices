@@ -18,8 +18,8 @@ into chat, source control, logs, or screenshots.
 | `NODE_ENV` | `production` |
 | `DATABASE_URL` | Keep the existing default application database connection. The application still requires this variable at startup. |
 | `RAILWAY_DATABASE_URL` | Required by hospital administration, public hospital reads, reports, and hospital maintenance. It must point to the existing canonical Railway hospital database; there is no fallback to `DATABASE_URL`. |
-| `ADMIN_SECRET` | Keep the existing admin authentication secret. |
-| `SESSION_SECRET` | Keep the existing session/signing secret so existing access and record identities remain valid. |
+| `ADMIN_SECRET` | Keep the existing admin authentication secret; hospital record identities are also signed with this value. |
+| `SESSION_SECRET` | Preserve this variable if configured for other session consumers; it does not replace `ADMIN_SECRET`. |
 | `CORS_ORIGINS` | Allow the actual published web origins that call the API. |
 | `PORT` | Use the port provided by Railway. |
 
@@ -31,6 +31,9 @@ database: preserve its existing independent `DATABASE_URL`.
 
 These are configuration requirements, not confirmation that the external
 Railway service currently has every variable set. Verify before release.
+Hospital pools are lazy: a successful process start or health check does not
+validate `RAILWAY_DATABASE_URL`. Confirm its service reference before approving
+the release, then use only read-only hospital/report requests to check access.
 
 ## 2. Repository and container settings
 
