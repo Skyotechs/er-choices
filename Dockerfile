@@ -11,8 +11,9 @@ COPY . .
 # Install all workspace dependencies
 RUN pnpm install --no-frozen-lockfile
 
-# Build the API server bundle
-RUN pnpm --filter @workspace/api-server run build
+# Fail if the API package is missing/misnamed or the entry bundle is not produced.
+RUN pnpm --fail-if-no-match --filter @workspace/api-server run build \
+    && test -s artifacts/api-server/dist/index.mjs
 
 ENV NODE_ENV=production
 

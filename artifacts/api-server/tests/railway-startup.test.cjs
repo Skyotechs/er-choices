@@ -17,7 +17,24 @@ test("Railway container startup only executes the API, with no schema or data co
   assert.doesNotMatch(dockerfile, /^\s*(?:ENTRYPOINT|ONBUILD)\b/m);
   const runs = [...dockerfile.matchAll(/^RUN\s+(.+(?:\\\n.+)*)$/gm)].map(match => match[1]);
   assert.ok(runs.some(command => command.includes("@workspace/api-server run build")));
+  assert.match(dockerfile, /pnpm --fail-if-no-match --filter @workspace\/api-server run build/);
+  assert.match(dockerfile, /test -s artifacts\/api-server\/dist\/index\.mjs/);
   for (const command of runs) assert.doesNotMatch(command, forbidden);
+});
+
+test("API package retains its own identity, build commands, and runtime dependencies", () => {
+  const api = JSON.parse(read("artifacts/api-server/package.json"));
+  const workspace = JSON.parse(read("package.json"));
+  assert.equal(api.name, "@workspace/api-server", "do not replace the API manifest with the root manifest");
+  assert.notEqual(api.name, workspace.name);
+  assert.equal(api.type, "module");
+  assert.equal(api.scripts.build, "node ./build.mjs");
+  assert.equal(api.scripts.start, "node --enable-source-maps ./dist/index.mjs");
+  for (const name of ["express", "drizzle-orm", "pino", "@workspace/db", "@workspace/api-zod", "@workspace/speciality"]) {
+    assert.equal(typeof api.dependencies[name], "string", `${name} must remain an API runtime dependency`);
+  }
+  assert.equal(typeof api.devDependencies.esbuild, "string");
+  assert.match(read("scripts/src/release-api.cjs"), /"--fail-if-no-match", "--filter", "@workspace\/api-server"/);
 });
 
 test("Railway settings and Replit API release commands do not reintroduce automatic schema pushes", () => {

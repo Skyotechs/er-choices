@@ -102,7 +102,7 @@ function runRelease({args = [], run = execute, log = console.log, env = process.
     .filter(name => name.endsWith(".test.cjs")).sort().map(name => path.join(ROOT, dir, name)));
   run(process.execPath, ["--test", ...tests], {cwd: ROOT, env, stdio: "inherit"});
   log("Building the Railway API…");
-  run("pnpm", ["--filter", "@workspace/api-server", "run", "build"], {
+  run("pnpm", ["--fail-if-no-match", "--filter", "@workspace/api-server", "run", "build"], {
     cwd: ROOT, env, stdio: "inherit",
   });
   if (checkOnly) {

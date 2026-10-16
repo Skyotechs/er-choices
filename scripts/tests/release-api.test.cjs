@@ -35,7 +35,7 @@ test("check-only runs tests and the API build without any Git network operations
   f.start(["--check"]);
   assert.equal(f.calls.length, 2);
   assert.equal(f.calls[0].args[0], "--test");
-  assert.deepEqual(f.calls[1].args, ["--filter", "@workspace/api-server", "run", "build"]);
+  assert.deepEqual(f.calls[1].args, ["--fail-if-no-match", "--filter", "@workspace/api-server", "run", "build"]);
   assert.equal(pushes(f).length, 0);
 });
 

@@ -23,3 +23,16 @@ configuration uploaded at the repository root is not a substitute.
 
 **Why:** Manual uploads can leave the cloud builder reading an older app-specific
 configuration even though a new repository commit exists.
+
+Preserve each workspace package's own manifest when uploading files manually;
+do not substitute the root manifest for an artifact manifest.
+
+**Why:** Files share the name `package.json` but have different roles. A misplaced
+root manifest can remove the API's workspace identity, and a filtered pnpm build
+can otherwise succeed without matching any package or producing a server bundle.
+
+**How to apply:** Compare full repository paths and package identity, not just
+filenames. Make production filtered builds fail on zero matches and require the
+expected entry bundle before allowing the container build to finish. If the
+corrected manifest adds shared workspace dependencies, release their source
+packages alongside it rather than uploading only the manifest.

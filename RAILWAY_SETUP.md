@@ -201,4 +201,5 @@ No schema command is needed or authorized for this startup-safety release.
 | A table or column is missing | Confirm the correct database first. Stop and prepare a separately approved schema change; do not add schema pushes to startup. |
 | CORS blocks the web client | Check that `CORS_ORIGINS` includes the actual published web origin. |
 | Deployment succeeds but old behavior remains | Check the deployed commit and whether an old deployment was redeployed instead of the latest commit. |
+| API package is missing, no bundle is built, or the entry module cannot be found | Check `artifacts/api-server/package.json`: its name must be `@workspace/api-server`, build must be `node ./build.mjs`, and start must execute `./dist/index.mjs`. Never replace this file with the root `package.json`; preserve the API dependencies and shared `lib/` packages together. |
 | GitHub push does not deploy | Check autodeploy permissions, branch selection, watch paths, and skipped deployments in Railway. |
