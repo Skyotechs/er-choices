@@ -42,3 +42,16 @@ sends GET requests.
 Verify data preservation with read-only full-row comparisons, and use isolated
 fixtures for mutation checks. Keep migrations and data jobs separate from
 connection-alignment releases.
+
+Sharing the hospital database does not guarantee that separately deployed APIs
+expose the same data contract.
+
+**Why:** A verified-only public client can correctly hide unconfirmed data yet
+also hide valid admin saves when an older public API omits the canonical review
+entries. In that case the save exists in the shared store; neither database
+copying nor repeated screen refreshes fixes the missing API response fields.
+
+**How to apply:** Compare a representative hospital's saved review with both
+deployed public API responses and the website's actual bundled API base. Release
+the compatible public backend before expecting refreshed clients to display the
+new classifications. Do not assume a successful Replit publish updated Railway.
