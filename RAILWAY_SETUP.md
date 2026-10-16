@@ -1,121 +1,145 @@
-# Railway Deployment Guide — ER Choices API
+# Railway deployment guide — ER Choices API
 
-This guide walks through moving the API server and PostgreSQL database from Replit to Railway so the backend runs 24/7 without interruption.
+Railway hosts the API used by the public website and Android/Apple apps.
+Hospital administration and reports must read and write the existing Railway
+hospital database. Publishing Replit is a separate release.
 
----
+## 1. Existing project: keep the current database
 
-## 1. Create the Railway project
+Use the existing API service and PostgreSQL database. Do not create a replacement
+database, copy hospital records, rerun an import, or change database targets as
+part of a routine code release.
 
-1. Sign in at [railway.app](https://railway.app) and click **New Project**.
-2. Choose **Deploy from GitHub repo** and select the `er-choices` repository.
-3. Railway will detect the monorepo. You will configure the build/start commands in the next step — do not let it auto-detect for now.
+Review the API service's variables securely in Railway. Do not paste credentials
+into chat, source control, logs, or screenshots.
 
----
+| Variable | Requirement |
+|---|---|
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | Keep the existing default application database connection. The application still requires this variable at startup. |
+| `RAILWAY_DATABASE_URL` | Required by hospital administration, public hospital reads, reports, and hospital maintenance. It must point to the existing canonical Railway hospital database; there is no fallback to `DATABASE_URL`. |
+| `ADMIN_SECRET` | Keep the existing admin authentication secret. |
+| `SESSION_SECRET` | Keep the existing session/signing secret so existing access and record identities remain valid. |
+| `CORS_ORIGINS` | Allow the actual published web origins that call the API. |
+| `PORT` | Use the port provided by Railway. |
 
-## 2. Add a PostgreSQL service
+In Railway, use service variable references to the intended PostgreSQL service
+rather than copying connection strings. When the API's default store and
+hospital store intentionally use the same Railway database, both variables may
+reference that service. Do not assume this is also true of Replit's default
+database: preserve its existing independent `DATABASE_URL`.
 
-1. Inside the new project, click **+ New Service → Database → PostgreSQL**.
-2. Railway will automatically inject `DATABASE_URL` into your API service. No manual copy-paste needed.
+These are configuration requirements, not confirmation that the external
+Railway service currently has every variable set. Verify before release.
 
----
+## 2. Repository and container settings
 
-## 3. Configure environment variables
+- Connect the GitHub repository and the branch intended for production.
+- Keep the root directory at the repository root, not `artifacts/api-server`.
+  The API build depends on the shared `lib/` workspace packages.
+- `railway.json` selects the root `Dockerfile` and `/api/healthz` health check.
+- The Dockerfile installs dependencies and builds the API. It does not apply
+  database schema changes.
+- The container start command is only:
 
-In the API service's **Variables** tab, add the following:
-
-| Variable | Value | Notes |
-|---|---|---|
-| `NODE_ENV` | `production` | Enables production logging |
-| `ADMIN_SECRET` | *(set a strong unique value)* | Protects the admin dashboard |
-| `SESSION_SECRET` | *(a long random string)* | Used for cookie session signing |
-| `CORS_ORIGINS` | `https://erchoices.com,https://erchoice.replit.app` | Comma-separated list of allowed origins — no trailing slashes. Update if you add more domains. |
-
-> **Do NOT set `DATABASE_URL` or `PORT`** — Railway injects both automatically.
-
----
-
-## 4. Configure build and start commands
-
-In the API service's **Settings → Build** section:
-
-- **Build command:**
-  ```
-  pnpm install --frozen-lockfile && pnpm --filter @workspace/db run push-force && pnpm --filter @workspace/api-server run build
-  ```
-  This installs all workspace packages, pushes the Drizzle schema to the Railway Postgres database, then builds the API bundle.
-
-- **Start command:**
-  ```
+  ```sh
   node --enable-source-maps artifacts/api-server/dist/index.mjs
   ```
 
-- **Health check path:** `/api/healthz`
+Review Railway service-level overrides as well as the repository configuration.
+Remove any existing custom Build, Start, or Pre-deploy command that pushes
+schema, migrates, imports, seeds, enriches, or synchronizes hospital data.
+Prefer the Dockerfile's build and start defaults. Changing this repository does
+not remove an old command stored in Railway's dashboard.
 
-> The `railway.json` file in the repo root already contains these settings. Railway will pick them up automatically if you leave the build/start fields empty.
+Routine deployments and restarts must not create, alter, drop, truncate, seed,
+or import hospital tables. This release needs no database migration.
+An unprovisioned or incompatible database should fail explicitly rather than
+being silently created, replaced, or populated during startup.
 
----
+## 3. Automatic code releases through GitHub
 
-## 5. Deploy
+1. In the API service's Settings → Source, confirm the connected repository and
+   branch.
+2. Enable automatic deployments for that branch if they are disabled.
+3. Commit and push the complete project changes, including shared libraries.
+4. Railway will build the pushed commit and start the new API.
+5. If watch paths are configured, include the API, shared libraries, root
+   package/lock/workspace files, `Dockerfile`, and `railway.json`; otherwise an
+   API dependency change can be skipped. Leaving watch paths unset avoids that
+   accidental omission.
 
-1. Click **Deploy** (or push any commit to trigger a deploy).
-2. Watch the build logs — the `push-force` step will create all tables in the Railway Postgres database.
-3. Once the health check at `/api/healthz` returns `200 OK`, the service is live.
-4. Copy your Railway service URL (e.g. `https://er-choices-api-production.up.railway.app`).
+For a manual deployment of new code, open Railway's command palette and select
+**Deploy Latest Commit**. **Redeploy** on an earlier deployment rebuilds that
+deployment's original code; it does not fetch new workspace changes.
 
----
+Replit republishing is not a native trigger for Railway. The recommended flow
+is to push the same tested code to GitHub for Railway autodeploy, then republish
+the Replit website/admin as appropriate. Do not add a deployment trigger to the
+API startup or health check: normal restarts and health probes must not launch
+more deployments.
 
-## 6. Trigger the CMS hospital import
+Optional: after adding a suitable GitHub Actions workflow, Railway's **Wait for
+CI** can hold a deployment until its checks succeed. Do not enable this without
+the required workflow.
 
-1. Open the admin dashboard at:
-   ```
-   https://<railway-service-url>/api/admin-ui
-   ```
-2. Enter your admin password when prompted.
-3. Click **Run Full Import** (Phase 1 → Phase 2 → Phase 3).
-4. The import processes ~5,426 hospitals. It takes 10–20 minutes. Railway will not interrupt it.
-5. When the status shows "Import complete", verify the hospital count matches.
+References:
+- [Railway GitHub autodeploys](https://docs.railway.com/deployments/github-autodeploys)
+- [Railway deployment actions](https://docs.railway.com/deployments/deployment-actions)
 
----
+## 4. Read-only verification after an approved deployment
 
-## 7. Point the web app at Railway
+Deployment itself must be separately approved. No deployment, external setting,
+database connection, schema operation, or live hospital edit was performed by
+the startup-safety change.
 
-Add the following to `artifacts/er-choices-web/.env.production` (create the file if it doesn't exist):
+1. Confirm Railway built the intended GitHub commit, not a previous deployment.
+2. Check startup logs: they should start Node directly, with no schema or import
+   step.
+3. Confirm `/api/healthz` returns success. This checks that the API is serving;
+   it does not prove database connectivity or correct database selection.
+4. Sign in at `/api/admin-ui` and use a read-only hospital search/state list and
+   Reports view to confirm the canonical store is reachable.
+5. Check public hospital reads against the same existing records. Do not make
+   test edits, run imports, or trigger synchronization to verify a release.
+6. Refresh old admin pages. Web and mobile code changes still require their own
+   coordinated releases; API deploys do not update installed app binaries.
 
-```
-VITE_API_BASE=https://<railway-service-url>/api
-```
+The existing Replit API may still serve the same-origin admin panel. Do not
+remove it merely because the public clients use Railway.
 
-Then redeploy the web app on Replit. The web app already reads `VITE_API_BASE` and falls back to `window.location.origin/api` for local development, so dev mode is unaffected.
+## 5. Database schema changes: separate explicit approval
 
----
+Schema changes are maintenance work, never part of an ordinary build, startup,
+health check, automatic GitHub deployment, or container restart.
 
-## 8. Point the mobile app at Railway
+Before any future schema change:
 
-Update `artifacts/closest-hospital/.env`:
+1. Identify the intended database and environment using read-only checks. The
+   existing `lib/db/drizzle.config.ts` and database push commands target
+   `DATABASE_URL`, not `RAILWAY_DATABASE_URL`. They must not be assumed to target
+   the hospital database.
+2. Prepare and review the proposed SQL/migration separately. Explain affected
+   tables, possible data loss, locks/downtime, and compatibility with both
+   backends and installed Android/Apple clients.
+3. Confirm a restorable backup and a recovery procedure with the database owner.
+4. Obtain explicit approval for the exact operation and production target.
+5. Run only that approved operation as a separately supervised maintenance
+   action, with credentials supplied securely to that operation. Do not
+   permanently repoint either application database variable to select a target.
+6. Verify the result using read-only schema/data checks before releasing code
+   that depends on it.
 
-```
-EXPO_PUBLIC_DOMAIN=<railway-service-url>
-```
-
-Remove the `https://` prefix — the app prepends the scheme itself (check `HospitalContext.tsx` for the exact format used).
-
-Also update the `EXPO_PUBLIC_DOMAIN` secret in Replit's Secrets panel to match, so new EAS builds pick it up.
-
----
-
-## 9. Remove the Replit API server (optional, later)
-
-Once Railway is confirmed healthy:
-1. You can stop the `artifacts/api-server` workflow on Replit to save resources.
-2. The web app and mobile app will now make all requests directly to Railway.
-
----
+Do not use a forced schema push as a shortcut for a reviewed production change.
+No schema command is needed or authorized for this startup-safety release.
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `push-force` fails during build | `DATABASE_URL` not injected yet | Make sure the Postgres service was added *before* the first deploy |
-| CORS errors in browser | `CORS_ORIGINS` missing the web domain | Add the exact origin (no trailing slash) to the `CORS_ORIGINS` env var |
-| Health check never passes | Port mismatch | Railway injects `PORT` automatically; the API reads `process.env.PORT` |
-| Import hangs mid-way | Memory limit on hobby plan | Upgrade Railway plan or re-trigger — import is resumable via Phase 2/3 buttons |
+| Symptom | Action |
+|---|---|
+| Hospital/report routes say `RAILWAY_DATABASE_URL` is missing | Configure the API service's secure reference to the existing canonical hospital database. Do not substitute an unrelated default store. |
+| Startup says `DATABASE_URL` is missing | Restore the existing default-store variable/reference; the API still imports that connection module. |
+| A table or column is missing | Confirm the correct database first. Stop and prepare a separately approved schema change; do not add schema pushes to startup. |
+| CORS blocks the web client | Check that `CORS_ORIGINS` includes the actual published web origin. |
+| Deployment succeeds but old behavior remains | Check the deployed commit and whether an old deployment was redeployed instead of the latest commit. |
+| GitHub push does not deploy | Check autodeploy permissions, branch selection, watch paths, and skipped deployments in Railway. |

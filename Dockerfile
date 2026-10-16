@@ -16,7 +16,6 @@ RUN pnpm --filter @workspace/api-server run build
 
 ENV NODE_ENV=production
 
-# Push DB schema then start the server.
-# push-force runs at container start so DATABASE_URL is guaranteed to be
-# available (Railway injects runtime env vars before CMD).
-CMD sh -c "pnpm --filter @workspace/db run push-force && node --enable-source-maps artifacts/api-server/dist/index.mjs"
+# Normal deploys and restarts only start the API. Schema changes require a
+# separate, explicitly approved operation; see RAILWAY_SETUP.md.
+CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]

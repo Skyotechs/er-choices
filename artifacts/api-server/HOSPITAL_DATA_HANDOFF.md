@@ -78,9 +78,11 @@ The API's actual esbuild build succeeds.
 
 ## Separate existing concerns
 
-The legacy Railway `Dockerfile` still runs a schema push on container startup;
-the API artifact release path modified here does not use that command. Review it
-before a future Railway-container release. Also, the existing `/admin/seed`
+Both the Railway `Dockerfile` and the API artifact now start the API directly,
+without an automatic schema push. See `RAILWAY_SETUP.md` for required database
+variables, service-level override checks, and the separate approval process for
+schema changes. No Railway deployment or external setting was changed by this
+code update. Also, the existing `/admin/seed`
 subprocess points at the module exporting the importer rather than its CLI
 runner. Its routing/configuration is aligned here, but its pre-existing job
 behavior was not changed or exercised against live data.
