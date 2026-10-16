@@ -3,3 +3,4 @@
 - [Hospital report visibility](hospital-report-visibility.md) — admins must be able to see submitted reports and when they were made, not rely only on email alerts.
 - [Admin state-wide review](admin-state-review.md) — admins need all hospitals reachable by state, independently of name search, for large-scale editing.
 - [Hospital data sources](hospital-data-source-alignment.md) — public clients and same-origin admin routes can use different databases; verify both reads and writes.
+- [Speciality classification policy](speciality-classification-policy.md) — use one term for official verified classifications, without overlapping designation edits.
