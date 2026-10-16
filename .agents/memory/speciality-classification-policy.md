@@ -15,16 +15,16 @@ An authority name, source tag, or hospital-wide verification flag does not
 grandfather an existing classification into official verified status. Updated
 clients must not restore such labels through older fallback fields.
 
-Verification is a human admin review of the hospital's exact official
-classification, supported by an authority, source link, and date, not a claim
-that the software authenticated an external registry.
+Admins only need to record the Speciality, since they would have done the research
+to determine it. Saving the classification is sufficient confirmation. Do not
+require an authority name, evidence URL, manually entered date, review-status
+selection, or additional confirmation checkbox.
 
-**Why:** Existing inferred services and generic importer tags do not establish
-an official classification. The user wants those concepts separated without
-overlapping edits, while retaining existing information.
+**Why:** The user said, “admin only needs to record the specialties, since they
+would have done the research to determine the specialty.”
 
-**How to apply:** Preserve old data for manual review, require explicit evidence
-per classification, and describe missing verification as unavailable rather
-than saying the service is absent. Treat public rollout as coordinated API,
-web, and Android work: installed older binaries cannot acquire new evidence
-rules just because an admin page changed.
+**How to apply:** Trust authenticated admin saves, preserve existing optional
+supporting information, and keep imports from automatically confirming legacy
+labels. Describe missing confirmation as unavailable rather than saying the
+service is absent. Coordinate API, website, and Android releases; installed
+older binaries cannot acquire the updated rules just because an admin page changed.

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { hospitalDb as db, hospitalSpecialties } from "@workspace/db";
 import { UpdateAdminHospitalSpecialityBody } from "@workspace/api-zod";
-import { readSpecialityState, validateSpecialityEntries, SPECIALITY_KEY } from "@workspace/speciality";
+import { readSpecialityState, recordAdminSpecialities, SPECIALITY_KEY } from "@workspace/speciality";
 import { hospitalRecordIdentity, requireHospitalIdentity } from "../lib/hospital-store";
 import { specialityProvenanceUpdate } from "../lib/speciality-store";
 
@@ -43,14 +43,20 @@ router.get("/admin/hospitals/:id/speciality", requireAdmin, async (req, res): Pr
   }
 });
 router.put("/admin/hospitals/:id/speciality", requireAdmin, requireHospitalIdentity, async (req, res): Promise<void> => {
-  let entries;
   const parsed = UpdateAdminHospitalSpecialityBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Invalid Speciality update. Include record identity, expected revision, and complete entries." }); return; }
-  try { entries = validateSpecialityEntries(parsed.data.entries); }
-  catch (err) { res.status(400).json({ error: (err as Error).message }); return; }
+  if (!parsed.success) { res.status(400).json({ error: "Invalid Speciality update. Include record identity, expected revision, and classification entries." }); return; }
   const id = Number(req.params.id);
-  const state = { revision: randomUUID(), entries };
   try {
+    const [current] = await db.select().from(hospitalSpecialties).where(eq(hospitalSpecialties.id, id)).limit(1);
+    if (!current) { res.status(404).json({ error: "Hospital not found" }); return; }
+    const previous = readSpecialityState(current.designationSources);
+    if (previous.revision !== parsed.data.expectedRevision) {
+      res.status(409).json({ error: "Speciality changed in another session. Reload before saving." }); return;
+    }
+    let entries;
+    try { entries = recordAdminSpecialities(parsed.data.entries, previous.entries); }
+    catch (err) { res.status(400).json({ error: (err as Error).message }); return; }
+    const state = { revision: randomUUID(), entries };
     const [saved] = await db.update(hospitalSpecialties).set({
       designationSources: specialityProvenanceUpdate(state), updatedAt: new Date(),
     }).where(and(

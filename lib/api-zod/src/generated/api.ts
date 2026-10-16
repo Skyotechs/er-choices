@@ -167,35 +167,40 @@ export const UpdateAdminHospitalSpecialityBody = zod.object({
     .max(updateAdminHospitalSpecialityBodyExpectedRevisionMax),
   entries: zod
     .array(
-      zod.object({
-        category: zod.enum([
-          "Trauma",
-          "Stroke",
-          "Burn",
-          "Pediatric",
-          "Obstetrics",
-          "Psychiatric",
-          "Cardiac",
-          "Cancer",
-          "HazMat",
-        ]),
-        classification: zod
-          .string()
-          .min(1)
-          .max(updateAdminHospitalSpecialityBodyEntriesItemClassificationMax),
-        population: zod.enum(["All", "Adult", "Pediatric"]),
-        status: zod.enum(["unverified", "verified"]),
-        authority: zod
-          .string()
-          .max(updateAdminHospitalSpecialityBodyEntriesItemAuthorityMax),
-        sourceUrl: zod
-          .string()
-          .max(updateAdminHospitalSpecialityBodyEntriesItemSourceUrlMax),
-        verifiedOn: zod
-          .string()
-          .max(updateAdminHospitalSpecialityBodyEntriesItemVerifiedOnMax),
-        officialConfirmed: zod.boolean(),
-      }),
+      zod
+        .object({
+          category: zod.enum([
+            "Trauma",
+            "Stroke",
+            "Burn",
+            "Pediatric",
+            "Obstetrics",
+            "Psychiatric",
+            "Cardiac",
+            "Cancer",
+            "HazMat",
+          ]),
+          classification: zod
+            .string()
+            .min(1)
+            .max(updateAdminHospitalSpecialityBodyEntriesItemClassificationMax),
+          population: zod.enum(["All", "Adult", "Pediatric"]),
+          authority: zod
+            .string()
+            .max(updateAdminHospitalSpecialityBodyEntriesItemAuthorityMax)
+            .optional(),
+          sourceUrl: zod
+            .string()
+            .max(updateAdminHospitalSpecialityBodyEntriesItemSourceUrlMax)
+            .optional(),
+          verifiedOn: zod
+            .string()
+            .max(updateAdminHospitalSpecialityBodyEntriesItemVerifiedOnMax)
+            .optional(),
+        })
+        .describe(
+          "Saving an entry as an authenticated administrator confirms the researched classification. Supporting metadata is optional and retained when omitted.",
+        ),
     )
     .max(updateAdminHospitalSpecialityBodyEntriesMax),
 });

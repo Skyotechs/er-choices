@@ -5,7 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { SpecialityEntry } from "./specialityEntry";
+import type { SpecialityInput } from "./specialityInput";
 
 export interface HospitalSpecialityUpdate {
   /** @maxLength 2048 */
@@ -13,5 +13,5 @@ export interface HospitalSpecialityUpdate {
   /** @maxLength 100 */
   expectedRevision: string;
   /** @maxItems 30 */
-  entries: SpecialityEntry[];
+  entries: SpecialityInput[];
 }

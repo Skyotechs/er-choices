@@ -23,3 +23,6 @@ export * from "./specialityEntry";
 export * from "./specialityEntryCategory";
 export * from "./specialityEntryPopulation";
 export * from "./specialityEntryStatus";
+export * from "./specialityInput";
+export * from "./specialityInputCategory";
+export * from "./specialityInputPopulation";

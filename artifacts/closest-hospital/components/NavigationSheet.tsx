@@ -172,8 +172,9 @@ export function NavigationSheet({
                           .filter((e) => e.category === group.label)
                           .map((e, i) => (
                             <Text key={`${e.classification}-${i}`} style={[styles.evidenceText, { color: colors.mutedForeground }]}>
-                              {e.authority ? `Verified by admin against ${e.authority}` : "Verified by admin"}
-                              {e.verifiedOn ? ` on ${e.verifiedOn}` : ""}
+                              Admin-confirmed
+                              {e.authority ? ` · Authority: ${e.authority}` : ""}
+                              {e.verifiedOn ? ` · Recorded ${e.verifiedOn}` : ""}
                               {/^https:\/\//i.test(e.sourceUrl) ? (
                                 <Text
                                   style={{ color: colors.primary, textDecorationLine: "underline" }}

@@ -9,7 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { parseStateBrowseQuery } from "../lib/state-browse-query";
 import { hospitalRecordIdentity, requireHospitalIdentity, requireHospitalStore } from "../lib/hospital-store";
-import { SPECIALITY_KEY, validateSpecialityEntries } from "@workspace/speciality";
+import { SPECIALITY_KEY, recordAdminSpecialities } from "@workspace/speciality";
 import { preserveSpecialityReview } from "../lib/speciality-store";
 
 /** All fields that can be edited via the admin PATCH endpoint. */
@@ -561,7 +561,7 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
   const body = req.body ?? {};
   let specialities;
   try {
-    specialities = validateSpecialityEntries(body.specialities ?? []);
+    specialities = recordAdminSpecialities(body.specialities ?? []);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message }); return;
   }

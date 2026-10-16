@@ -135,6 +135,17 @@ components:
         sourceUrl: { type: string, maxLength: 2000 }
         verifiedOn: { type: string, maxLength: 10 }
         officialConfirmed: { type: boolean }
+    SpecialityInput:
+      type: object
+      description: Saving an entry as an authenticated administrator confirms the researched classification. Supporting metadata is optional and retained when omitted.
+      required: [category, classification, population]
+      properties:
+        category: { type: string, enum: [Trauma, Stroke, Burn, Pediatric, Obstetrics, Psychiatric, Cardiac, Cancer, HazMat] }
+        classification: { type: string, minLength: 1, maxLength: 200 }
+        population: { type: string, enum: [All, Adult, Pediatric] }
+        authority: { type: string, maxLength: 200 }
+        sourceUrl: { type: string, maxLength: 2000 }
+        verifiedOn: { type: string, maxLength: 10 }
     HospitalSpecialityUpdate:
       type: object
       required: [recordIdentity, expectedRevision, entries]
@@ -144,7 +155,7 @@ components:
         entries:
           type: array
           maxItems: 30
-          items: { $ref: "#/components/schemas/SpecialityEntry" }
+          items: { $ref: "#/components/schemas/SpecialityInput" }
     HospitalSpecialityReview:
       type: object
       required: [id, recordIdentity, revision, entries, legacy]

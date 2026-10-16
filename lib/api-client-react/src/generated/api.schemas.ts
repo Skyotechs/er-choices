@@ -55,13 +55,56 @@ export interface SpecialityEntry {
   officialConfirmed: boolean;
 }
 
+export type SpecialityInputCategory =
+  (typeof SpecialityInputCategory)[keyof typeof SpecialityInputCategory];
+
+export const SpecialityInputCategory = {
+  Trauma: "Trauma",
+  Stroke: "Stroke",
+  Burn: "Burn",
+  Pediatric: "Pediatric",
+  Obstetrics: "Obstetrics",
+  Psychiatric: "Psychiatric",
+  Cardiac: "Cardiac",
+  Cancer: "Cancer",
+  HazMat: "HazMat",
+} as const;
+
+export type SpecialityInputPopulation =
+  (typeof SpecialityInputPopulation)[keyof typeof SpecialityInputPopulation];
+
+export const SpecialityInputPopulation = {
+  All: "All",
+  Adult: "Adult",
+  Pediatric: "Pediatric",
+} as const;
+
+/**
+ * Saving an entry as an authenticated administrator confirms the researched classification. Supporting metadata is optional and retained when omitted.
+ */
+export interface SpecialityInput {
+  category: SpecialityInputCategory;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  classification: string;
+  population: SpecialityInputPopulation;
+  /** @maxLength 200 */
+  authority?: string;
+  /** @maxLength 2000 */
+  sourceUrl?: string;
+  /** @maxLength 10 */
+  verifiedOn?: string;
+}
+
 export interface HospitalSpecialityUpdate {
   /** @maxLength 2048 */
   recordIdentity: string;
   /** @maxLength 100 */
   expectedRevision: string;
   /** @maxItems 30 */
-  entries: SpecialityEntry[];
+  entries: SpecialityInput[];
 }
 
 export type HospitalSpecialityReviewLegacy = { [key: string]: unknown };

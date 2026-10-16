@@ -2,15 +2,16 @@
 
 ## Storage and verification
 
-Official classifications use per-entry evidence, not the hospital-wide
-`verified` flag or legacy importer source tags. Admin verification is an
-explicit human assertion that the linked official record was checked for that
-hospital and classification; the software does not certify the external
-authority or automatically inspect the linked page.
+Official classifications are confirmed by an authenticated admin saving the
+Speciality after doing their research. Authority, evidence URL, date, status
+selection and a separate confirmation checkbox are not required in the editor.
+The software does not verify external registries. The hospital-wide `verified`
+flag and legacy importer tags still do not automatically confirm classifications.
 
-Entries contain category, exact classification, population, review status,
-authority, HTTPS evidence URL, verification date, and official-record
-confirmation. Only complete verified entries are used publicly. One current
+Admins enter category, exact classification and population. The server records
+confirmation and a date automatically. Previously saved authority/source/date
+metadata is optional and retained for unchanged entries when omitted. Only
+admin-confirmed entries are used publicly. One current
 classification per category and overlapping population prevents contradictory
 labels. Adult and pediatric entries may coexist.
 
@@ -40,27 +41,27 @@ preserving all existing legacy source keys and hospital fields.
 4. Refresh open admin pages. Old classification write endpoints and overlapping
    legacy fields now reject changes with a reload/use-editor message. Ordinary
    non-classification hospital edits and report workflows are unchanged.
-5. Review legacy evidence manually. An empty verified list initially is expected:
+5. Record researched legacy classifications through the admin editor. An empty confirmed list initially is expected:
    neither importer tags nor hospital-wide flags have been promoted into
-   official classifications. Do not run a bulk certification or invent evidence.
+   official classifications. Do not run a bulk certification.
 
 Updated clients presented with an old API fail closed for Speciality and show
 verification unavailable; hospitals remain visible under All Speciality.
 Public API response shapes keep legacy category/string fields for installed
 clients, projected from reviewed entries where possible, and preserve service
 information separately. Existing installed binaries have older fallback logic;
-they cannot gain the new evidence rules until updated. Release the backend,
+they cannot gain the new admin-confirmation rules until updated. Release the backend,
 website, and Android changes together before representing the rollout as complete.
 
 ## Verification and limitations
 
-Isolated router fixtures cover create, evidence save/reload, revision conflicts,
+Isolated router fixtures cover classification-only create/save/reload, revision conflicts,
 identity/auth checks, connection failures, preserved legacy values, public
-projection, and import preservation. Shared-rule tests cover evidence validation,
+projection, optional metadata preservation, and import preservation. Shared-rule tests cover confirmation validation,
 duplicates/conflicts, and identical web/Android filtering. No live hospital rows
 or official verification evidence are created or changed as tests.
 
-Evidence dates record when the administrator checked the authority. This release
-does not automatically expire entries, validate authority registries, or keep
-a full edit-history ledger. Rechecking stale evidence and recording audit history
-are separate improvements.
+For new entries the stored date is the admin recording date; historical dates
+remain unchanged for unchanged entries. This release does not automatically
+expire entries, validate authority registries, or keep a full edit-history ledger.
+Rechecking classifications and recording audit history are separate improvements.

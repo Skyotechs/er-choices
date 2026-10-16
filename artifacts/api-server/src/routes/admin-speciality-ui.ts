@@ -55,7 +55,7 @@ export function specialityEditorHtml(prefix: "edit" | "add"): string {
   return `
             <div class="section-title">Speciality (official classifications)</div>
             <div class="sp-wrap" id="sp-${prefix}">
-              <div class="sp-note">Record only the hospital's exact classification as published by the designating authority. Mark an entry verified only after you personally checked the official record. Services such as PCI, beds, helipad and service line are captured separately below and are not Speciality.</div>
+              <div class="sp-note">Enter the Speciality you have researched for this hospital. Saving confirms the classification and makes it available in the website and app. No evidence link, authority, date, or extra confirmation is required. Services such as PCI, beds, helipad and service line remain separate below.</div>
               ${isEdit ? `<div class="sp-state" id="sp-edit-state"></div>
               <div id="sp-edit-legacy"></div>` : ""}
               <div id="sp-${prefix}-list"></div>
@@ -79,7 +79,7 @@ const sp = {
   edit: { entries: [], loadedFor: null, identity: null, revision: null, ready: false, dirty: false, saving: false, conflict: false, reqSeq: 0 },
 };
 function spBlank() {
-  return { category: 'Trauma', classification: '', population: 'All', status: 'unverified', authority: '', sourceUrl: '', verifiedOn: '', officialConfirmed: false };
+  return { category: 'Trauma', classification: '', population: 'All', status: 'verified', authority: '', sourceUrl: '', verifiedOn: '', officialConfirmed: true };
 }
 function spOpts(list, cur) {
   return list.map(function (v) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
@@ -97,16 +97,11 @@ function spRender(prefix) {
       const dis = locked ? ' disabled' : '';
       const on = 'oninput="spField(\\'' + prefix + '\\',' + i + ',this)" onchange="spField(\\'' + prefix + '\\',' + i + ',this)"';
       return '<div class="sp-entry' + (v ? ' verified' : '') + '">' +
-        '<div class="sp-entry-head"><span class="sp-pill' + (v ? ' ok' : '') + '">' + (v ? 'Verified' : 'Unverified') + '</span>Entry ' + (i + 1) +
+        '<div class="sp-entry-head"><span class="sp-pill' + (v ? ' ok' : '') + '">' + (v ? 'Admin confirmed on save' : 'Pending admin save') + '</span>Entry ' + (i + 1) +
         '<button type="button" class="btn btn-danger btn-sm" style="margin-left:auto"' + dis + ' onclick="spRemove(\\'' + prefix + '\\',' + i + ')">Remove</button></div>' +
         '<div class="field"><label class="field-label">Category</label><select data-k="category" ' + on + dis + '>' + spOpts(SP_CATEGORIES, e.category) + '</select></div>' +
         '<div class="field"><label class="field-label">Population</label><select data-k="population" ' + on + dis + '>' + spOpts(SP_POPULATIONS, e.population) + '</select></div>' +
-        '<div class="field"><label class="field-label">Review status</label><select data-k="status" ' + on + dis + '>' + spOpts(['unverified','verified'], e.status) + '</select></div>' +
         '<div class="field full" style="grid-column:1/-1"><label class="field-label">Exact official classification *</label><input type="text" maxlength="200" data-k="classification" value="' + esc(e.classification) + '" placeholder="e.g. Level II Trauma Center" ' + on + dis + '></div>' +
-        '<div class="field"><label class="field-label">Authority</label><input type="text" maxlength="200" data-k="authority" value="' + esc(e.authority) + '" placeholder="Designating body" ' + on + dis + '></div>' +
-        '<div class="field wide"><label class="field-label">Evidence URL (https)</label><input type="url" maxlength="2000" data-k="sourceUrl" value="' + esc(e.sourceUrl) + '" placeholder="https://" ' + on + dis + '></div>' +
-        '<div class="field"><label class="field-label">Verified on</label><input type="date" data-k="verifiedOn" value="' + esc(e.verifiedOn) + '" max="' + new Date().toISOString().slice(0, 10) + '" ' + on + dis + '></div>' +
-        '<label class="sp-confirm"><input type="checkbox" data-k="officialConfirmed"' + (e.officialConfirmed ? ' checked' : '') + ' ' + on + dis + '>I checked this hospital\\'s exact classification against the official authority record myself. Required to mark verified.</label>' +
         '</div>';
     }).join('');
   }
@@ -120,7 +115,6 @@ function spField(prefix, i, el) {
   const k = el.dataset.k;
   e[k] = el.type === 'checkbox' ? el.checked : el.value;
   if (prefix === 'edit') { sp.edit.dirty = true; spEditChrome(); }
-  if (k === 'status' || k === 'officialConfirmed') spRender(prefix);
 }
 function spAddRow(prefix) {
   const st = sp[prefix];
@@ -139,14 +133,10 @@ function spRemove(prefix, i) {
 }
 /** Client-side pre-check; the server remains authoritative. */
 function spValidate(entries) {
-  const today = new Date().toISOString().slice(0, 10);
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i], n = 'Entry ' + (i + 1) + ': ';
     if (!e.classification.trim()) return n + 'enter the exact official classification.';
-    if (e.sourceUrl.trim() && !/^https:\\/\\/[^\\s@]+\\.[^\\s]+$/i.test(e.sourceUrl.trim())) return n + 'evidence URL must be a public https link.';
-    if (e.verifiedOn && e.verifiedOn > today) return n + 'verification date cannot be in the future.';
-    if (e.status === 'verified' && (!e.authority.trim() || !e.sourceUrl.trim() || !e.verifiedOn || !e.officialConfirmed))
-      return n + 'verified requires authority, evidence URL, date, and the official-record confirmation checkbox.';
+    if (e.classification.trim().toLowerCase() === e.category.toLowerCase()) return n + 'include the official level or classification, not only the category.';
     for (let j = 0; j < i; j++) {
       const o = entries[j];
       if (o.category === e.category && (o.population === e.population || o.population === 'All' || e.population === 'All'))
@@ -157,8 +147,7 @@ function spValidate(entries) {
 }
 function spClean(entries) {
   return entries.map(function (e) {
-    return { category: e.category, classification: e.classification.trim(), population: e.population, status: e.status,
-      authority: e.authority.trim(), sourceUrl: e.sourceUrl.trim(), verifiedOn: e.verifiedOn || '', officialConfirmed: !!e.officialConfirmed };
+    return { category: e.category, classification: e.classification.trim(), population: e.population };
   });
 }
 

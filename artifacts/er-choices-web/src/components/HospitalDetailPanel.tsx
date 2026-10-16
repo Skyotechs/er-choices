@@ -92,8 +92,9 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
                       .filter((e) => e.category === group.label)
                       .map((e, i) => (
                         <li key={`${e.classification}-${i}`} className="text-xs text-muted-foreground">
-                          {e.authority ? `Verified by admin against ${e.authority}` : "Verified by admin"}
-                          {e.verifiedOn ? ` on ${e.verifiedOn}` : ""}
+                          Admin-confirmed
+                          {e.authority ? ` · Authority: ${e.authority}` : ""}
+                          {e.verifiedOn ? ` · Recorded ${e.verifiedOn}` : ""}
                           {/^https:\/\//i.test(e.sourceUrl) && (
                             <>
                               {" · "}

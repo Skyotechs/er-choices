@@ -25,7 +25,7 @@ const object = (value: unknown): Record<string, unknown> =>
     ? value as Record<string, unknown> : {};
 const normal = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 
-/** A human must check an official record; populated fields alone are not verification. */
+/** Admin confirmation, not importer tags or hospital-wide flags, is authoritative. */
 export function validateSpecialityEntries(input: unknown, today = new Date().toISOString().slice(0, 10)): SpecialityEntry[] {
   if (!Array.isArray(input) || input.length > 30) throw new Error("Speciality must be a list of at most 30 entries.");
   const entries: SpecialityEntry[] = input.map((raw, index) => {
@@ -57,8 +57,8 @@ export function validateSpecialityEntries(input: unknown, today = new Date().toI
         !Number.isFinite(Date.parse(entry.verifiedOn)) ||
         new Date(entry.verifiedOn).toISOString().slice(0, 10) !== entry.verifiedOn ||
         entry.verifiedOn > today)) throw new Error(`Entry ${index + 1}: use a valid verification date that is not in the future.`);
-    if (entry.status === "verified" && (!entry.authority || !entry.sourceUrl || !entry.verifiedOn || !entry.officialConfirmed)) {
-      throw new Error(`Entry ${index + 1}: verified Speciality requires an official authority, evidence URL, verification date, and confirmation that you checked the hospital's official classification.`);
+    if (entry.status === "verified" && !entry.officialConfirmed) {
+      throw new Error(`Entry ${index + 1}: Speciality must be confirmed through the admin editor.`);
     }
     return entry;
   });
@@ -70,6 +70,27 @@ export function validateSpecialityEntries(input: unknown, today = new Date().toI
     throw new Error("Conflicting Speciality entries: use one current classification per category and population. Keep unresolved evidence in review, not as competing entries.");
   }
   return entries;
+}
+
+/**
+ * Call only at an authenticated admin write boundary. Saving is the admin's
+ * confirmation; evidence fields are optional. Never apply this to imported data.
+ */
+export function recordAdminSpecialities(input: unknown, previous: SpecialityEntry[] = [], today = new Date().toISOString().slice(0, 10)): SpecialityEntry[] {
+  if (!Array.isArray(input)) throw new Error("Speciality must be a list.");
+  return validateSpecialityEntries(input.map(value => {
+    const row = object(value);
+    const existing = previous.find(entry => entry.category === row.category &&
+      entry.population === row.population && typeof row.classification === "string" &&
+      normal(entry.classification) === normal(row.classification));
+    return {
+      ...row,
+      authority: row.authority ?? existing?.authority ?? "",
+      sourceUrl: row.sourceUrl ?? existing?.sourceUrl ?? "",
+      verifiedOn: row.verifiedOn || existing?.verifiedOn || today,
+      status: "verified", officialConfirmed: true,
+    };
+  }), today);
 }
 
 /** Missing legacy data is explicitly unreviewed; never consult hospital-wide verified. */
