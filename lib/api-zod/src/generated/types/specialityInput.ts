@@ -9,16 +9,14 @@ import type { SpecialityInputCategory } from "./specialityInputCategory";
 import type { SpecialityInputPopulation } from "./specialityInputPopulation";
 
 /**
- * Saving an entry as an authenticated administrator confirms the researched classification. Supporting metadata is optional and retained when omitted.
+ * Enter a category/speciality OR a classification/level. Saving as an authenticated administrator confirms the researched entry. Population and supporting metadata are optional; existing details are retained.
  */
 export interface SpecialityInput {
-  category: SpecialityInputCategory;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  classification: string;
-  population: SpecialityInputPopulation;
+  /** @nullable */
+  category?: SpecialityInputCategory;
+  /** @maxLength 200 */
+  classification?: string;
+  population?: SpecialityInputPopulation;
   /** @maxLength 200 */
   authority?: string;
   /** @maxLength 2000 */

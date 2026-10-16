@@ -169,7 +169,7 @@ export function NavigationSheet({
                           </Text>
                         ))}
                         {verified
-                          .filter((e) => e.category === group.label)
+                          .filter((e) => (e.category ?? "Speciality") === group.label)
                           .map((e, i) => (
                             <Text key={`${e.classification}-${i}`} style={[styles.evidenceText, { color: colors.mutedForeground }]}>
                               Admin-confirmed

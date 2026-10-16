@@ -6,8 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * @nullable
+ */
 export type SpecialityEntryCategory =
-  (typeof SpecialityEntryCategory)[keyof typeof SpecialityEntryCategory];
+  | (typeof SpecialityEntryCategory)[keyof typeof SpecialityEntryCategory]
+  | null;
 
 export const SpecialityEntryCategory = {
   Trauma: "Trauma",

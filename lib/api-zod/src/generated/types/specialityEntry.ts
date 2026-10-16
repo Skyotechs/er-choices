@@ -10,6 +10,7 @@ import type { SpecialityEntryPopulation } from "./specialityEntryPopulation";
 import type { SpecialityEntryStatus } from "./specialityEntryStatus";
 
 export interface SpecialityEntry {
+  /** @nullable */
   category: SpecialityEntryCategory;
   /**
    * @minLength 1

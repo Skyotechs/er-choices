@@ -5,8 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * @nullable
+ */
 export type SpecialityEntryCategory =
-  (typeof SpecialityEntryCategory)[keyof typeof SpecialityEntryCategory];
+  | (typeof SpecialityEntryCategory)[keyof typeof SpecialityEntryCategory]
+  | null;
 
 export const SpecialityEntryCategory = {
   Trauma: "Trauma",
@@ -38,6 +42,7 @@ export const SpecialityEntryStatus = {
 } as const;
 
 export interface SpecialityEntry {
+  /** @nullable */
   category: SpecialityEntryCategory;
   /**
    * @minLength 1
@@ -55,8 +60,12 @@ export interface SpecialityEntry {
   officialConfirmed: boolean;
 }
 
+/**
+ * @nullable
+ */
 export type SpecialityInputCategory =
-  (typeof SpecialityInputCategory)[keyof typeof SpecialityInputCategory];
+  | (typeof SpecialityInputCategory)[keyof typeof SpecialityInputCategory]
+  | null;
 
 export const SpecialityInputCategory = {
   Trauma: "Trauma",
@@ -80,16 +89,14 @@ export const SpecialityInputPopulation = {
 } as const;
 
 /**
- * Saving an entry as an authenticated administrator confirms the researched classification. Supporting metadata is optional and retained when omitted.
+ * Enter a category/speciality OR a classification/level. Saving as an authenticated administrator confirms the researched entry. Population and supporting metadata are optional; existing details are retained.
  */
 export interface SpecialityInput {
-  category: SpecialityInputCategory;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  classification: string;
-  population: SpecialityInputPopulation;
+  /** @nullable */
+  category?: SpecialityInputCategory;
+  /** @maxLength 200 */
+  classification?: string;
+  population?: SpecialityInputPopulation;
   /** @maxLength 200 */
   authority?: string;
   /** @maxLength 2000 */

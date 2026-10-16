@@ -6,7 +6,7 @@ export const SPECIALITY_CATEGORIES = [
 ] as const;
 export type SpecialityCategory = typeof SPECIALITY_CATEGORIES[number];
 export interface SpecialityEntry {
-  category: SpecialityCategory;
+  category: SpecialityCategory | null;
   classification: string;
   population: "Adult" | "Pediatric" | "All";
   status: "unverified" | "verified";
@@ -34,20 +34,19 @@ export function validateSpecialityEntries(input: unknown, today = new Date().toI
       if (typeof row[key] !== "string" || row[key].length > max) throw new Error(`Entry ${index + 1}: invalid ${key}.`);
       return row[key].trim();
     };
-    if (!(SPECIALITY_CATEGORIES as readonly unknown[]).includes(row.category)) throw new Error(`Entry ${index + 1}: choose a Speciality category.`);
+    if (row.category !== null && !(SPECIALITY_CATEGORIES as readonly unknown[]).includes(row.category)) throw new Error(`Entry ${index + 1}: invalid Speciality category.`);
     if (!["All", "Adult", "Pediatric"].includes(String(row.population))) throw new Error(`Entry ${index + 1}: choose the population.`);
     if (!["unverified", "verified"].includes(String(row.status))) throw new Error(`Entry ${index + 1}: invalid review status.`);
     if (typeof row.officialConfirmed !== "boolean") throw new Error(`Entry ${index + 1}: official confirmation must be explicit.`);
     const entry: SpecialityEntry = {
-      category: row.category as SpecialityCategory,
+      category: row.category as SpecialityCategory | null,
       population: row.population as SpecialityEntry["population"],
       status: row.status as SpecialityEntry["status"],
       classification: text("classification", 200), authority: text("authority", 200),
       sourceUrl: text("sourceUrl", 2000), verifiedOn: text("verifiedOn", 10),
       officialConfirmed: row.officialConfirmed,
     };
-    if (!entry.classification) throw new Error(`Entry ${index + 1}: enter the exact official classification, not just a service category.`);
-    if (normal(entry.classification) === normal(entry.category)) throw new Error(`Entry ${index + 1}: a category alone is not an exact official classification.`);
+    if (!entry.classification) throw new Error(`Entry ${index + 1}: enter a category/speciality or classification/level.`);
     if (entry.sourceUrl) {
       let url: URL;
       try { url = new URL(entry.sourceUrl); } catch { throw new Error(`Entry ${index + 1}: invalid evidence URL.`); }
@@ -65,6 +64,7 @@ export function validateSpecialityEntries(input: unknown, today = new Date().toI
   for (let i = 0; i < entries.length; i++) for (let j = 0; j < i; j++) {
     const a = entries[i], b = entries[j];
     if (a.category !== b.category) continue;
+    if (a.category === null && normal(a.classification) !== normal(b.classification)) continue;
     if (a.population !== b.population && a.population !== "All" && b.population !== "All") continue;
     if (normal(a.classification) === normal(b.classification)) throw new Error("Duplicate Speciality entry for the same category and population.");
     throw new Error("Conflicting Speciality entries: use one current classification per category and population. Keep unresolved evidence in review, not as competing entries.");
@@ -80,11 +80,15 @@ export function recordAdminSpecialities(input: unknown, previous: SpecialityEntr
   if (!Array.isArray(input)) throw new Error("Speciality must be a list.");
   return validateSpecialityEntries(input.map(value => {
     const row = object(value);
-    const existing = previous.find(entry => entry.category === row.category &&
-      entry.population === row.population && typeof row.classification === "string" &&
-      normal(entry.classification) === normal(row.classification));
+    const category = row.category === "" || row.category == null ? null : row.category;
+    const classification = typeof row.classification === "string"
+      ? row.classification.trim() || category : row.classification === undefined ? category : row.classification;
+    const population = row.population ?? "All";
+    const existing = previous.find(entry => entry.category === category &&
+      entry.population === population && typeof classification === "string" &&
+      normal(entry.classification) === normal(classification));
     return {
-      ...row,
+      ...row, category, classification, population,
       authority: row.authority ?? existing?.authority ?? "",
       sourceUrl: row.sourceUrl ?? existing?.sourceUrl ?? "",
       verifiedOn: row.verifiedOn || existing?.verifiedOn || today,
@@ -108,16 +112,17 @@ export function verifiedSpecialityEntries(input: unknown): SpecialityEntry[] {
 }
 export function specialityCategories(input: unknown): SpecialityCategory[] {
   return [...new Set(verifiedSpecialityEntries(input).flatMap(entry =>
-    entry.population === "Pediatric" && entry.category !== "Pediatric"
+    entry.category === null ? [] : entry.population === "Pediatric" && entry.category !== "Pediatric"
       ? [entry.category, "Pediatric" as const] : [entry.category]))];
 }
 export function specialityGroups(input: unknown): Array<{ label: string; subs: string[] }> {
   const groups = new Map<string, string[]>();
   for (const entry of verifiedSpecialityEntries(input)) {
-    const subs = groups.get(entry.category) ?? [];
+    const category = entry.category ?? "Speciality";
+    const subs = groups.get(category) ?? [];
     const label = entry.population === "All" ? entry.classification : `${entry.population} — ${entry.classification}`;
-    if (!subs.includes(label)) subs.push(label);
-    groups.set(entry.category, subs);
+    if (normal(label) !== normal(category) && !subs.includes(label)) subs.push(label);
+    groups.set(category, subs);
   }
   return [...groups].map(([label, subs]) => ({ label, subs }));
 }

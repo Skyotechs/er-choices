@@ -89,7 +89,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
                   )}
                   <ul className="mt-1 pl-1 space-y-1">
                     {verifiedEntries
-                      .filter((e) => e.category === group.label)
+                      .filter((e) => (e.category ?? "Speciality") === group.label)
                       .map((e, i) => (
                         <li key={`${e.classification}-${i}`} className="text-xs text-muted-foreground">
                           Admin-confirmed

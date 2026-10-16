@@ -32,7 +32,9 @@ export function publicSpeciality(sources: unknown) {
     categories: specialityCategories(specialities),
     // Shape-compatible projection for old clients. Raw legacy classifications
     // stay in the admin review, never masquerade as verified public labels.
-    specialties: specialities.map(e => `${e.category} - ${e.population === "All" ? "" : `${e.population} `}${e.classification}`),
+    specialties: specialities.map(e => e.category && e.classification !== e.category
+      ? `${e.category} - ${e.population === "All" ? "" : `${e.population} `}${e.classification}`
+      : `${e.population === "All" ? "" : `${e.population} `}${e.classification}`),
     actualDesignation: specialities.filter(e => e.category === "Trauma").map(e => e.classification).join("; ") || null,
     strokeDesignation: specialities.find(e => e.category === "Stroke")?.classification ?? null,
     burnDesignation: specialities.find(e => e.category === "Burn")?.classification ?? null,

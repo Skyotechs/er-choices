@@ -104,17 +104,20 @@ export const GetAdminHospitalSpecialityResponse = zod.object({
   revision: zod.string(),
   entries: zod.array(
     zod.object({
-      category: zod.enum([
-        "Trauma",
-        "Stroke",
-        "Burn",
-        "Pediatric",
-        "Obstetrics",
-        "Psychiatric",
-        "Cardiac",
-        "Cancer",
-        "HazMat",
-      ]),
+      category: zod
+        .union([
+          zod.literal("Trauma"),
+          zod.literal("Stroke"),
+          zod.literal("Burn"),
+          zod.literal("Pediatric"),
+          zod.literal("Obstetrics"),
+          zod.literal("Psychiatric"),
+          zod.literal("Cardiac"),
+          zod.literal("Cancer"),
+          zod.literal("HazMat"),
+          zod.literal(null),
+        ])
+        .nullable(),
       classification: zod
         .string()
         .min(1)
@@ -169,22 +172,25 @@ export const UpdateAdminHospitalSpecialityBody = zod.object({
     .array(
       zod
         .object({
-          category: zod.enum([
-            "Trauma",
-            "Stroke",
-            "Burn",
-            "Pediatric",
-            "Obstetrics",
-            "Psychiatric",
-            "Cardiac",
-            "Cancer",
-            "HazMat",
-          ]),
+          category: zod
+            .union([
+              zod.literal("Trauma"),
+              zod.literal("Stroke"),
+              zod.literal("Burn"),
+              zod.literal("Pediatric"),
+              zod.literal("Obstetrics"),
+              zod.literal("Psychiatric"),
+              zod.literal("Cardiac"),
+              zod.literal("Cancer"),
+              zod.literal("HazMat"),
+              zod.literal(null),
+            ])
+            .nullish(),
           classification: zod
             .string()
-            .min(1)
-            .max(updateAdminHospitalSpecialityBodyEntriesItemClassificationMax),
-          population: zod.enum(["All", "Adult", "Pediatric"]),
+            .max(updateAdminHospitalSpecialityBodyEntriesItemClassificationMax)
+            .optional(),
+          population: zod.enum(["All", "Adult", "Pediatric"]).optional(),
           authority: zod
             .string()
             .max(updateAdminHospitalSpecialityBodyEntriesItemAuthorityMax)
@@ -199,7 +205,7 @@ export const UpdateAdminHospitalSpecialityBody = zod.object({
             .optional(),
         })
         .describe(
-          "Saving an entry as an authenticated administrator confirms the researched classification. Supporting metadata is optional and retained when omitted.",
+          "Enter a category\/speciality OR a classification\/level. Saving as an authenticated administrator confirms the researched entry. Population and supporting metadata are optional; existing details are retained.",
         ),
     )
     .max(updateAdminHospitalSpecialityBodyEntriesMax),
@@ -219,17 +225,20 @@ export const UpdateAdminHospitalSpecialityResponse = zod.object({
   revision: zod.string(),
   entries: zod.array(
     zod.object({
-      category: zod.enum([
-        "Trauma",
-        "Stroke",
-        "Burn",
-        "Pediatric",
-        "Obstetrics",
-        "Psychiatric",
-        "Cardiac",
-        "Cancer",
-        "HazMat",
-      ]),
+      category: zod
+        .union([
+          zod.literal("Trauma"),
+          zod.literal("Stroke"),
+          zod.literal("Burn"),
+          zod.literal("Pediatric"),
+          zod.literal("Obstetrics"),
+          zod.literal("Psychiatric"),
+          zod.literal("Cardiac"),
+          zod.literal("Cancer"),
+          zod.literal("HazMat"),
+          zod.literal(null),
+        ])
+        .nullable(),
       classification: zod
         .string()
         .min(1)
@@ -282,17 +291,20 @@ export const GetNearbyHospitalsResponse = zod.object({
       categories: zod.array(zod.string()),
       specialities: zod.array(
         zod.object({
-          category: zod.enum([
-            "Trauma",
-            "Stroke",
-            "Burn",
-            "Pediatric",
-            "Obstetrics",
-            "Psychiatric",
-            "Cardiac",
-            "Cancer",
-            "HazMat",
-          ]),
+          category: zod
+            .union([
+              zod.literal("Trauma"),
+              zod.literal("Stroke"),
+              zod.literal("Burn"),
+              zod.literal("Pediatric"),
+              zod.literal("Obstetrics"),
+              zod.literal("Psychiatric"),
+              zod.literal("Cardiac"),
+              zod.literal("Cancer"),
+              zod.literal("HazMat"),
+              zod.literal(null),
+            ])
+            .nullable(),
           classification: zod
             .string()
             .min(1)

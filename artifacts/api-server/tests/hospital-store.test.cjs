@@ -353,7 +353,7 @@ test("unsupported evidence, legacy patches, stale identity, and unauthenticated 
   const identity = f.identity.hospitalRecordIdentity(f.records[0]);
   const before = JSON.stringify(f.records);
   for (const entries of [
-    [verifiedEntry({ classification: "" })], [verifiedEntry({ sourceUrl: "javascript:alert(1)" })],
+    [verifiedEntry({ category: null, classification: "" })], [verifiedEntry({ sourceUrl: "javascript:alert(1)" })],
     [verifiedEntry(), verifiedEntry({ classification: "Primary Stroke Center" })],
   ]) {
     const r = await f.request("put", "/admin/hospitals/1/speciality", { recordIdentity: identity, expectedRevision: "", entries });
@@ -376,7 +376,7 @@ test("new hospital speciality is created in the same insert; unverified legacy a
   assert.equal(added.payload.hospital.designationSources._specialityV1.entries[0].officialConfirmed, true);
   assert.equal(added.payload.hospital.designationSources._specialityV1.entries[0].authority, "");
   const n = f.records.length;
-  assert.equal((await f.request("post", "/admin/hospitals", { hospitalName: "Invalid", state: "TX", specialities: [verifiedEntry({ classification: "" })] })).status, 400);
+  assert.equal((await f.request("post", "/admin/hospitals", { hospitalName: "Invalid", state: "TX", specialities: [verifiedEntry({ category: null, classification: "" })] })).status, 400);
   assert.equal(f.records.length, n);
   f.setUnavailable();
   assert.equal((await f.request("get", "/admin/hospitals/1/speciality")).status, 503);
@@ -405,6 +405,32 @@ test("admin save accepts only classification fields, publishes without evidence,
   assert.equal(unchanged.payload.entries[0].authority, verifiedEntry().authority);
   assert.equal(unchanged.payload.entries[0].sourceUrl, verifiedEntry().sourceUrl);
   assert.equal(unchanged.payload.entries[0].verifiedOn, verifiedEntry().verifiedOn);
+});
+test("category-only and level-only create/edit/reload remain visible publicly without requiring both or guessing Trauma", async () => {
+  const f = fixture();
+  const first = await f.request("post", "/admin/hospitals", {
+    hospitalName: "Fixture category-only", state: "TX", specialities: [{ category: "Trauma" }],
+  });
+  assert.equal(first.status, 201);
+  assert.equal(first.payload.hospital.designationSources._specialityV1.entries[0].classification, "Trauma");
+  const initial = (await f.request("get", "/admin/hospitals/1/speciality")).payload;
+  const saved = await f.request("put", "/admin/hospitals/1/speciality", {
+    recordIdentity: initial.recordIdentity, expectedRevision: "", entries: [{ classification: "Level II" }],
+  });
+  assert.equal(saved.status, 200);
+  const reloaded = (await f.request("get", "/admin/hospitals/1/speciality")).payload;
+  assert.equal(reloaded.entries[0].category, null);
+  assert.equal(reloaded.entries[0].classification, "Level II");
+  const publicRow = (await f.request("get", "/hospitals/nearby?lat=1&lon=2")).payload.hospitals[0];
+  assert.equal(publicRow.specialities[0].classification, "Level II");
+  assert.equal(publicRow.categories.length, 0);
+  assert.equal(publicRow.actualDesignation, null);
+  assert.equal(publicRow.specialties[0], "Level II");
+  const before = JSON.stringify(f.records);
+  assert.equal((await f.request("put", "/admin/hospitals/1/speciality", {
+    recordIdentity: initial.recordIdentity, expectedRevision: reloaded.revision, entries: [{}],
+  })).status, 400);
+  assert.equal(JSON.stringify(f.records), before);
 });
 test("legacy CSV imports preserve the current evidence namespace and never certify incoming strings", async () => {
   const f = fixture();
@@ -564,6 +590,12 @@ test("the rendered admin editor sends the loaded identity for save and both stat
   assert.equal(vm.runInContext("sp.edit.loadedFor", context), 99);
   assert.equal(vm.runInContext("sp.edit.entries.length", context), 0);
   const editor = compile("../src/routes/admin-speciality-ui.ts", {});
-  assert.doesNotMatch(editor.SPECIALITY_SCRIPT, /data-k="(?:authority|sourceUrl|verifiedOn|status|officialConfirmed)"/);
+  assert.doesNotMatch(editor.SPECIALITY_SCRIPT, /data-k="(?:authority|sourceUrl|verifiedOn|status|officialConfirmed|population)"/);
   assert.equal(vm.runInContext(`spValidate([{category:"Trauma",classification:"Level II Trauma Center",population:"All"}])`, context), null);
+  assert.equal(vm.runInContext(`spValidate([{category:"Trauma",classification:"",population:"All"}])`, context), null);
+  assert.equal(vm.runInContext(`spValidate([{category:"",classification:"Level II",population:"All"}])`, context), null);
+  assert.match(vm.runInContext(`spValidate([{category:"",classification:"",population:"All"}])`, context), /OR/);
+  // Category-only reloading leaves the alternative input blank; population on old entries stays intact.
+  assert.equal(vm.runInContext(`spEntryForEditor({category:"Trauma",classification:"Trauma",population:"Adult"}).classification`, context), "");
+  assert.equal(vm.runInContext(`spClean([spEntryForEditor({category:"Trauma",classification:"Trauma",population:"Adult"})])[0].population`, context), "Adult");
 });

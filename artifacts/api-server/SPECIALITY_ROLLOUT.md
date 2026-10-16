@@ -8,8 +8,13 @@ selection and a separate confirmation checkbox are not required in the editor.
 The software does not verify external registries. The hospital-wide `verified`
 flag and legacy importer tags still do not automatically confirm classifications.
 
-Admins enter category, exact classification and population. The server records
-confirmation and a date automatically. Previously saved authority/source/date
+Admins enter a category/speciality OR an exact classification/level. Either
+alone is sufficient. The population selector is removed; existing population
+details are preserved, and new entries without one display no population label.
+Category-only entries show the category once. Classification-only entries
+without a category are displayed as entered under All Speciality, without
+guessing a category for filtering (e.g. Level II is not inferred as Trauma).
+The server records confirmation and a date automatically. Previously saved authority/source/date
 metadata is optional and retained for unchanged entries when omitted. Only
 admin-confirmed entries are used publicly. One current
 classification per category and overlapping population prevents contradictory
