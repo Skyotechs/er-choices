@@ -29,8 +29,11 @@ would have done the research to determine the specialty,” then clarified,
 **How to apply:** Trust authenticated admin saves, preserve existing optional
 supporting information, and keep imports from automatically confirming legacy
 labels. Describe missing confirmation as unavailable rather than saying the
-service is absent. Coordinate API, website, and Android releases; installed
+service is absent. Coordinate Railway API, website/admin, Android, and Apple/iOS releases; installed
 older binaries cannot acquire the updated rules just because an admin page changed.
+
+**Why:** The user clarified the release scope: “its for the website, railway api,
+android and apple apps.”
 
 Do not guess the category of a classification-only entry (for example, “Level II”).
 
