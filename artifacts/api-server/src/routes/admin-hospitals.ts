@@ -9,6 +9,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { parseStateBrowseQuery } from "../lib/state-browse-query";
 import { hospitalRecordIdentity, requireHospitalIdentity, requireHospitalStore } from "../lib/hospital-store";
+import { SPECIALITY_KEY, validateSpecialityEntries } from "@workspace/speciality";
+import { preserveSpecialityReview } from "../lib/speciality-store";
 
 /** All fields that can be edited via the admin PATCH endpoint. */
 type HospitalUpdateFields = {
@@ -102,6 +104,18 @@ function findTsx(): string {
 
 const router = Router();
 
+// Retire overlapping classification writers, not their stored values. Older
+// pages must reload instead of silently bypassing evidence validation.
+router.use((req, res, next) => {
+  if (["PATCH", "POST"].includes(req.method) && req.path.startsWith("/admin/hospitals")) {
+    if (["specialties", "actualDesignation", "strokeDesignation", "burnDesignation", "designationSources"].some(key =>
+      Object.prototype.hasOwnProperty.call(req.body ?? {}, key))) {
+      requireAdmin(req, res, () => res.status(409).json({ error: "Reload the admin page and use the Speciality evidence editor. Legacy classification fields are read-only." }));
+      return;
+    }
+  }
+  next();
+});
 // Background actions must fail before acknowledging/starting a job if Railway
 // is missing or unreachable. Child scripts inherit RAILWAY_DATABASE_URL.
 router.post([
@@ -545,6 +559,12 @@ router.patch("/admin/hospitals/:id/activate", requireAdmin, async (req, res) => 
  */
 router.post("/admin/hospitals", requireAdmin, async (req, res) => {
   const body = req.body ?? {};
+  let specialities;
+  try {
+    specialities = validateSpecialityEntries(body.specialities ?? []);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message }); return;
+  }
 
   // Accept both `hospitalName` (canonical) and `name` (UI alias)
   // String() guards against non-string primitives (e.g. a number passed in JSON)
@@ -600,6 +620,9 @@ router.post("/admin/hospitals", requireAdmin, async (req, res) => {
           latitude: num(body.latitude) ?? undefined,
           longitude: num(body.longitude) ?? undefined,
           specialties,
+          designationSources: {
+            [SPECIALITY_KEY]: { revision: randomUUID(), entries: specialities },
+          },
           actualDesignation: str(body.actualDesignation) ?? undefined,
           serviceLine: str(body.serviceLine) ?? undefined,
           strokeDesignation: str(body.strokeDesignation) ?? undefined,
@@ -652,6 +675,7 @@ router.get("/admin/export-csv", requireAdmin, async (_req, res) => {
       "HIFLD Owner", "HIFLD Website",
       "Stroke Designation", "Burn Designation",
       "PCI Capability", "HIFLD Match Confidence",
+      "Speciality Review (JSON)",
     ];
 
     const csvLines = [headers.join(",")];
@@ -685,6 +709,7 @@ router.get("/admin/export-csv", requireAdmin, async (_req, res) => {
         row.burnDesignation,
         row.pciCapability,
         row.hifldMatchConfidence,
+        JSON.stringify((row.designationSources as Record<string, unknown>)?.[SPECIALITY_KEY] ?? null),
       ];
 
       csvLines.push(cols.map(escapeCsv).join(","));
@@ -828,7 +853,7 @@ router.post("/admin/import-csv", requireAdmin, async (req, res) => {
           if (!mergedSources[sp]) mergedSources[sp] = "admin";
         }
         patch.specialties = merged;
-        patch.designationSources = mergedSources;
+        patch.designationSources = preserveSpecialityReview(mergedSources);
       }
 
       // Overwrite needs-admin-review list if provided

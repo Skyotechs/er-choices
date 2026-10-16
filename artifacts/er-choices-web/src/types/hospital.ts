@@ -1,3 +1,4 @@
+import type { SpecialityEntry } from "@workspace/speciality";
 export type HospitalCategory =
   | "All"
   | "Trauma"
@@ -30,6 +31,8 @@ export const DESIGNATION_FILTERS: DesignationFilter[] = [
 ];
 
 export interface Hospital {
+  /** Evidence-backed review entries; never derive these from legacy fields. */
+  specialities?: SpecialityEntry[];
   id: string;
   name: string;
   address: string;

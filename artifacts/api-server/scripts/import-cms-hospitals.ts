@@ -47,6 +47,7 @@
  */
 
 import { hospitalDb as db, hospitalPool as pool, hospitalSpecialties } from "@workspace/db";
+import { preserveSpecialityReview } from "../src/lib/speciality-store";
 import { eq, sql, isNull, isNotNull, and } from "drizzle-orm";
 
 const CMS_API_BASE =
@@ -399,7 +400,9 @@ async function importCms(): Promise<{ imported: number; geocoded: number; skippe
             SELECT COALESCE(jsonb_object_agg(key, value), '{}'::jsonb)
             FROM jsonb_each_text(${hospitalSpecialties.designationSources})
             WHERE value = 'admin'
-          )`,
+          ) || CASE WHEN ${hospitalSpecialties.designationSources} ? '_specialityV1'
+            THEN jsonb_build_object('_specialityV1', ${hospitalSpecialties.designationSources}->'_specialityV1')
+            ELSE '{}'::jsonb END`,
         },
       });
       imported += chunk.length;
@@ -908,7 +911,7 @@ async function runSupplementaryDataPull(): Promise<{
         specialties: newSpec,
         needsAdminReview: newReview,
         source: "hrsa",
-        designationSources: newDesignationSources,
+        designationSources: preserveSpecialityReview(newDesignationSources),
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, row.id));
@@ -1061,7 +1064,7 @@ async function runAcsTraumaImport(): Promise<{
         specialties: newSpec,
         needsAdminReview: newReview,
         source: "acs",
-        designationSources: newDesignationSources,
+        designationSources: preserveSpecialityReview(newDesignationSources),
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, row.id));
@@ -1278,7 +1281,7 @@ async function runAbaBurnImport(): Promise<{
         specialties: newSpec,
         needsAdminReview: newReview,
         source: "aba",
-        designationSources: newDesignationSources,
+        designationSources: preserveSpecialityReview(newDesignationSources),
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, row.id));
@@ -1498,7 +1501,7 @@ async function runJointCommissionStrokeImport(): Promise<{
         specialties: newSpec,
         needsAdminReview: newReview,
         source: "joint-commission",
-        designationSources: newDesignationSources,
+        designationSources: preserveSpecialityReview(newDesignationSources),
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, row.id));
@@ -1669,7 +1672,7 @@ async function runSamhsaBehavioralHealthImport(): Promise<{
         specialties: newSpec,
         needsAdminReview: newReview,
         source: "cms-ipf",
-        designationSources: newDesignationSources,
+        designationSources: preserveSpecialityReview(newDesignationSources),
         updatedAt: new Date(),
       })
       .where(eq(hospitalSpecialties.id, row.id));

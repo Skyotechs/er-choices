@@ -52,6 +52,9 @@ export const hospitalSpecialties = pgTable("hospital_specialties", {
    * Example: { "Trauma - Adult Level 1 & 2": "acs", "Behavioral Health": "samhsa" }
    * Updated incrementally as each import phase resolves new designations.
    * A designation absent from this map was either not yet sourced or came from CMS.
+   * Reserved _specialityV1 holds the authoritative per-entry evidence/revision
+   * envelope. Legacy importer tags must preserve it atomically; a source tag or
+   * hospital-wide verified flag alone does not verify an official classification.
    */
   designationSources: jsonb("designation_sources").notNull().default({}),
   verified: boolean("verified").notNull().default(true),

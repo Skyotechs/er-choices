@@ -264,11 +264,11 @@ export default function HomeScreen() {
           location ? (
             <EmptyState
               icon="hospital"
-              title={selectedFilter === "All" ? "No Hospitals Found" : `No ${selectedFilter} Hospitals Nearby`}
+              title={selectedFilter === "All" ? "No Hospitals Found" : `No Verified ${selectedFilter} Speciality Found`}
               description={
                 selectedFilter === "All"
                   ? "We couldn't find any emergency rooms near your location."
-                  : `There are no ${selectedFilter} hospitals within range. Try a different filter or refresh your location.`
+                  : "No matching official classification has been verified in this search area. This does not mean the service is absent. Select All Speciality to view nearby hospitals."
               }
             />
           ) : null

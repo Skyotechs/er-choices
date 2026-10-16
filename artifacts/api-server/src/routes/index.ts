@@ -5,12 +5,14 @@ import specialtiesRouter from "./specialties";
 import adminUiRouter from "./admin-ui";
 import adminHospitalsRouter from "./admin-hospitals";
 import hospitalsRouter from "./hospitals";
+import adminSpecialityRouter from "./admin-speciality";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(reportsRouter);
 router.use(specialtiesRouter);
+router.use(adminSpecialityRouter);
 router.use(adminHospitalsRouter);
 router.use(adminUiRouter);
 router.use(hospitalsRouter);

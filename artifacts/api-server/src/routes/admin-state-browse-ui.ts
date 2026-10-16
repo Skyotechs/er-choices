@@ -314,7 +314,7 @@ function bsRender() {
     main.appendChild(bsEl('div', 'result-name bs-name', h.name || 'Unnamed hospital'));
     var loc = [h.address, h.city, h.zip].filter(function (x) { return x != null && String(x).trim() !== ''; }).join(', ');
     main.appendChild(bsEl('div', 'bs-meta', loc || 'No address on record'));
-    var meta2 = [h.phone, h.actualDesignation].filter(function (x) { return x != null && String(x).trim() !== ''; }).join('  |  ');
+    var meta2 = [h.phone].filter(function (x) { return x != null && String(x).trim() !== ''; }).join('  |  ');
     if (meta2) { var m = bsEl('div', 'bs-meta', meta2); m.title = meta2; main.appendChild(m); }
     if (h.active === false && h.deactivatedReason) main.appendChild(bsEl('div', 'bs-meta', 'Reason: ' + h.deactivatedReason));
     row.appendChild(main);

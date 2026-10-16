@@ -5,10 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
@@ -16,11 +19,15 @@ import type {
 import type {
   AdminHospitalStatePage,
   BrowseAdminHospitalsByStateParams,
+  GetNearbyHospitals200,
+  GetNearbyHospitalsParams,
   HealthStatus,
+  HospitalSpecialityReview,
+  HospitalSpecialityUpdate,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -206,6 +213,286 @@ export function useBrowseAdminHospitalsByState<
     params,
     options,
   );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Read current Speciality evidence and preserved legacy values
+ */
+export const getGetAdminHospitalSpecialityUrl = (id: number) => {
+  return `/api/admin/hospitals/${id}/speciality`;
+};
+
+export const getAdminHospitalSpeciality = async (
+  id: number,
+  options?: RequestInit,
+): Promise<HospitalSpecialityReview> => {
+  return customFetch<HospitalSpecialityReview>(
+    getGetAdminHospitalSpecialityUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAdminHospitalSpecialityQueryKey = (id: number) => {
+  return [`/api/admin/hospitals/${id}/speciality`] as const;
+};
+
+export const getGetAdminHospitalSpecialityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminHospitalSpeciality>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminHospitalSpeciality>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAdminHospitalSpecialityQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminHospitalSpeciality>>
+  > = ({ signal }) =>
+    getAdminHospitalSpeciality(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminHospitalSpeciality>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminHospitalSpecialityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminHospitalSpeciality>>
+>;
+export type GetAdminHospitalSpecialityQueryError = ErrorType<void>;
+
+/**
+ * @summary Read current Speciality evidence and preserved legacy values
+ */
+
+export function useGetAdminHospitalSpeciality<
+  TData = Awaited<ReturnType<typeof getAdminHospitalSpeciality>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminHospitalSpeciality>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminHospitalSpecialityQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Replace reviewed entries with identity and revision protection
+ */
+export const getUpdateAdminHospitalSpecialityUrl = (id: number) => {
+  return `/api/admin/hospitals/${id}/speciality`;
+};
+
+export const updateAdminHospitalSpeciality = async (
+  id: number,
+  hospitalSpecialityUpdate: HospitalSpecialityUpdate,
+  options?: RequestInit,
+): Promise<HospitalSpecialityReview> => {
+  return customFetch<HospitalSpecialityReview>(
+    getUpdateAdminHospitalSpecialityUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(hospitalSpecialityUpdate),
+    },
+  );
+};
+
+export const getUpdateAdminHospitalSpecialityMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAdminHospitalSpeciality>>,
+    TError,
+    { id: number; data: BodyType<HospitalSpecialityUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAdminHospitalSpeciality>>,
+  TError,
+  { id: number; data: BodyType<HospitalSpecialityUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateAdminHospitalSpeciality"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAdminHospitalSpeciality>>,
+    { id: number; data: BodyType<HospitalSpecialityUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateAdminHospitalSpeciality(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAdminHospitalSpecialityMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAdminHospitalSpeciality>>
+>;
+export type UpdateAdminHospitalSpecialityMutationBody =
+  BodyType<HospitalSpecialityUpdate>;
+export type UpdateAdminHospitalSpecialityMutationError = ErrorType<void>;
+
+/**
+ * @summary Replace reviewed entries with identity and revision protection
+ */
+export const useUpdateAdminHospitalSpeciality = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAdminHospitalSpeciality>>,
+    TError,
+    { id: number; data: BodyType<HospitalSpecialityUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAdminHospitalSpeciality>>,
+  TError,
+  { id: number; data: BodyType<HospitalSpecialityUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateAdminHospitalSpecialityMutationOptions(options));
+};
+
+/**
+ * @summary Nearby hospitals with evidence-backed Speciality entries
+ */
+export const getGetNearbyHospitalsUrl = (params: GetNearbyHospitalsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/hospitals/nearby?${stringifiedParams}`
+    : `/api/hospitals/nearby`;
+};
+
+export const getNearbyHospitals = async (
+  params: GetNearbyHospitalsParams,
+  options?: RequestInit,
+): Promise<GetNearbyHospitals200> => {
+  return customFetch<GetNearbyHospitals200>(getGetNearbyHospitalsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetNearbyHospitalsQueryKey = (
+  params?: GetNearbyHospitalsParams,
+) => {
+  return [`/api/hospitals/nearby`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetNearbyHospitalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNearbyHospitals>>,
+  TError = ErrorType<void>,
+>(
+  params: GetNearbyHospitalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNearbyHospitals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetNearbyHospitalsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getNearbyHospitals>>
+  > = ({ signal }) => getNearbyHospitals(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getNearbyHospitals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetNearbyHospitalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNearbyHospitals>>
+>;
+export type GetNearbyHospitalsQueryError = ErrorType<void>;
+
+/**
+ * @summary Nearby hospitals with evidence-backed Speciality entries
+ */
+
+export function useGetNearbyHospitals<
+  TData = Awaited<ReturnType<typeof getNearbyHospitals>>,
+  TError = ErrorType<void>,
+>(
+  params: GetNearbyHospitalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getNearbyHospitals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetNearbyHospitalsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

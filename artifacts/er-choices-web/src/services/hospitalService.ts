@@ -1,5 +1,6 @@
 import { Hospital, HospitalCategory, DesignationFilter } from "@/types/hospital";
 import { matchesDesignationFilter } from "@/services/designationUtils";
+import { specialityCategories, verifiedSpecialityEntries, type SpecialityEntry } from "@workspace/speciality";
 
 const SEARCH_RADIUS_MILES = 50;
 
@@ -53,6 +54,7 @@ export class NavigationServerError extends Error {
 }
 
 interface CmsHospitalRow {
+  specialities?: SpecialityEntry[];
   id: string;
   name: string;
   address: string | null;
@@ -99,10 +101,10 @@ export async function fetchNearbyHospitals(
   }
 
   return data.hospitals.map((h) => {
-    // Admin specialty map takes priority over CMS specialties
-    const hasAdminOverride = h.id in verifiedSpecialtyMap;
-    const adminCategories: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
-    const cmsCategories = h.categories as HospitalCategory[];
+    // Only per-entry evidence can populate official classifications. A stale
+    // category map from an older API is not evidence.
+    const specialities = verifiedSpecialityEntries(h.specialities);
+    const categories = specialityCategories(specialities);
 
     return {
       id: h.id,
@@ -115,9 +117,10 @@ export async function fetchNearbyHospitals(
       longitude: h.longitude,
       phone: h.phone ?? undefined,
       website: h.hifldWebsite ?? undefined,
-      categories: hasAdminOverride ? adminCategories : cmsCategories,
+      categories,
       hospitalType: h.serviceLine ?? "Emergency Room",
-      verifiedSpecialties: hasAdminOverride ? adminCategories : cmsCategories,
+      verifiedSpecialties: categories,
+      specialities,
       specialties: h.specialties ?? [],
       distance: h.distance ?? haversineDistance(latitude, longitude, h.latitude, h.longitude),
       // Enriched fields

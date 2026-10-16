@@ -58,12 +58,121 @@ paths:
           description: Missing or invalid admin token
         "500":
           description: Could not load hospitals
+  /admin/hospitals/{id}/speciality:
+    get:
+      operationId: getAdminHospitalSpeciality
+      summary: Read current Speciality evidence and preserved legacy values
+      security: [{ adminBearer: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Current reviewed entries and raw legacy information
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HospitalSpecialityReview" }
+        "401": { description: Unauthorized }
+        "404": { description: Hospital not found }
+        "503": { description: Hospital store or review data unavailable }
+    put:
+      operationId: updateAdminHospitalSpeciality
+      summary: Replace reviewed entries with identity and revision protection
+      security: [{ adminBearer: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HospitalSpecialityUpdate" }
+      responses:
+        "200":
+          description: Saved review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HospitalSpecialityReview" }
+        "400": { description: Invalid or conflicting classification evidence }
+        "401": { description: Unauthorized }
+        "409": { description: Stale identity or revision; reload before editing }
+        "503": { description: Hospital store unavailable; no save acknowledged }
+  /hospitals/nearby:
+    get:
+      operationId: getNearbyHospitals
+      summary: Nearby hospitals with evidence-backed Speciality entries
+      parameters:
+        - { in: query, name: lat, required: true, schema: { type: number } }
+        - { in: query, name: lon, required: true, schema: { type: number } }
+        - { in: query, name: radius, schema: { type: number, default: 50 } }
+      responses:
+        "200":
+          description: Nearby hospitals; legacy fields retained for old-client transport compatibility
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hospitals]
+                properties:
+                  hospitals:
+                    type: array
+                    items: { $ref: "#/components/schemas/PublicHospital" }
+        "400": { description: Invalid coordinates }
+        "500": { description: Hospital query failed }
 components:
   securitySchemes:
     adminBearer:
       type: http
       scheme: bearer
   schemas:
+    SpecialityEntry:
+      type: object
+      required: [category, classification, population, status, authority, sourceUrl, verifiedOn, officialConfirmed]
+      properties:
+        category: { type: string, enum: [Trauma, Stroke, Burn, Pediatric, Obstetrics, Psychiatric, Cardiac, Cancer, HazMat] }
+        classification: { type: string, minLength: 1, maxLength: 200 }
+        population: { type: string, enum: [All, Adult, Pediatric] }
+        status: { type: string, enum: [unverified, verified] }
+        authority: { type: string, maxLength: 200 }
+        sourceUrl: { type: string, maxLength: 2000 }
+        verifiedOn: { type: string, maxLength: 10 }
+        officialConfirmed: { type: boolean }
+    HospitalSpecialityUpdate:
+      type: object
+      required: [recordIdentity, expectedRevision, entries]
+      properties:
+        recordIdentity: { type: string, maxLength: 2048 }
+        expectedRevision: { type: string, maxLength: 100 }
+        entries:
+          type: array
+          maxItems: 30
+          items: { $ref: "#/components/schemas/SpecialityEntry" }
+    HospitalSpecialityReview:
+      type: object
+      required: [id, recordIdentity, revision, entries, legacy]
+      properties:
+        id: { type: integer }
+        recordIdentity: { type: string }
+        revision: { type: string }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/SpecialityEntry" }
+        legacy:
+          type: object
+          additionalProperties: true
+    PublicHospital:
+      type: object
+      required: [id, name, state, latitude, longitude, distance, categories, specialities]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        name: { type: string }
+        state: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        distance: { type: number }
+        categories: { type: array, items: { type: string } }
+        specialities:
+          type: array
+          items: { $ref: "#/components/schemas/SpecialityEntry" }
     AdminHospitalStatePage:
       type: object
       required: [hospitals, total, page, pageSize, totalPages]

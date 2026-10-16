@@ -21,6 +21,9 @@
   ],
   "references": [
     {
+      "path": "../../lib/speciality"
+    },
+    {
       "path": "../../lib/api-client-react"
     }
   ]

@@ -1,16 +1,6 @@
 import React from "react";
 import { DesignationFilter, DESIGNATION_FILTERS } from "@/types/hospital";
 
-const FILTER_ICONS: Record<DesignationFilter, string> = {
-  All: "🏥",
-  Trauma: "🚑",
-  Stroke: "🧠",
-  Pediatric: "👶",
-  Obstetrics: "🤱",
-  Burn: "🔥",
-  Psychiatric: "🧩",
-};
-
 interface CategoryFilterProps {
   selected: DesignationFilter;
   onSelect: (filter: DesignationFilter) => void;
@@ -21,7 +11,7 @@ export function CategoryFilter({ selected, onSelect, availableFilters }: Categor
   const displayFilters = availableFilters ?? DESIGNATION_FILTERS;
 
   return (
-    <div className="border-b border-border bg-background">
+    <div className="border-b border-border bg-background" aria-label="Filter by verified Speciality">
       <div className="flex gap-2 px-4 py-2.5 overflow-x-auto scrollbar-none">
         {displayFilters.map((filter) => {
           const isSelected = selected === filter;
@@ -38,8 +28,7 @@ export function CategoryFilter({ selected, onSelect, availableFilters }: Categor
                 }
               `}
             >
-              <span className="text-xs">{FILTER_ICONS[filter]}</span>
-              {filter}
+              {filter === "All" ? "All Speciality" : filter}
             </button>
           );
         })}

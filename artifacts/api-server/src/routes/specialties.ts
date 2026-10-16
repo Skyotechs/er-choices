@@ -5,9 +5,21 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { hospitalRecordIdentity, requireHospitalIdentity, requireHospitalStore } from "../lib/hospital-store";
+import { publicSpeciality } from "../lib/speciality-store";
+
 
 const router = Router();
 
+// These old endpoints accepted unsupported strings as confirmed classifications.
+// Keep stored legacy data for review, but require all future classification
+// changes to go through the per-entry evidence/revision editor.
+router.use((req, res, next) => {
+  if (["PATCH", "PUT"].includes(req.method) && /^\/admin\/(?:specialty-gaps\/|specialties\/)/.test(req.path)) {
+    requireAdmin(req, res, () => res.status(409).json({ error: "Use the hospital Speciality evidence editor. This legacy classification writer is read-only." }));
+    return;
+  }
+  next();
+});
 router.patch("/admin/specialty-gaps/:id/resolve", requireAdmin, requireHospitalIdentity);
 router.put("/admin/specialty-gaps/:id/resolve-all", requireAdmin, requireHospitalIdentity);
 router.post("/admin/seed", requireAdmin, requireHospitalStore);
@@ -297,6 +309,7 @@ router.get("/specialties", async (_req, res) => {
       .select({
         osmId: hospitalSpecialties.osmId,
         specialties: hospitalSpecialties.specialties,
+        designationSources: hospitalSpecialties.designationSources,
         source: hospitalSpecialties.source,
       })
       .from(hospitalSpecialties)
@@ -310,7 +323,7 @@ router.get("/specialties", async (_req, res) => {
       const isAdmin = row.source === "admin";
       if (!existing || (isAdmin && existing.source !== "admin")) {
         map.set(normId, {
-          specialties: (row.specialties as string[]) ?? [],
+          specialties: publicSpeciality(row.designationSources).categories,
           source: row.source,
         });
       }
@@ -318,7 +331,7 @@ router.get("/specialties", async (_req, res) => {
 
     const result: Record<string, string[]> = {};
     for (const [osmId, { specialties }] of map) {
-      result[osmId] = toMobileCategories(specialties);
+      result[osmId] = specialties;
     }
 
     res.json(result);

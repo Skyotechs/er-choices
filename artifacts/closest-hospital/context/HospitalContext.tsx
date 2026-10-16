@@ -11,7 +11,6 @@ import type { LocationObject } from "expo-location";
 import { Hospital, HospitalCategory, DesignationFilter, DESIGNATION_FILTERS } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
-  fetchVerifiedSpecialtyMap,
   fetchHospitalOverrides,
   filterAndSortHospitals,
   NavigationServerError,
@@ -110,46 +109,21 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [serverError, setServerError] = useState(false);
-  const [verifiedSpecialtyMap, setVerifiedSpecialtyMap] = useState<
-    Record<string, HospitalCategory[]>
-  >({});
   const [hospitalOverrideMap, setHospitalOverrideMap] = useState<
     Record<string, HospitalOverride>
   >({});
 
-  const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
   const overrideMapRef = useRef<Record<string, HospitalOverride>>({});
 
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedFilter, 10);
   const availableFilters = DESIGNATION_FILTERS;
 
   useEffect(() => {
-    fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
-      verifiedMapRef.current = map;
-      setVerifiedSpecialtyMap(map);
-    });
     fetchHospitalOverrides(API_BASE).then((map) => {
       overrideMapRef.current = map;
       setHospitalOverrideMap(map);
     });
   }, []);
-
-  // Re-apply verified specialties if the map arrives after the hospital list was built.
-  // Uses functional setState so this effect doesn't need allHospitals as a dependency.
-  // Key presence is authoritative: an empty verified array must override OSM inference.
-  useEffect(() => {
-    if (Object.keys(verifiedSpecialtyMap).length === 0) return;
-    setAllHospitals((prev) => {
-      if (prev.length === 0) return prev;
-      return prev.map((h) => {
-        const hasVerified = h.id in verifiedSpecialtyMap;
-        const verified: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
-        return hasVerified
-          ? { ...h, categories: verified, verifiedSpecialties: verified }
-          : h;
-      });
-    });
-  }, [verifiedSpecialtyMap]);
 
   // Re-apply admin overrides (phone/GPS) if they arrive after the hospital list.
   useEffect(() => {

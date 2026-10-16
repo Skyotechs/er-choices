@@ -29,7 +29,8 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
   const wazeUrl = `https://waze.com/ul?ll=${hospital.latitude},${hospital.longitude}&navigate=yes`;
 
   const designationGroups = buildDesignationGroups(hospital);
-  const hasDesignationSection = designationGroups.length > 0 || hospital.helipad || hospital.pciCapability;
+  const verifiedEntries = (hospital.specialities ?? []).filter((e) => e.status === "verified");
+  const hasServices = !!hospital.helipad || !!hospital.pciCapability;
 
   return (
     <>
@@ -49,7 +50,6 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
           )}
           {hospital.distance != null && (
             <div className="flex items-center gap-1 mt-2">
-              <span className="text-sm text-[#c0392b]">📍</span>
               <span className="text-sm font-semibold text-[#c0392b]">{formatDistance(hospital.distance)} away</span>
             </div>
           )}
@@ -58,44 +58,68 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
               href={`tel:${hospital.phone}`}
               className="flex items-center gap-2 mt-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <span>📞</span>
               <span>{hospital.phone}</span>
             </a>
           )}
         </div>
 
-        {hasDesignationSection && (
+        <div className="h-px bg-border" />
+        <div className="px-5 py-4" data-testid="section-speciality">
+          <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">VERIFIED SPECIALITY</p>
+          {designationGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-speciality-unavailable">
+              Speciality verification unavailable for this hospital. This does not mean services are absent; confirm with the hospital or medical control.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {designationGroups.map((group) => (
+                <div key={group.label}>
+                  <span
+                    className="inline-block px-3 py-1 rounded-full text-sm font-semibold"
+                    style={{ backgroundColor: "rgba(192,57,43,0.1)", color: "#c0392b" }}
+                  >
+                    {group.label}
+                  </span>
+                  {group.subs.length > 0 && (
+                    <ul className="mt-1 pl-1 space-y-0.5">
+                      {group.subs.map((sub) => (
+                        <li key={sub} className="text-xs text-foreground">{sub}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <ul className="mt-1 pl-1 space-y-1">
+                    {verifiedEntries
+                      .filter((e) => e.category === group.label)
+                      .map((e, i) => (
+                        <li key={`${e.classification}-${i}`} className="text-xs text-muted-foreground">
+                          {e.authority ? `Verified by admin against ${e.authority}` : "Verified by admin"}
+                          {e.verifiedOn ? ` on ${e.verifiedOn}` : ""}
+                          {/^https:\/\//i.test(e.sourceUrl) && (
+                            <>
+                              {" · "}
+                              <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                                Official source
+                              </a>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {hasServices && (
           <>
             <div className="h-px bg-border" />
-            <div className="px-5 py-4">
-              <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-3">DESIGNATIONS</p>
-
-              <div className="flex flex-col gap-3">
-                {designationGroups.map((group) => (
-                  <div key={group.label}>
-                    <span
-                      className="inline-block px-3 py-1 rounded-full text-sm font-semibold"
-                      style={{ backgroundColor: "rgba(192,57,43,0.1)", color: "#c0392b" }}
-                    >
-                      {group.label}
-                    </span>
-                    {group.subs.length > 0 && (
-                      <ul className="mt-1 pl-1 space-y-0.5">
-                        {group.subs.map((sub) => (
-                          <li key={sub} className="text-xs text-muted-foreground">
-                            {sub}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-                {hospital.pciCapability && (
-                  <p className="text-sm text-foreground">❤️ PCI/STEMI capable</p>
-                )}
-                {hospital.helipad && (
-                  <p className="text-sm text-foreground">✈️ Helipad available</p>
-                )}
+            <div className="px-5 py-4" data-testid="section-services">
+              <p className="text-xs font-semibold text-muted-foreground tracking-widest mb-1">SERVICES</p>
+              <p className="text-xs text-muted-foreground mb-2">Reported capabilities, not an official Speciality.</p>
+              <div className="flex flex-col gap-1">
+                {hospital.pciCapability && <p className="text-sm text-foreground">PCI/STEMI capable</p>}
+                {hospital.helipad && <p className="text-sm text-foreground">Helipad available</p>}
               </div>
             </div>
           </>
@@ -112,7 +136,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-4 py-3.5 border border-border rounded-xl mb-2.5 hover:border-[#c0392b]/40 transition-colors"
           >
-            <span className="text-xl">🗺️</span>
+            <span className="w-7 h-7 rounded-md bg-muted text-[10px] font-bold text-muted-foreground flex items-center justify-center">AM</span>
             <span className="flex-1 text-sm font-medium text-foreground">Apple Maps</span>
             <span className="text-muted-foreground">›</span>
           </a>
@@ -123,7 +147,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-4 py-3.5 border border-border rounded-xl mb-2.5 hover:border-[#4285F4]/40 transition-colors"
           >
-            <span className="text-xl">🌐</span>
+            <span className="w-7 h-7 rounded-md bg-muted text-[10px] font-bold text-muted-foreground flex items-center justify-center">GM</span>
             <span className="flex-1 text-sm font-medium text-foreground">Google Maps</span>
             <span className="text-muted-foreground">›</span>
           </a>
@@ -134,7 +158,7 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-4 py-3.5 border border-border rounded-xl mb-4 hover:border-[#33CCFF]/40 transition-colors"
           >
-            <span className="text-xl">🚗</span>
+            <span className="w-7 h-7 rounded-md bg-muted text-[10px] font-bold text-muted-foreground flex items-center justify-center">W</span>
             <span className="flex-1 text-sm font-medium text-foreground">Waze</span>
             <span className="text-muted-foreground">›</span>
           </a>
@@ -147,7 +171,6 @@ export function HospitalDetailPanel({ hospital, onClose }: HospitalDetailPanelPr
             onClick={() => setReportVisible(true)}
             className="flex items-center justify-center gap-2 w-full py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <span>🚩</span>
             <span>Report incorrect information</span>
           </button>
 

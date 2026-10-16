@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "include": ["src/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "references": [{ "path": "../../lib/speciality" }],
   "compilerOptions": {
     "noEmit": true,
     "jsx": "preserve",

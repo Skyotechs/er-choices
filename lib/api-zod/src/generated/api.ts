@@ -81,3 +81,239 @@ export const BrowseAdminHospitalsByStateResponse = zod.object({
     .number()
     .min(browseAdminHospitalsByStateResponseTotalPagesMin),
 });
+
+/**
+ * @summary Read current Speciality evidence and preserved legacy values
+ */
+
+export const GetAdminHospitalSpecialityParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const getAdminHospitalSpecialityResponseEntriesItemClassificationMax = 200;
+
+export const getAdminHospitalSpecialityResponseEntriesItemAuthorityMax = 200;
+
+export const getAdminHospitalSpecialityResponseEntriesItemSourceUrlMax = 2000;
+
+export const getAdminHospitalSpecialityResponseEntriesItemVerifiedOnMax = 10;
+
+export const GetAdminHospitalSpecialityResponse = zod.object({
+  id: zod.number(),
+  recordIdentity: zod.string(),
+  revision: zod.string(),
+  entries: zod.array(
+    zod.object({
+      category: zod.enum([
+        "Trauma",
+        "Stroke",
+        "Burn",
+        "Pediatric",
+        "Obstetrics",
+        "Psychiatric",
+        "Cardiac",
+        "Cancer",
+        "HazMat",
+      ]),
+      classification: zod
+        .string()
+        .min(1)
+        .max(getAdminHospitalSpecialityResponseEntriesItemClassificationMax),
+      population: zod.enum(["All", "Adult", "Pediatric"]),
+      status: zod.enum(["unverified", "verified"]),
+      authority: zod
+        .string()
+        .max(getAdminHospitalSpecialityResponseEntriesItemAuthorityMax),
+      sourceUrl: zod
+        .string()
+        .max(getAdminHospitalSpecialityResponseEntriesItemSourceUrlMax),
+      verifiedOn: zod
+        .string()
+        .max(getAdminHospitalSpecialityResponseEntriesItemVerifiedOnMax),
+      officialConfirmed: zod.boolean(),
+    }),
+  ),
+  legacy: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Replace reviewed entries with identity and revision protection
+ */
+
+export const UpdateAdminHospitalSpecialityParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const updateAdminHospitalSpecialityBodyRecordIdentityMax = 2048;
+
+export const updateAdminHospitalSpecialityBodyExpectedRevisionMax = 100;
+
+export const updateAdminHospitalSpecialityBodyEntriesItemClassificationMax = 200;
+
+export const updateAdminHospitalSpecialityBodyEntriesItemAuthorityMax = 200;
+
+export const updateAdminHospitalSpecialityBodyEntriesItemSourceUrlMax = 2000;
+
+export const updateAdminHospitalSpecialityBodyEntriesItemVerifiedOnMax = 10;
+
+export const updateAdminHospitalSpecialityBodyEntriesMax = 30;
+
+export const UpdateAdminHospitalSpecialityBody = zod.object({
+  recordIdentity: zod
+    .string()
+    .max(updateAdminHospitalSpecialityBodyRecordIdentityMax),
+  expectedRevision: zod
+    .string()
+    .max(updateAdminHospitalSpecialityBodyExpectedRevisionMax),
+  entries: zod
+    .array(
+      zod.object({
+        category: zod.enum([
+          "Trauma",
+          "Stroke",
+          "Burn",
+          "Pediatric",
+          "Obstetrics",
+          "Psychiatric",
+          "Cardiac",
+          "Cancer",
+          "HazMat",
+        ]),
+        classification: zod
+          .string()
+          .min(1)
+          .max(updateAdminHospitalSpecialityBodyEntriesItemClassificationMax),
+        population: zod.enum(["All", "Adult", "Pediatric"]),
+        status: zod.enum(["unverified", "verified"]),
+        authority: zod
+          .string()
+          .max(updateAdminHospitalSpecialityBodyEntriesItemAuthorityMax),
+        sourceUrl: zod
+          .string()
+          .max(updateAdminHospitalSpecialityBodyEntriesItemSourceUrlMax),
+        verifiedOn: zod
+          .string()
+          .max(updateAdminHospitalSpecialityBodyEntriesItemVerifiedOnMax),
+        officialConfirmed: zod.boolean(),
+      }),
+    )
+    .max(updateAdminHospitalSpecialityBodyEntriesMax),
+});
+
+export const updateAdminHospitalSpecialityResponseEntriesItemClassificationMax = 200;
+
+export const updateAdminHospitalSpecialityResponseEntriesItemAuthorityMax = 200;
+
+export const updateAdminHospitalSpecialityResponseEntriesItemSourceUrlMax = 2000;
+
+export const updateAdminHospitalSpecialityResponseEntriesItemVerifiedOnMax = 10;
+
+export const UpdateAdminHospitalSpecialityResponse = zod.object({
+  id: zod.number(),
+  recordIdentity: zod.string(),
+  revision: zod.string(),
+  entries: zod.array(
+    zod.object({
+      category: zod.enum([
+        "Trauma",
+        "Stroke",
+        "Burn",
+        "Pediatric",
+        "Obstetrics",
+        "Psychiatric",
+        "Cardiac",
+        "Cancer",
+        "HazMat",
+      ]),
+      classification: zod
+        .string()
+        .min(1)
+        .max(updateAdminHospitalSpecialityResponseEntriesItemClassificationMax),
+      population: zod.enum(["All", "Adult", "Pediatric"]),
+      status: zod.enum(["unverified", "verified"]),
+      authority: zod
+        .string()
+        .max(updateAdminHospitalSpecialityResponseEntriesItemAuthorityMax),
+      sourceUrl: zod
+        .string()
+        .max(updateAdminHospitalSpecialityResponseEntriesItemSourceUrlMax),
+      verifiedOn: zod
+        .string()
+        .max(updateAdminHospitalSpecialityResponseEntriesItemVerifiedOnMax),
+      officialConfirmed: zod.boolean(),
+    }),
+  ),
+  legacy: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Nearby hospitals with evidence-backed Speciality entries
+ */
+export const getNearbyHospitalsQueryRadiusDefault = 50;
+
+export const GetNearbyHospitalsQueryParams = zod.object({
+  lat: zod.coerce.number(),
+  lon: zod.coerce.number(),
+  radius: zod.coerce.number().default(getNearbyHospitalsQueryRadiusDefault),
+});
+
+export const getNearbyHospitalsResponseHospitalsItemSpecialitiesItemClassificationMax = 200;
+
+export const getNearbyHospitalsResponseHospitalsItemSpecialitiesItemAuthorityMax = 200;
+
+export const getNearbyHospitalsResponseHospitalsItemSpecialitiesItemSourceUrlMax = 2000;
+
+export const getNearbyHospitalsResponseHospitalsItemSpecialitiesItemVerifiedOnMax = 10;
+
+export const GetNearbyHospitalsResponse = zod.object({
+  hospitals: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      state: zod.string(),
+      latitude: zod.number(),
+      longitude: zod.number(),
+      distance: zod.number(),
+      categories: zod.array(zod.string()),
+      specialities: zod.array(
+        zod.object({
+          category: zod.enum([
+            "Trauma",
+            "Stroke",
+            "Burn",
+            "Pediatric",
+            "Obstetrics",
+            "Psychiatric",
+            "Cardiac",
+            "Cancer",
+            "HazMat",
+          ]),
+          classification: zod
+            .string()
+            .min(1)
+            .max(
+              getNearbyHospitalsResponseHospitalsItemSpecialitiesItemClassificationMax,
+            ),
+          population: zod.enum(["All", "Adult", "Pediatric"]),
+          status: zod.enum(["unverified", "verified"]),
+          authority: zod
+            .string()
+            .max(
+              getNearbyHospitalsResponseHospitalsItemSpecialitiesItemAuthorityMax,
+            ),
+          sourceUrl: zod
+            .string()
+            .max(
+              getNearbyHospitalsResponseHospitalsItemSpecialitiesItemSourceUrlMax,
+            ),
+          verifiedOn: zod
+            .string()
+            .max(
+              getNearbyHospitalsResponseHospitalsItemSpecialitiesItemVerifiedOnMax,
+            ),
+          officialConfirmed: zod.boolean(),
+        }),
+      ),
+    }),
+  ),
+});

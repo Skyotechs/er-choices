@@ -13,7 +13,7 @@ function compile(relative, dependencies, env = {
   ADMIN_SECRET: "fixture-admin", RAILWAY_DATABASE_URL: "railway-fixture", DATABASE_URL: "unrelated-fixture",
 }) {
   const sandbox = {
-    exports: {}, Buffer, process: { env, cwd: () => "/fixture/api-server" },
+    exports: {}, Buffer, URL, process: { env, cwd: () => "/fixture/api-server" },
     console: { log() {}, error() {}, warn() {} },
     require(name) {
       if (name in dependencies) return dependencies[name];
@@ -22,7 +22,7 @@ function compile(relative, dependencies, env = {
   };
   vm.runInNewContext(ts.transpileModule(
     fs.readFileSync(path.join(__dirname, relative), "utf8"),
-    { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } },
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } },
   ).outputText, sandbox);
   return sandbox.exports;
 }
@@ -36,11 +36,14 @@ const operators = {
   and: (...parts) => ({ op: "and", parts: parts.filter(Boolean) }),
   count: () => ({ op: "count" }),
   isNotNull: (col) => ({ op: "notNull", col }),
-  sql: () => ({ op: "sql" }),
+  sql: (strings, ...params) => ({ op: "sql", text: strings.join("?"), params }),
 };
 function matches(row, clause) {
   if (!clause) return true;
   if (clause.op === "and") return clause.parts.every((part) => matches(row, part));
+  if (clause.op === "sql" && clause.text.includes("->>'revision'")) {
+    return (row.designationSources?._specialityV1?.revision ?? "") === clause.params.at(-1);
+  }
   const val = row[clause.col?.key];
   if (clause.op === "eq") return val === clause.value;
   if (clause.op === "notNull") return val != null;
@@ -75,7 +78,18 @@ function fixture() {
           if (unavailable) throw new Error("Railway unavailable");
           operations.push({ action, table: target.table, values });
           let rows = data[target.table].filter((r) => matches(r, clause));
-          if (action === "update") rows.forEach((r) => Object.assign(r, values));
+          if (action === "update") rows.forEach((r) => {
+            const patch = { ...values };
+            const expression = patch.designationSources;
+            if (expression?.op === "sql") {
+              if (expression.text.includes("jsonb_set")) {
+                patch.designationSources = { ...r.designationSources, _specialityV1: JSON.parse(expression.params[2]) };
+              } else {
+                patch.designationSources = { ...JSON.parse(expression.params[0]), ...(r.designationSources?._specialityV1 ? { _specialityV1: r.designationSources._specialityV1 } : {}) };
+              }
+            }
+            Object.assign(r, patch);
+          });
           if (action === "insert") {
             const row = { id: data[target.table].length + 1, active: true, ...values };
             data[target.table].push(row); rows = [row];
@@ -122,6 +136,7 @@ function fixture() {
   });
   const routes = [];
   const router = {};
+  router.use = (...handlers) => routes.push({ method: "use", path: "", handlers });
   for (const method of ["get", "post", "put", "patch"]) router[method] = (paths, ...handlers) => {
     for (const p of Array.isArray(paths) ? paths : [paths]) routes.push({ method, path: p, handlers });
   };
@@ -144,9 +159,21 @@ function fixture() {
     } },
     "util": util, "fs": fakeFs, "path": path,
   };
+  const speciality = compile("../../../lib/speciality/src/index.ts", {});
+  Object.assign(dependencies, {
+    "@workspace/speciality": speciality,
+    "node:crypto": crypto,
+    "../lib/speciality-store": compile("../src/lib/speciality-store.ts", {
+      "@workspace/db": dbModule, "drizzle-orm": operators, "@workspace/speciality": speciality,
+    }),
+    "@workspace/api-zod": compile("../../../lib/api-zod/src/generated/api.ts", {
+      zod: require(require("node:module").createRequire(path.resolve(__dirname, "../../../lib/api-zod/package.json")).resolve("zod")),
+    }),
+  });
   compile("../src/routes/admin-hospitals.ts", dependencies);
   compile("../src/routes/specialties.ts", dependencies);
   compile("../src/routes/hospitals.ts", dependencies);
+  compile("../src/routes/admin-speciality.ts", dependencies);
   async function request(method, url, body = {}, authorized = true) {
     const u = new URL(url, "http://fixture");
     let status = 200, payload, done = false;
@@ -158,15 +185,15 @@ function fixture() {
       setHeader(k, v) { headers[k] = v; },
     };
     const req = {
-      path: u.pathname, query: Object.fromEntries(u.searchParams), body,
+      path: u.pathname, method: method.toUpperCase(), query: Object.fromEntries(u.searchParams), body,
       headers: authorized ? { authorization: "Bearer fixture-admin" } : {},
       log: { error() {} },
     };
     for (const route of routes) {
-      if (route.method !== method.toLowerCase()) continue;
+      if (route.method !== "use" && route.method !== method.toLowerCase()) continue;
       const keys = [];
       const pattern = route.path.replace(/:([^/]+)/g, (_s, key) => { keys.push(key); return "([^/]+)"; });
-      const match = u.pathname.match(new RegExp("^" + pattern + "$"));
+      const match = route.method === "use" ? [""] : u.pathname.match(new RegExp("^" + pattern + "$"));
       if (!match) continue;
       req.params = Object.fromEntries(keys.map((key, i) => [key, match[i + 1]]));
       for (const handler of route.handlers) {
@@ -264,16 +291,15 @@ test("stale numeric pages, mismatched stable identities, tampering and invalid I
   assert.equal(f.operations.filter((o) => o.action === "update").length, 0);
 });
 
-test("specialty readers and numeric gap edits use the same stable identity protection", async () => {
+test("old specialty writers cannot certify or replace reviewed classifications", async () => {
   const f = fixture();
   const gaps = await f.request("get", "/admin/specialty-gaps");
   const row = gaps.payload.byDesignation.Obstetrics[0];
   assert.equal(typeof row.recordIdentity, "string");
   assert.equal((await f.request("patch", "/admin/specialty-gaps/1/resolve", { designation: "Obstetrics", present: true })).status, 409);
   const resolved = await f.request("patch", "/admin/specialty-gaps/1/resolve", { recordIdentity: row.recordIdentity, designation: "Obstetrics", present: true });
-  assert.equal(resolved.status, 200);
-  assert.ok(f.records[0].specialties.includes("Obstetrics"));
-  assert.equal((await f.request("put", "/admin/specialty-gaps/1/resolve-all", { recordIdentity: row.recordIdentity, specialties: ["Stroke"] })).status, 200);
+  assert.equal(resolved.status, 409);
+  assert.equal((await f.request("put", "/admin/specialty-gaps/1/resolve-all", { recordIdentity: row.recordIdentity, specialties: ["Stroke"] })).status, 409);
   assert.deepEqual(Array.from(f.records[0].specialties), ["Stroke"]);
 });
 
@@ -284,6 +310,91 @@ test("CSV and sync maintenance use the hospital store without any live job", asy
   assert.equal(f.records[0].address, "Fixture CSV Address");
   assert.equal((await f.request("post", "/admin/sync-specialties")).status, 200);
   assert.equal(f.jobs.length, 0);
+});
+
+const verifiedEntry = (patch = {}) => ({
+  category: "Stroke", classification: "Comprehensive Stroke Center", population: "All",
+  status: "verified", authority: "Fixture official authority",
+  sourceUrl: "https://authority.example/hospital-A", verifiedOn: "2026-01-01",
+  officialConfirmed: true, ...patch,
+});
+test("evidence save/reload is atomic, preserves every legacy field, and projects only verified entries publicly", async () => {
+  const f = fixture();
+  const legacy = JSON.stringify(f.records[0]);
+  const loaded = await f.request("get", "/admin/hospitals/1/speciality");
+  assert.equal(loaded.status, 200);
+  assert.equal(loaded.payload.revision, "");
+  assert.equal(loaded.payload.entries.length, 0);
+  assert.equal(JSON.stringify(f.records[0]), legacy, "GET is read only");
+  const saved = await f.request("put", "/admin/hospitals/1/speciality", {
+    recordIdentity: loaded.payload.recordIdentity, expectedRevision: "", entries: [verifiedEntry()],
+  });
+  assert.equal(saved.status, 200);
+  assert.ok(saved.payload.revision);
+  const again = await f.request("get", "/admin/hospitals/1/speciality");
+  assert.equal(again.payload.entries[0].classification, "Comprehensive Stroke Center");
+  for (const [key, value] of Object.entries(JSON.parse(legacy))) {
+    if (key === "designationSources") continue;
+    assert.equal(JSON.stringify(f.records[0][key]), JSON.stringify(value), key);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(again.payload.legacy.specialties)), ["Stroke"]);
+  const nearby = await f.request("get", "/hospitals/nearby?lat=1&lon=2");
+  assert.equal(nearby.payload.hospitals[0].specialities[0].classification, "Comprehensive Stroke Center");
+  assert.equal(nearby.payload.hospitals[0].strokeDesignation, "Comprehensive Stroke Center");
+  const before = JSON.stringify(f.records[0]);
+  const stale = await f.request("put", "/admin/hospitals/1/speciality", {
+    recordIdentity: loaded.payload.recordIdentity, expectedRevision: "", entries: [],
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(JSON.stringify(f.records[0]), before);
+});
+test("unsupported evidence, legacy patches, stale identity, and unauthenticated speciality writes cannot mutate", async () => {
+  const f = fixture();
+  const identity = f.identity.hospitalRecordIdentity(f.records[0]);
+  const before = JSON.stringify(f.records);
+  for (const entries of [
+    [verifiedEntry({ authority: "" })], [verifiedEntry({ officialConfirmed: false })],
+    [verifiedEntry(), verifiedEntry({ classification: "Primary Stroke Center" })],
+  ]) {
+    const r = await f.request("put", "/admin/hospitals/1/speciality", { recordIdentity: identity, expectedRevision: "", entries });
+    assert.equal(r.status, 400);
+  }
+  assert.equal((await f.request("patch", "/admin/hospitals/1", { recordIdentity: identity, specialties: ["Trauma"] })).status, 409);
+  assert.equal((await f.request("put", "/admin/hospitals/1/speciality", { recordIdentity: "old", expectedRevision: "", entries: [] })).status, 503);
+  assert.equal((await f.request("put", "/admin/hospitals/1/speciality", {}, false)).status, 401);
+  assert.equal((await f.request("get", "/admin/hospitals/1/speciality", {}, false)).status, 401);
+  assert.equal(JSON.stringify(f.records), before);
+});
+test("new hospital speciality is created in the same insert; unverified legacy and failed connections never look verified", async () => {
+  const f = fixture();
+  const nearby = await f.request("get", "/hospitals/nearby?lat=1&lon=2");
+  assert.equal(nearby.payload.hospitals[0].specialities.length, 0);
+  assert.equal(nearby.payload.hospitals[0].categories.length, 0);
+  const added = await f.request("post", "/admin/hospitals", { hospitalName: "Fixture", state: "TX", specialities: [verifiedEntry()] });
+  assert.equal(added.status, 201);
+  assert.equal(added.payload.hospital.designationSources._specialityV1.entries.length, 1);
+  const n = f.records.length;
+  assert.equal((await f.request("post", "/admin/hospitals", { hospitalName: "Invalid", state: "TX", specialities: [verifiedEntry({ sourceUrl: "" })] })).status, 400);
+  assert.equal(f.records.length, n);
+  f.setUnavailable();
+  assert.equal((await f.request("get", "/admin/hospitals/1/speciality")).status, 503);
+});
+test("legacy CSV imports preserve the current evidence namespace and never certify incoming strings", async () => {
+  const f = fixture();
+  const identity = f.identity.hospitalRecordIdentity(f.records[0]);
+  await f.request("put", "/admin/hospitals/1/speciality", {
+    recordIdentity: identity, expectedRevision: "", entries: [verifiedEntry()],
+  });
+  const state = JSON.stringify(f.records[0].designationSources._specialityV1);
+  const response = await f.request("post", "/admin/import-csv", "CMS ID,Confirmed Specialties\nCMS-A,Trauma");
+  assert.equal(response.payload.updated, 1);
+  assert.equal(JSON.stringify(f.records[0].designationSources._specialityV1), state);
+  const review = await f.request("get", "/admin/hospitals/1/speciality");
+  assert.equal(review.payload.entries[0].category, "Stroke");
+  assert.equal(review.payload.entries.length, 1);
+  const source = fs.readFileSync(path.resolve(__dirname, "../scripts/import-cms-hospitals.ts"), "utf8");
+  assert.equal((source.match(/designationSources: preserveSpecialityReview\(/g) || []).length, 5);
+  assert.match(source, /jsonb_build_object\('_specialityV1'/);
 });
 
 test("maintenance connection failure is explicit before acknowledging or spawning work", async () => {
@@ -349,6 +460,7 @@ test("the rendered admin editor sends the loaded identity for save and both stat
     } }) },
     "./admin-reports-ui": compile("../src/routes/admin-reports-ui.ts", {}),
     "./admin-state-browse-ui": compile("../src/routes/admin-state-browse-ui.ts", {}),
+    "./admin-speciality-ui": compile("../src/routes/admin-speciality-ui.ts", {}),
   };
   compile("../src/routes/admin-ui.ts", deps);
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
@@ -364,6 +476,7 @@ test("the rendered admin editor sends the loaded identity for save and both stat
       querySelectorAll: () => [], querySelector: () => null, body: node(),
     },
     confirm: () => true, prompt: () => "", setTimeout() {},
+    window: { addEventListener() {} },
   });
   vm.runInContext(script, context);
   const requests = [];
@@ -383,4 +496,43 @@ test("the rendered admin editor sends the loaded identity for save and both stat
   assert.ok(requests.every((r) => r.body.recordIdentity === "loaded-signed-identity"));
   assert.match(requests[1].url, /deactivate$/);
   assert.match(requests[2].url, /activate$/);
+
+  // A new review travels in the create payload, never a second classification write.
+  requests.length = 0;
+  context.apiFetch = async (url, options = {}) => {
+    requests.push({ url, body: JSON.parse(options.body || "{}") });
+    return { hospital: { cmsId: "fixture-new" } };
+  };
+  const addButton = { disabled: false, textContent: "" };
+  let reset = false;
+  const addForm = { elements: [], querySelector: () => addButton, reset() { reset = true; } };
+  vm.runInContext(`sp.add.entries = ${JSON.stringify([verifiedEntry()])}`, context);
+  await context.submitAdd({ preventDefault() {}, target: addForm });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, "/api/admin/hospitals");
+  assert.equal(requests[0].body.specialities[0].authority, "Fixture official authority");
+  assert.equal(reset, true);
+  assert.equal(vm.runInContext("sp.add.entries.length", context), 0);
+
+  // Switching records while saving cannot replace the new hospital's editor.
+  let finishSave;
+  context.apiFetch = async (url, options = {}) => {
+    if (options.method === "PUT") {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return new Promise(resolve => { finishSave = resolve; });
+    }
+    const id = Number(url.split("/").at(-2));
+    return { id, recordIdentity: `identity-${id}`, revision: "", entries: [], legacy: {} };
+  };
+  await context.spLoad(42);
+  vm.runInContext(`sp.edit.entries = ${JSON.stringify([verifiedEntry()])}; sp.edit.dirty = true`, context);
+  const pendingSave = context.spSaveEdit();
+  assert.equal(requests.at(-1).url, "/api/admin/hospitals/42/speciality");
+  assert.equal(requests.at(-1).body.recordIdentity, "identity-42");
+  assert.equal(requests.at(-1).body.expectedRevision, "");
+  await context.spLoad(99);
+  finishSave({ id: 42, recordIdentity: "identity-42", revision: "saved", entries: [verifiedEntry()], legacy: {} });
+  await pendingSave;
+  assert.equal(vm.runInContext("sp.edit.loadedFor", context), 99);
+  assert.equal(vm.runInContext("sp.edit.entries.length", context), 0);
 });

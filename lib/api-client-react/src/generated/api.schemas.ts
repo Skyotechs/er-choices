@@ -5,6 +5,87 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type SpecialityEntryCategory =
+  (typeof SpecialityEntryCategory)[keyof typeof SpecialityEntryCategory];
+
+export const SpecialityEntryCategory = {
+  Trauma: "Trauma",
+  Stroke: "Stroke",
+  Burn: "Burn",
+  Pediatric: "Pediatric",
+  Obstetrics: "Obstetrics",
+  Psychiatric: "Psychiatric",
+  Cardiac: "Cardiac",
+  Cancer: "Cancer",
+  HazMat: "HazMat",
+} as const;
+
+export type SpecialityEntryPopulation =
+  (typeof SpecialityEntryPopulation)[keyof typeof SpecialityEntryPopulation];
+
+export const SpecialityEntryPopulation = {
+  All: "All",
+  Adult: "Adult",
+  Pediatric: "Pediatric",
+} as const;
+
+export type SpecialityEntryStatus =
+  (typeof SpecialityEntryStatus)[keyof typeof SpecialityEntryStatus];
+
+export const SpecialityEntryStatus = {
+  unverified: "unverified",
+  verified: "verified",
+} as const;
+
+export interface SpecialityEntry {
+  category: SpecialityEntryCategory;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  classification: string;
+  population: SpecialityEntryPopulation;
+  status: SpecialityEntryStatus;
+  /** @maxLength 200 */
+  authority: string;
+  /** @maxLength 2000 */
+  sourceUrl: string;
+  /** @maxLength 10 */
+  verifiedOn: string;
+  officialConfirmed: boolean;
+}
+
+export interface HospitalSpecialityUpdate {
+  /** @maxLength 2048 */
+  recordIdentity: string;
+  /** @maxLength 100 */
+  expectedRevision: string;
+  /** @maxItems 30 */
+  entries: SpecialityEntry[];
+}
+
+export type HospitalSpecialityReviewLegacy = { [key: string]: unknown };
+
+export interface HospitalSpecialityReview {
+  id: number;
+  recordIdentity: string;
+  revision: string;
+  entries: SpecialityEntry[];
+  legacy: HospitalSpecialityReviewLegacy;
+}
+
+export interface PublicHospital {
+  id: string;
+  name: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  distance: number;
+  categories: string[];
+  specialities: SpecialityEntry[];
+  [key: string]: unknown;
+}
+
 export type AdminHospitalStatePagePageSize =
   (typeof AdminHospitalStatePagePageSize)[keyof typeof AdminHospitalStatePagePageSize];
 
@@ -101,3 +182,13 @@ export const BrowseAdminHospitalsByStateStatus = {
   active: "active",
   inactive: "inactive",
 } as const;
+
+export type GetNearbyHospitalsParams = {
+  lat: number;
+  lon: number;
+  radius?: number;
+};
+
+export type GetNearbyHospitals200 = {
+  hospitals: PublicHospital[];
+};

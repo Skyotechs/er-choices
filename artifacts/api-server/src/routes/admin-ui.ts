@@ -14,6 +14,11 @@ import {
   BROWSE_RETURN_BAR,
   BROWSE_SCRIPT,
 } from "./admin-state-browse-ui";
+import {
+  SPECIALITY_STYLE,
+  SPECIALITY_SCRIPT,
+  specialityEditorHtml,
+} from "./admin-speciality-ui";
 
 const router = Router();
 
@@ -154,6 +159,7 @@ function buildPage(): string {
   /* ── Scrollbar ── */
 ${REPORTS_STYLE}
 ${BROWSE_STYLE}
+${SPECIALITY_STYLE}
   ::-webkit-scrollbar{width:6px}
   ::-webkit-scrollbar-track{background:#09121f}
   ::-webkit-scrollbar-thumb{background:#1e3352;border-radius:3px}
@@ -293,24 +299,12 @@ ${BROWSE_RETURN_BAR}        <div class="empty-state" id="edit-empty">
               <input type="number" name="longitude" step="any" placeholder="e.g. -74.0060">
             </div>
 
-            <div class="section-title">Designations</div>
-            <div class="field full">
-              <label class="field-label">Actual Designation</label>
-              <input type="text" name="actualDesignation" placeholder="e.g. Level II Trauma Center; Acute Care Hospital">
-            </div>
+            ${specialityEditorHtml("edit")}
             <div class="field">
               <label class="field-label">Service Line</label>
               <select name="serviceLine">
                 ${SERVICE_LINE_OPTIONS}
               </select>
-            </div>
-            <div class="field">
-              <label class="field-label">Stroke Designation</label>
-              <input type="text" name="strokeDesignation" placeholder="e.g. Comprehensive Stroke Center">
-            </div>
-            <div class="field">
-              <label class="field-label">Burn Designation</label>
-              <input type="text" name="burnDesignation" placeholder="e.g. Verified Burn Center">
             </div>
             <div class="field">
               <label class="field-label">PCI / STEMI Capability</label>
@@ -324,12 +318,6 @@ ${BROWSE_RETURN_BAR}        <div class="empty-state" id="edit-empty">
               <label class="spec-cb" style="font-size:13px;color:#cbd5e1">
                 <input type="checkbox" name="helipad"> Helipad on site
               </label>
-            </div>
-
-            <div class="section-title">Specialties</div>
-            <div class="field full">
-              <label class="field-label">Specialties (comma-separated — preserves all existing values)</label>
-              <textarea name="specialties" rows="3" placeholder="e.g. Trauma, Stroke, Burn"></textarea>
             </div>
 
             <div id="deactivated-reason-row" style="display:none;grid-column:1/-1;background:#78350f22;border:1px solid #b4530944;border-radius:6px;padding:10px 14px;margin-top:4px">
@@ -392,24 +380,12 @@ ${browseContent(STATE_OPTIONS)}
               <input type="number" name="longitude" step="any" placeholder="e.g. -74.0060">
             </div>
 
-            <div class="section-title">Designations</div>
-            <div class="field full">
-              <label class="field-label">Actual Designation</label>
-              <input type="text" name="actualDesignation" placeholder="e.g. Level II Trauma Center; Acute Care Hospital">
-            </div>
+            ${specialityEditorHtml("add")}
             <div class="field">
               <label class="field-label">Service Line</label>
               <select name="serviceLine">
                 ${SERVICE_LINE_OPTIONS}
               </select>
-            </div>
-            <div class="field">
-              <label class="field-label">Stroke Designation</label>
-              <input type="text" name="strokeDesignation">
-            </div>
-            <div class="field">
-              <label class="field-label">Burn Designation</label>
-              <input type="text" name="burnDesignation">
             </div>
             <div class="field">
               <label class="field-label">PCI / STEMI Capability</label>
@@ -425,16 +401,10 @@ ${browseContent(STATE_OPTIONS)}
               </label>
             </div>
 
-            <div class="section-title">Specialties</div>
-            <div class="field full">
-              <label class="field-label">Specialties (comma-separated)</label>
-              <textarea name="specialties" rows="3" placeholder="e.g. Trauma, Stroke, Burn"></textarea>
-            </div>
-
             <div class="status-msg" id="add-status"></div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Create Hospital</button>
-              <button type="button" class="btn btn-outline" onclick="document.getElementById('add-form').reset()">Clear</button>
+              <button type="button" class="btn btn-outline" onclick="document.getElementById('add-form').reset();spAddReset()">Clear</button>
             </div>
           </div>
         </form>
@@ -475,6 +445,10 @@ function doLogin() {
     });
 }
 function doLogout() {
+  if (!spConfirmDiscard()) return;
+  if (sp.add.entries.length && !confirm('Discard the Speciality entries for the unsaved new hospital?')) return;
+  spEditReset();
+  spAddReset();
   reportsStop();
   bsStop();
   TOKEN = '';
@@ -582,7 +556,6 @@ async function runSearch(q, state) {
         <div class="result-name">\${esc(r.name)}</div>
         <div class="result-sub">\${esc([r.city, r.state].filter(Boolean).join(', ') || r.state)}</div>
         \${r.phone ? \`<div class="result-meta">\${esc(r.phone)}</div>\` : ''}
-        \${r.actualDesignation ? \`<div class="result-meta" title="\${esc(r.actualDesignation)}">\${esc(r.actualDesignation)}</div>\` : ''}
         <span class="result-badge \${r.source === 'admin' ? 'admin' : ''}">\${r.source === 'admin' ? 'Admin-created' : 'CMS'}</span>
         \${r.active === false ? '<span class="result-badge inactive">Deactivated</span>' : ''}
       </div>
@@ -600,6 +573,7 @@ function esc(s) {
 
 // ── Select & populate edit form ───────────────────────────────────────────────
 function selectHospital(id, el) {
+  if (id !== sp.edit.loadedFor && !spConfirmDiscard()) return;
   document.querySelectorAll('.result-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
   selectedHospitalId = id;
@@ -630,18 +604,12 @@ function populateEditForm(h) {
   set('phone', h.phone);
   set('latitude', h.latitude);
   set('longitude', h.longitude);
-  set('actualDesignation', h.actualDesignation);
   set('serviceLine', h.serviceLine);
-  set('strokeDesignation', h.strokeDesignation);
-  set('burnDesignation', h.burnDesignation);
   set('pciCapability', h.pciCapability);
   set('helipad', h.helipad);
   set('beds', h.beds);
 
-  // Specialties textarea — pre-fill with all existing values preserved
-  const specs = h.specialties ?? [];
-  const specEl = form.elements['specialties'];
-  if (specEl) specEl.value = specs.join(', ');
+  spLoad(h.id);
 
   // Track active state and update deactivate button label/style
   selectedHospitalActive = h.active !== false;
@@ -671,6 +639,8 @@ function populateEditForm(h) {
 }
 
 function clearEdit() {
+  if (!spConfirmDiscard()) return;
+  spEditReset();
   selectedHospitalId = null;
   selectedRecordIdentity = null;
   selectedHospitalActive = true;
@@ -802,21 +772,29 @@ async function submitEdit(e) {
 async function submitAdd(e) {
   e.preventDefault();
   const form = e.target;
-  const data = formToPayload(form);
   const btn = form.querySelector('button[type="submit"]');
+  if (btn.disabled) return;
+  const data = formToPayload(form);
+  try { data.specialities = spAddPayload(); }
+  catch (err) { showStatus('add-status', err.message, false); return; }
   btn.disabled = true;
   btn.textContent = 'Creating…';
+  const addSeq = sp.add.seq;
+  Array.from(form.elements).forEach(el => { el.disabled = true; });
   try {
     const result = await apiFetch('/api/admin/hospitals', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    if (addSeq !== sp.add.seq) return;
     showStatus('add-status', 'Hospital created! CMS ID: ' + result.hospital.cmsId, true);
     form.reset();
+    spAddReset();
     bsInvalidate();
   } catch (err) {
-    showStatus('add-status', 'Error: ' + err.message, false);
+    if (addSeq === sp.add.seq) showStatus('add-status', 'Error: ' + err.message, false);
   } finally {
+    Array.from(form.elements).forEach(el => { el.disabled = false; });
     btn.disabled = false;
     btn.textContent = 'Create Hospital';
   }
@@ -829,7 +807,7 @@ function formToPayload(form) {
   // Text/select fields
   [
     'hospitalName','address','city','state','zip','phone',
-    'actualDesignation','serviceLine','strokeDesignation','burnDesignation','pciCapability',
+    'serviceLine','pciCapability',
   ].forEach(k => { data[k] = fd.get(k) || null; });
   // Numbers
   const lat = fd.get('latitude'); data.latitude = lat ? Number(lat) : null;
@@ -837,9 +815,6 @@ function formToPayload(form) {
   const beds = fd.get('beds'); data.beds = beds ? parseInt(beds, 10) : null;
   // Boolean checkbox
   data.helipad = form.elements['helipad']?.checked ?? false;
-  // Specialties — free-text textarea, comma-separated, preserves any existing values
-  const specRaw = (fd.get('specialties') ?? '').toString().trim();
-  data.specialties = specRaw ? specRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
   return data;
 }
 
@@ -868,6 +843,7 @@ function switchTab(name) {
 }
 ${REPORTS_SCRIPT}
 ${BROWSE_SCRIPT}
+${SPECIALITY_SCRIPT}
 </script>
 </body>
 </html>`;

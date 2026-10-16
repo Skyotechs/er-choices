@@ -11,7 +11,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { Hospital } from "@/types/hospital";
-import { formatDistance, normalizeDesignation } from "@/services/hospitalService";
+import { formatDistance, buildDesignationGroups } from "@/services/hospitalService";
 
 interface HospitalCardProps {
   hospital: Hospital;
@@ -57,9 +57,13 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
         </Text>
 
         {(() => {
-          const badge = hospital.actualDesignation
-            ? normalizeDesignation(hospital.actualDesignation.split(";")[0].trim())
-            : ((hospital.categories ?? []) as string[]).filter((c) => c !== "All")[0] ?? null;
+          // Verified Speciality only; never inferred categories or legacy text.
+          const groups = buildDesignationGroups(hospital);
+          const first = groups[0];
+          const badge = first
+            ? (first.subs[0] ? `${first.label}: ${first.subs[0]}` : first.label) +
+              (groups.length > 1 ? ` +${groups.length - 1}` : "")
+            : null;
           return (badge || hospital.helipad) ? (
             <View style={styles.badgeRow}>
               {badge ? (
@@ -73,7 +77,9 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
                 </View>
               ) : null}
               {hospital.helipad ? (
-                <Text style={styles.helipadIcon}>✈️</Text>
+                <View style={[styles.serviceBadge, { borderColor: colors.border }]}>
+                  <Text style={[styles.serviceText, { color: colors.mutedForeground }]}>Helipad</Text>
+                </View>
               ) : null}
             </View>
           ) : null;
@@ -162,8 +168,15 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  helipadIcon: {
-    fontSize: 13,
+  serviceBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  serviceText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
   },
   designationText: {
     fontSize: 11,

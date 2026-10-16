@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
-import { Hospital, HospitalCategory, DesignationFilter } from "@/types/hospital";
+import { Hospital, DesignationFilter } from "@/types/hospital";
 import {
   fetchNearbyHospitals,
-  fetchVerifiedSpecialtyMap,
   filterAndSortHospitals,
   NavigationServerError,
 } from "@/services/hospitalService";
@@ -99,35 +98,13 @@ export function HospitalProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [serverError, setServerError] = useState(false);
-  const [verifiedSpecialtyMap, setVerifiedSpecialtyMap] = useState<Record<string, HospitalCategory[]>>({});
-  const verifiedMapRef = useRef<Record<string, HospitalCategory[]>>({});
-
   const filteredHospitals = filterAndSortHospitals(allHospitals, selectedFilter, 10);
   const availableFilters = computeAvailableFilters(allHospitals);
-
-  useEffect(() => {
-    fetchVerifiedSpecialtyMap(API_BASE).then((map) => {
-      verifiedMapRef.current = map;
-      setVerifiedSpecialtyMap(map);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (Object.keys(verifiedSpecialtyMap).length === 0) return;
-    setAllHospitals((prev) => {
-      if (prev.length === 0) return prev;
-      return prev.map((h) => {
-        const hasVerified = h.id in verifiedSpecialtyMap;
-        const verified: HospitalCategory[] = verifiedSpecialtyMap[h.id] ?? [];
-        return hasVerified ? { ...h, categories: verified, verifiedSpecialties: verified } : h;
-      });
-    });
-  }, [verifiedSpecialtyMap]);
 
   const loadHospitals = useCallback(async (coords: LocationCoords) => {
     setServerError(false);
     try {
-      const hospitals = await fetchNearbyHospitals(coords.latitude, coords.longitude, verifiedMapRef.current);
+      const hospitals = await fetchNearbyHospitals(coords.latitude, coords.longitude);
       setAllHospitals(hospitals);
     } catch (err) {
       if (err instanceof NavigationServerError) {

@@ -146,33 +146,59 @@ export function NavigationSheet({
 
           {(() => {
             const groups = buildDesignationGroups(hospital);
-            if (groups.length === 0 && !hospital.helipad && !hospital.pciCapability) return null;
+            const verified = (hospital.specialities ?? []).filter((e) => e.status === "verified");
             return (
-              <View style={styles.designationBlock}>
-                {groups.map((group) => (
-                  <View key={group.label} style={styles.designationGroup}>
-                    <View style={[styles.designationBadge, { backgroundColor: colors.primary + "18" }]}>
-                      <Text style={[styles.designationBadgeText, { color: colors.primary }]}>
-                        {group.label}
-                      </Text>
-                    </View>
-                    {group.subs.length > 0 && (
+              <View style={styles.designationBlock} testID="section-speciality">
+                <Text style={[styles.blockLabel, { color: colors.mutedForeground }]}>VERIFIED SPECIALITY</Text>
+                {groups.length === 0 ? (
+                  <Text style={[styles.subDetailText, { color: colors.mutedForeground }]}>
+                    Speciality verification unavailable for this hospital. This does not mean services are absent; confirm with the hospital or medical control.
+                  </Text>
+                ) : (
+                  groups.map((group) => (
+                    <View key={group.label} style={styles.designationGroup}>
+                      <View style={[styles.designationBadge, { backgroundColor: colors.primary + "18" }]}>
+                        <Text style={[styles.designationBadgeText, { color: colors.primary }]}>
+                          {group.label}
+                        </Text>
+                      </View>
                       <View style={styles.subDetailList}>
                         {group.subs.map((sub) => (
-                          <Text key={sub} style={[styles.subDetailText, { color: colors.mutedForeground }]}>
+                          <Text key={sub} style={[styles.subDetailText, { color: colors.foreground }]}>
                             {sub}
                           </Text>
                         ))}
+                        {verified
+                          .filter((e) => e.category === group.label)
+                          .map((e, i) => (
+                            <Text key={`${e.classification}-${i}`} style={[styles.evidenceText, { color: colors.mutedForeground }]}>
+                              {e.authority ? `Verified by admin against ${e.authority}` : "Verified by admin"}
+                              {e.verifiedOn ? ` on ${e.verifiedOn}` : ""}
+                              {/^https:\/\//i.test(e.sourceUrl) ? (
+                                <Text
+                                  style={{ color: colors.primary, textDecorationLine: "underline" }}
+                                  onPress={() => Linking.openURL(e.sourceUrl)}
+                                >
+                                  {"  Official source"}
+                                </Text>
+                              ) : null}
+                            </Text>
+                          ))}
                       </View>
-                    )}
+                    </View>
+                  ))
+                )}
+                {(hospital.pciCapability || hospital.helipad) ? (
+                  <View style={styles.servicesBlock} testID="section-services">
+                    <Text style={[styles.blockLabel, { color: colors.mutedForeground }]}>SERVICES (NOT SPECIALITY)</Text>
+                    {hospital.pciCapability ? (
+                      <Text style={[styles.helipadText, { color: colors.foreground }]}>PCI/STEMI capable</Text>
+                    ) : null}
+                    {hospital.helipad ? (
+                      <Text style={[styles.helipadText, { color: colors.foreground }]}>Helipad available</Text>
+                    ) : null}
                   </View>
-                ))}
-                {hospital.pciCapability && (
-                  <Text style={[styles.helipadText, { color: colors.foreground }]}>❤️ PCI/STEMI capable</Text>
-                )}
-                {hospital.helipad && (
-                  <Text style={[styles.helipadText, { color: colors.foreground }]}>✈️ Helipad available</Text>
-                )}
+                ) : null}
               </View>
             );
           })()}
@@ -327,6 +353,20 @@ const styles = StyleSheet.create({
   subDetailText: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
+  },
+  blockLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1,
+  },
+  evidenceText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 1,
+  },
+  servicesBlock: {
+    gap: 2,
+    marginTop: 6,
   },
   helipadText: {
     fontSize: 13,

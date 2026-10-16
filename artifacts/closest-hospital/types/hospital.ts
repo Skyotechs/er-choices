@@ -1,3 +1,4 @@
+import type { SpecialityEntry } from "@workspace/speciality";
 export type HospitalCategory =
   | "All"
   | "Trauma"
@@ -7,7 +8,9 @@ export type HospitalCategory =
   | "Pediatric"
   | "Psychiatric"
   | "Cardiac"
-  | "Cancer";
+  | "Cancer"
+  | "HazMat";
+// HazMat is kept distinct; it must never be classified as Trauma by proximity.
 
 /**
  * Designation-based filter derived from the enriched HIFLD database fields:
@@ -34,6 +37,7 @@ export const DESIGNATION_FILTERS: DesignationFilter[] = [
 ];
 
 export interface Hospital {
+  specialities?: SpecialityEntry[];
   id: string;
   name: string;
   address?: string;

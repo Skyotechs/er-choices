@@ -16,7 +16,7 @@ type IconSpec =
   | { lib: "fa5"; name: string }
   | { lib: "mci"; name: string };
 
-const FILTER_ICONS: Record<DesignationFilter, IconSpec> = {
+const FILTER_ICONS: Partial<Record<string, IconSpec>> = {
   All:               { lib: "mci", name: "hospital-box" },
   Trauma:            { lib: "fa5", name: "ambulance" },
   Stroke:            { lib: "fa5", name: "brain" },
@@ -42,7 +42,7 @@ function FilterChip({
   onSelect: (f: DesignationFilter) => void;
 }) {
   const colors = useColors();
-  const icon = FILTER_ICONS[filter];
+  const icon: IconSpec = FILTER_ICONS[filter] ?? { lib: "mci", name: "check-decagram" };
 
   const handlePress = () => {
     if (Platform.OS !== "web") Haptics.selectionAsync();
@@ -61,6 +61,8 @@ function FilterChip({
         },
       ]}
       activeOpacity={0.7}
+      accessibilityLabel={filter === "All" ? "Show all hospitals" : `Filter by verified ${filter} Speciality`}
+      testID={`filter-speciality-${filter}`}
     >
       {icon.lib === "fa5" ? (
         <FontAwesome5
@@ -87,7 +89,7 @@ function FilterChip({
           },
         ]}
       >
-        {filter}
+        {filter === "All" ? "All Speciality" : filter}
       </Text>
     </TouchableOpacity>
   );

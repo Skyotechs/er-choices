@@ -1,7 +1,7 @@
 import React from "react";
 import { Hospital } from "@/types/hospital";
 import { formatDistance } from "@/services/hospitalService";
-import { normalizeDesignation } from "@/services/designationUtils";
+import { buildDesignationGroups } from "@/services/designationUtils";
 
 interface HospitalCardProps {
   hospital: Hospital;
@@ -10,9 +10,12 @@ interface HospitalCardProps {
 }
 
 export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
-  const designationBadge = hospital.actualDesignation
-    ? normalizeDesignation(hospital.actualDesignation.split(";")[0].trim())
-    : (hospital.categories as string[]).filter((c) => c !== "All")[0] ?? null;
+  // Verified Speciality only — never inferred categories or legacy designation text.
+  const groups = buildDesignationGroups(hospital);
+  const designationBadge = groups[0]
+    ? (groups[0].subs[0] ? `${groups[0].label}: ${groups[0].subs[0]}` : groups[0].label)
+    : null;
+  const extraCount = Math.max(0, groups.length - 1);
 
   return (
     <button
@@ -32,17 +35,24 @@ export function HospitalCard({ hospital, index, onPress }: HospitalCardProps) {
             </p>
           )}
           {hospital.phone && (
-            <p className="text-xs text-muted-foreground mt-0.5">📞 {hospital.phone}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{hospital.phone}</p>
           )}
           {(designationBadge || hospital.helipad) && (
             <div className="flex flex-wrap items-center gap-1 mt-2">
               {designationBadge && (
-                <span className="text-xs px-1.5 py-0.5 bg-[#c0392b]/10 text-[#c0392b] rounded-md font-medium">
+                <span
+                  className="text-xs px-1.5 py-0.5 bg-[#c0392b]/10 text-[#c0392b] rounded-md font-medium truncate max-w-full"
+                  title="Verified Speciality"
+                  data-testid={`badge-speciality-${hospital.id}`}
+                >
                   {designationBadge}
+                  {extraCount > 0 ? ` +${extraCount}` : ""}
                 </span>
               )}
               {hospital.helipad && (
-                <span className="text-xs" title="Helipad available">✈️</span>
+                <span className="text-xs px-1.5 py-0.5 border border-border text-muted-foreground rounded-md" title="Service, not a Speciality">
+                  Helipad
+                </span>
               )}
             </div>
           )}

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { hospitalDb as db, hospitalSpecialties, hospitalOverrides } from "@workspace/db";
 import { and, isNotNull, sql, eq } from "drizzle-orm";
+import { publicSpeciality } from "../lib/speciality-store";
 
 const router = Router();
 
@@ -89,6 +90,7 @@ router.get("/hospitals/nearby", async (req, res) => {
         latitude: hospitalSpecialties.latitude,
         longitude: hospitalSpecialties.longitude,
         specialties: hospitalSpecialties.specialties,
+        designationSources: hospitalSpecialties.designationSources,
         distance: distanceSql,
         overrideLat: hospitalOverrides.latitude,
         overrideLon: hospitalOverrides.longitude,
@@ -133,9 +135,7 @@ router.get("/hospitals/nearby", async (req, res) => {
       const id = row.osmId
         ? normaliseOsmId(row.osmId)
         : `cms-${row.cmsId}`;
-      const categories = toMobileCategories(
-        (row.specialties as string[]) ?? []
-      );
+      const speciality = publicSpeciality(row.designationSources);
 
       return {
         id,
@@ -147,11 +147,9 @@ router.get("/hospitals/nearby", async (req, res) => {
         latitude: finalLat,
         longitude: finalLon,
         distance: row.distance,
-        categories,
-        specialties: (row.specialties as string[]) ?? [],
+        ...speciality,
         phone: row.overridePhone ?? row.cmsPhone ?? null,
         // Enriched fields
-        actualDesignation: row.actualDesignation ?? null,
         serviceLine: row.serviceLine ?? null,
         advancedCapabilities: row.advancedCapabilities ?? null,
         emsTags: row.emsTags ?? null,
@@ -159,8 +157,6 @@ router.get("/hospitals/nearby", async (req, res) => {
         beds: row.beds ?? null,
         hifldOwner: row.hifldOwner ?? null,
         hifldWebsite: row.hifldWebsite ?? null,
-        strokeDesignation: row.strokeDesignation ?? null,
-        burnDesignation: row.burnDesignation ?? null,
         pciCapability: row.pciCapability ?? null,
         hifldMatchConfidence: row.hifldMatchConfidence ?? null,
       };
