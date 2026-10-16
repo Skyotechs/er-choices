@@ -3,6 +3,8 @@ export const SPECIALITY_KEY = "_specialityV1";
 export const SPECIALITY_CATEGORIES = [
   "Trauma", "Stroke", "Burn", "Pediatric", "Obstetrics", "Psychiatric",
   "Cardiac", "Cancer", "HazMat",
+  "General Acute Care", "Critical Access", "Women", "Rehabilitation",
+  "Long-Term Acute Care", "Orthopedic", "Neurology", "Neonatal", "Transplant",
 ] as const;
 export type SpecialityCategory = typeof SPECIALITY_CATEGORIES[number];
 export interface SpecialityEntry {

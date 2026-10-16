@@ -22,6 +22,15 @@ selection, or additional confirmation checkbox. Admins enter Category / Speciali
 OR exact classification / level; either alone is enough, not both. Population
 must not be another required input or selector.
 
+Services & Capabilities should let admins select all applicable Speciality
+categories with checkboxes, rather than making them add each category manually.
+
+**Why:** The user requested all relevant specialties, including general acute
+care, women and critical access, as a multiple-selection checkbox list.
+
+**How to apply:** Keep the checklist and optional exact classifications in the
+same authoritative Speciality records, not parallel overlapping fields.
+
 **Why:** The user said, “admin only needs to record the specialties, since they
 would have done the research to determine the specialty,” then clarified,
 “Category/Specialty or Exact classification/level.”
@@ -42,3 +51,13 @@ Do not guess the category of a classification-only entry (for example, “Level 
 **How to apply:** Show the entered level without a guessed category; category-based
 filters use an explicitly recorded category. Preserve previously stored population
 and supporting details without making admins re-enter them.
+
+The admin editor should have no Service Line input. Show an optional PCI/STEMI
+capability field only when Cardiac is selected; selecting Stroke or Cardiac must
+not automatically assert PCI capability.
+
+**Why:** The user said there is no need for Service Line and chose an optional
+PCI/STEMI field conditional on Cardiac after the cardiac/stroke distinction was explained.
+
+**How to apply:** Preserve stored legacy values when removing or hiding inputs.
+PCI/STEMI remains an explicitly entered capability, separate from category selection.

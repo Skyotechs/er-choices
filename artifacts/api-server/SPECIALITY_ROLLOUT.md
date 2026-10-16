@@ -9,7 +9,18 @@ The software does not verify external registries. The hospital-wide `verified`
 flag and legacy importer tags still do not automatically confirm classifications.
 
 Admins enter a category/speciality OR an exact classification/level. Either
-alone is sufficient. The population selector is removed; existing population
+alone is sufficient. Services & Capabilities now offers a multi-select Speciality
+checklist for both creating and editing hospitals, with optional exact
+classification/level details and an "Add other classification" option.
+Save Changes also saves any pending Speciality selection using the same guarded
+Speciality endpoint; a conflict blocks the remaining form save instead of
+reporting success while losing selections. Save Speciality remains available.
+Service Line is no longer an editable input. Its existing stored values remain
+unchanged. The optional PCI/STEMI field is shown only for a selected Cardiac
+Speciality and is saved with the ordinary hospital form, never inferred from
+Cardiac or Stroke. When hidden, PCI is omitted from the request so historical
+values are preserved; an explicitly cleared visible field may still clear it.
+The population selector is removed; existing population
 details are preserved, and new entries without one display no population label.
 Category-only entries show the category once. Classification-only entries
 without a category are displayed as entered under All Speciality, without
@@ -40,7 +51,7 @@ preserving all existing legacy source keys and hospital fields.
 2. Verify authenticated GET `/api/admin/hospitals/:id/speciality` and public
    `/api/hospitals/nearby` responses read the same Railway store. Use read-only
    checks; do not submit test edits to existing hospitals.
-3. Publish the website update. Build and distribute a new Android version
+3. Publish the website update. Build and distribute new Android and Apple/iOS versions
    through the usual approved release process. No binary or Play upload is
    performed by this change.
 4. Refresh open admin pages. Old classification write endpoints and overlapping
@@ -56,7 +67,7 @@ Public API response shapes keep legacy category/string fields for installed
 clients, projected from reviewed entries where possible, and preserve service
 information separately. Existing installed binaries have older fallback logic;
 they cannot gain the new admin-confirmation rules until updated. Release the backend,
-website, and Android changes together before representing the rollout as complete.
+website, Android, and Apple/iOS changes together before representing the rollout as complete.
 
 ## Verification and limitations
 

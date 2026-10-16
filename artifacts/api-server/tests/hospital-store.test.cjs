@@ -513,7 +513,9 @@ test("the rendered admin editor sends the loaded identity for save and both stat
     } }) },
     "./admin-reports-ui": compile("../src/routes/admin-reports-ui.ts", {}),
     "./admin-state-browse-ui": compile("../src/routes/admin-state-browse-ui.ts", {}),
-    "./admin-speciality-ui": compile("../src/routes/admin-speciality-ui.ts", {}),
+    "./admin-speciality-ui": compile("../src/routes/admin-speciality-ui.ts", {
+      "@workspace/speciality": compile("../../../lib/speciality/src/index.ts", {}),
+    }),
   };
   compile("../src/routes/admin-ui.ts", deps);
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
@@ -530,8 +532,14 @@ test("the rendered admin editor sends the loaded identity for save and both stat
     },
     confirm: () => true, prompt: () => "", setTimeout() {},
     window: { addEventListener() {} },
+    FormData: class {
+      constructor(form) { this.values = form.values || {}; }
+      get(key) { return this.values[key] ?? null; }
+    },
   });
   vm.runInContext(script, context);
+  const realFormToPayload = context.formToPayload;
+  assert.doesNotMatch(html, /name="serviceLine"/, "neither admin form should expose Service Line");
   const requests = [];
   Object.assign(context, {
     apiFetch: async (url, options) => { requests.push({ url, body: JSON.parse(options.body) }); return {}; },
@@ -589,7 +597,9 @@ test("the rendered admin editor sends the loaded identity for save and both stat
   await pendingSave;
   assert.equal(vm.runInContext("sp.edit.loadedFor", context), 99);
   assert.equal(vm.runInContext("sp.edit.entries.length", context), 0);
-  const editor = compile("../src/routes/admin-speciality-ui.ts", {});
+  const editor = compile("../src/routes/admin-speciality-ui.ts", {
+    "@workspace/speciality": compile("../../../lib/speciality/src/index.ts", {}),
+  });
   assert.doesNotMatch(editor.SPECIALITY_SCRIPT, /data-k="(?:authority|sourceUrl|verifiedOn|status|officialConfirmed|population)"/);
   assert.equal(vm.runInContext(`spValidate([{category:"Trauma",classification:"Level II Trauma Center",population:"All"}])`, context), null);
   assert.equal(vm.runInContext(`spValidate([{category:"Trauma",classification:"",population:"All"}])`, context), null);
@@ -598,4 +608,117 @@ test("the rendered admin editor sends the loaded identity for save and both stat
   // Category-only reloading leaves the alternative input blank; population on old entries stays intact.
   assert.equal(vm.runInContext(`spEntryForEditor({category:"Trauma",classification:"Trauma",population:"Adult"}).classification`, context), "");
   assert.equal(vm.runInContext(`spClean([spEntryForEditor({category:"Trauma",classification:"Trauma",population:"Adult"})])[0].population`, context), "Adult");
+
+  // Exercise the actual checkbox handlers, authenticated routes and public projection
+  // together against an in-memory store; never make a live hospital edit.
+  const checklistStore = fixture();
+  const unchanged = JSON.parse(JSON.stringify(checklistStore.records[0]));
+  const calls = [];
+  context.apiFetch = async (url, options = {}) => {
+    const method = (options.method || "GET").toLowerCase();
+    calls.push({url, method});
+    const result = await checklistStore.request(method, url.replace(/^\/api/, ""), JSON.parse(options.body || "{}"));
+    if (result.status >= 400) throw new Error("HTTP " + result.status);
+    return result.payload;
+  };
+  await context.spLoad(1);
+  assert.match(elements.get("sp-edit-options").innerHTML, /Women’s Health/);
+  assert.match(elements.get("sp-edit-options").innerHTML, /type="checkbox"/);
+  function toggle(prefix, category, checked) {
+    context.spToggleCategory(prefix, vm.runInContext(`SP_CATEGORIES.indexOf(${JSON.stringify(category)})`, context), checked);
+  }
+  const selected = ["Trauma", "Burn", "General Acute Care", "Critical Access", "Women", "Pediatric", "Obstetrics", "Cancer"];
+  for (const category of selected) toggle("edit", category, true);
+  toggle("edit", "Trauma", true); // repeated events must not create a duplicate
+  assert.equal(vm.runInContext("sp.edit.entries.length", context), selected.length);
+  context.spField("edit", 0, {dataset: {k: "classification"}, type: "text", value: "Level II"});
+  await context.submitEdit({preventDefault() {}, target: node()});
+  assert.equal(calls.filter(call => call.method === "put").length, 1, "Save Changes saves the checklist too");
+  const publicResult = await checklistStore.request("get", "/hospitals/nearby?lat=1&lon=2");
+  assert.equal(publicResult.payload.hospitals[0].specialities.length, selected.length);
+  assert.ok(selected.every(category => publicResult.payload.hospitals[0].categories.includes(category)));
+  await context.spLoad(1);
+  assert.equal(vm.runInContext("sp.edit.entries[0].classification", context), "Level II");
+  assert.match(elements.get("sp-edit-options").innerHTML, /data-category="Women" checked/);
+  toggle("edit", "Women", false);
+  assert.equal(await context.spSaveEdit(), true);
+  await context.spLoad(1);
+  assert.doesNotMatch(elements.get("sp-edit-options").innerHTML, /data-category="Women" checked/);
+  assert.equal(vm.runInContext("sp.edit.entries[0].classification", context), "Level II", "unchecking another category preserves the existing level");
+  for (const key of ["address", "phone", "latitude", "longitude", "specialties"]) {
+    assert.deepEqual(checklistStore.records[0][key], unchanged[key], key + " must remain unchanged");
+  }
+
+  // New hospitals use the same checklist payload in the existing single create request.
+  context.spAddReset();
+  for (const category of selected) toggle("add", category, true);
+  assert.equal(context.spAddPayload().length, selected.length);
+  context.formToPayload = () => ({hospitalName: "Checklist Fixture", state: "TX"});
+  await context.submitAdd({preventDefault() {}, target: addForm});
+  assert.equal(checklistStore.records.length, 3, "checkbox creation must succeed");
+  const addedEntries = checklistStore.records.at(-1).designationSources._specialityV1.entries;
+  assert.equal(addedEntries.length, selected.length);
+  assert.ok(selected.every(category => addedEntries.some(entry => entry.category === category)));
+
+  // Deselecting everything explicitly saves an empty set, not the previous selection.
+  for (const category of selected) toggle("edit", category, false);
+  assert.equal(await context.spSaveEdit(), true);
+  await context.spLoad(1);
+  assert.equal(vm.runInContext("sp.edit.entries.length", context), 0);
+
+  // Conflicts preserve unsaved choices and prevent an unrelated PATCH from hiding failure.
+  toggle("edit", "Burn", true);
+  vm.runInContext("sp.edit.revision = 'stale-fixture-revision'", context);
+  calls.length = 0;
+  await context.submitEdit({preventDefault() {}, target: node()});
+  assert.equal(vm.runInContext("sp.edit.conflict", context), true);
+  assert.equal(vm.runInContext("sp.edit.entries.length", context), 1);
+  assert.equal(calls.some(call => call.method === "patch"), false);
+  assert.match(elements.get("sp-edit-options").innerHTML, /data-category="Burn" checked disabled/);
+
+  // Cardiac gates an optional PCI field in both forms; Stroke never enables it.
+  context.spAddReset();
+  const pciAddInput = elements.get("pci-add-input");
+  pciAddInput.value = "";
+  assert.equal(elements.get("pci-add-row").hidden, true);
+  toggle("add", "Stroke", true);
+  assert.equal(elements.get("pci-add-row").hidden, true);
+  assert.equal(pciAddInput.disabled, true);
+  const payloadForm = {id: "add-form", values: {hospitalName: "Fixture", state: "TX", serviceLine: "Legacy service line", pciCapability: "Existing capability"}, elements: {}};
+  assert.equal("serviceLine" in realFormToPayload(payloadForm), false);
+  assert.equal("pciCapability" in realFormToPayload(payloadForm), false);
+  toggle("add", "Cardiac", true);
+  assert.equal(elements.get("pci-add-row").hidden, false);
+  assert.equal(pciAddInput.disabled, false);
+  assert.equal(pciAddInput.value, "", "Cardiac must not invent a PCI capability");
+  assert.equal(realFormToPayload(payloadForm).pciCapability, "Existing capability");
+  payloadForm.values.pciCapability = "";
+  assert.equal(realFormToPayload(payloadForm).pciCapability, null, "the visible optional field can be intentionally cleared");
+  pciAddInput.value = "Unsaved confirmed PCI";
+  toggle("add", "Cardiac", false);
+  assert.equal(elements.get("pci-add-row").hidden, true);
+  assert.equal(pciAddInput.value, "Unsaved confirmed PCI", "temporarily hiding a field preserves the text");
+  assert.equal("pciCapability" in realFormToPayload(payloadForm), false);
+  toggle("add", "Cardiac", true);
+  assert.equal(pciAddInput.value, "Unsaved confirmed PCI");
+  context.spAddReset();
+  assert.equal(elements.get("pci-add-row").hidden, true);
+
+  checklistStore.records[0].serviceLine = "Existing legacy service line";
+  checklistStore.records[0].pciCapability = "Previously confirmed PCI";
+  await context.spLoad(1);
+  assert.equal(elements.get("pci-edit-row").hidden, true);
+  const editPayload = realFormToPayload({...payloadForm, id: "edit-form"});
+  editPayload.recordIdentity = checklistStore.identity.hospitalRecordIdentity(checklistStore.records[0]);
+  assert.equal((await checklistStore.request("patch", "/admin/hospitals/1", editPayload)).status, 200);
+  assert.equal(checklistStore.records[0].serviceLine, "Existing legacy service line");
+  assert.equal(checklistStore.records[0].pciCapability, "Previously confirmed PCI", "saving while hidden must not erase historical PCI");
+  toggle("edit", "Cardiac", true);
+  assert.equal(elements.get("pci-edit-row").hidden, false);
+  assert.equal(elements.get("pci-edit-input").disabled, false);
+  assert.equal(await context.spSaveEdit(), true);
+  await context.spLoad(1);
+  assert.equal(elements.get("pci-edit-row").hidden, false, "Cardiac persists and restores the optional PCI field");
+  toggle("edit", "Cardiac", false);
+  assert.equal(elements.get("pci-edit-row").hidden, true);
 });

@@ -1,3 +1,5 @@
+import { SPECIALITY_CATEGORIES } from "@workspace/speciality";
+
 /**
  * Structured Speciality editor for the inline admin dashboard.
  * Edit mode: dedicated GET/PUT /api/admin/hospitals/:id/speciality with revision guard.
@@ -9,6 +11,11 @@
 export const SPECIALITY_STYLE = `
   .sp-wrap{grid-column:1/-1;display:flex;flex-direction:column;gap:10px}
   .sp-note{font-size:12px;color:#64748b;line-height:1.5}
+  .sp-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+  .sp-option{display:flex;align-items:center;gap:9px;border:1px solid #1e3352;border-radius:6px;padding:10px;color:#cbd5e1;font-size:13px;cursor:pointer}
+  .sp-option:has(input:checked){border-color:#3b82f6;background:#172c49}
+  .sp-option:has(input:disabled){cursor:default;opacity:.65}
+  .sp-option input{width:auto;flex-shrink:0;accent-color:#3b82f6}
   .sp-entry{border:1px solid #1e3352;border-radius:8px;padding:12px;background:#0a1524;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   .sp-entry.verified{border-color:#16a34a55}
   .sp-entry .field.wide{grid-column:span 2}
@@ -53,26 +60,27 @@ export const SPECIALITY_STYLE = `
 export function specialityEditorHtml(prefix: "edit" | "add"): string {
   const isEdit = prefix === "edit";
   return `
-            <div class="section-title">Speciality (official classifications)</div>
+            <div class="section-title">Services &amp; Capabilities</div>
             <div class="sp-wrap" id="sp-${prefix}">
-              <div class="sp-note">Choose a Category / Speciality OR enter an exact classification / level. Either one is sufficient; you do not need both. Saving confirms your researched entry. No population, evidence, date, or extra confirmation is required. A level entered without a category is shown as entered, without guessing a category.</div>
+              <div class="sp-note"><strong>Speciality — select all that apply.</strong> Check every researched category that belongs to this hospital. Classification / level details are optional. For a classification not listed, use “Add other classification”. Saving confirms your selections; no evidence form or extra confirmation is required. Unchecking a category removes its saved Speciality entries when you save.</div>
               ${isEdit ? `<div class="sp-state" id="sp-edit-state"></div>
               <div id="sp-edit-legacy"></div>` : ""}
+              <div class="sp-options" id="sp-${prefix}-options" role="group" aria-label="Hospital Speciality — select all that apply"></div>
               <div id="sp-${prefix}-list"></div>
               <div class="sp-bar">
-                <button type="button" class="btn btn-outline btn-sm" id="sp-${prefix}-addrow" onclick="spAddRow('${prefix}')">Add Speciality entry</button>
+                <button type="button" class="btn btn-outline btn-sm" id="sp-${prefix}-addrow" onclick="spAddRow('${prefix}')">Add other classification</button>
                 ${isEdit ? `<button type="button" class="btn btn-primary btn-sm" id="sp-edit-save" onclick="spSaveEdit()" disabled>Save Speciality</button>
                 <button type="button" class="btn btn-outline btn-sm" id="sp-edit-reload" onclick="spReload()" style="display:none">Reload Speciality</button>
                 <span class="sp-state" id="sp-edit-dirty"></span>` : ""}
               </div>
               ${isEdit ? `<div class="status-msg" id="sp-edit-status"></div>` : ""}
             </div>
-            <div class="section-title">Services &amp; Capabilities</div>`;
+            <div class="section-title">Additional service details</div>`;
 }
 
 export const SPECIALITY_SCRIPT = `
 // ── Speciality editor ─────────────────────────────────────────────────────────
-const SP_CATEGORIES = ['Trauma','Stroke','Burn','Pediatric','Obstetrics','Psychiatric','Cardiac','Cancer','HazMat'];
+const SP_CATEGORIES = ${JSON.stringify(SPECIALITY_CATEGORIES)};
 const sp = {
   add: { entries: [], seq: 0 },
   edit: { entries: [], loadedFor: null, identity: null, revision: null, ready: false, dirty: false, saving: false, conflict: false, reqSeq: 0 },
@@ -92,7 +100,16 @@ function spRender(prefix) {
   const st = sp[prefix];
   const list = document.getElementById('sp-' + prefix + '-list');
   if (!list) return;
-  const locked = prefix === 'edit' && (!st.ready || st.saving);
+  const locked = prefix === 'edit' && (!st.ready || st.saving || st.conflict);
+  spSyncCardiacField(prefix, locked);
+  const options = document.getElementById('sp-' + prefix + '-options');
+  if (options) options.innerHTML = SP_CATEGORIES.map(function(category, i) {
+    const checked = st.entries.some(function(e) { return e.category === category; });
+    return '<label class="sp-option"><input type="checkbox" data-category="' + esc(category) + '"' +
+      (checked ? ' checked' : '') + (locked || (!checked && st.entries.length >= 30) ? ' disabled' : '') +
+      ' onchange="spToggleCategory(\\'' + prefix + '\\',' + i + ',this.checked)">' +
+      esc(category === 'Women' ? 'Women’s Health' : category) + '</label>';
+  }).join('');
   if (!st.entries.length) {
     list.innerHTML = '<div class="sp-note">No Speciality entries. Public apps will show that Speciality verification is unavailable for this hospital.</div>';
   } else {
@@ -104,7 +121,7 @@ function spRender(prefix) {
         '<div class="sp-entry-head"><span class="sp-pill' + (v ? ' ok' : '') + '">' + (v ? 'Admin confirmed on save' : 'Pending admin save') + '</span>Entry ' + (i + 1) +
         '<button type="button" class="btn btn-danger btn-sm" style="margin-left:auto"' + dis + ' onclick="spRemove(\\'' + prefix + '\\',' + i + ')">Remove</button></div>' +
         '<div class="field full"><label class="field-label">Category / Speciality (optional if entering a classification)</label><select data-k="category" ' + on + dis + '><option value="">No category selected</option>' + spOpts(SP_CATEGORIES, e.category) + '</select></div>' +
-        '<div class="field full"><label class="field-label">OR exact classification / level</label><input type="text" maxlength="200" data-k="classification" value="' + esc(e.classification) + '" placeholder="e.g. Level II or Comprehensive Stroke Center" ' + on + dis + '></div>' +
+        '<div class="field full"><label class="field-label">Exact classification / level (optional for a selected category)</label><input type="text" maxlength="200" data-k="classification" value="' + esc(e.classification) + '" placeholder="e.g. Level II or Comprehensive Stroke Center" ' + on + dis + '></div>' +
         '</div>';
     }).join('');
   }
@@ -112,16 +129,39 @@ function spRender(prefix) {
   if (addBtn) addBtn.disabled = locked || st.entries.length >= 30;
   if (prefix === 'edit') spEditChrome();
 }
+function spSyncCardiacField(prefix, locked) {
+  const visible = sp[prefix].entries.some(function(entry) { return entry.category === 'Cardiac'; });
+  const row = document.getElementById('pci-' + prefix + '-row');
+  const input = document.getElementById('pci-' + prefix + '-input');
+  if (row) { row.hidden = !visible; row.style.display = visible ? '' : 'none'; }
+  if (input) input.disabled = !visible || locked;
+}
 function spField(prefix, i, el) {
+  if (prefix === 'edit' && (!sp.edit.ready || sp.edit.saving || sp.edit.conflict)) return;
   const e = sp[prefix].entries[i];
   if (!e) return;
   const k = el.dataset.k;
   e[k] = el.type === 'checkbox' ? el.checked : el.value;
   if (prefix === 'edit') { sp.edit.dirty = true; spEditChrome(); }
+  if (k === 'category') spRender(prefix);
+}
+function spToggleCategory(prefix, index, checked) {
+  const st = sp[prefix], category = SP_CATEGORIES[index];
+  if (!st || !category || (prefix === 'edit' && (!st.ready || st.saving || st.conflict))) return;
+  const exists = st.entries.some(function(e) { return e.category === category; });
+  if (checked) {
+    if (exists || st.entries.length >= 30) return;
+    st.entries.push(Object.assign(spBlank(), {category: category}));
+  } else {
+    if (!exists) return;
+    st.entries = st.entries.filter(function(e) { return e.category !== category; });
+  }
+  if (prefix === 'edit') st.dirty = true;
+  spRender(prefix);
 }
 function spAddRow(prefix) {
   const st = sp[prefix];
-  if (prefix === 'edit' && (!st.ready || st.saving)) return;
+  if (prefix === 'edit' && (!st.ready || st.saving || st.conflict)) return;
   if (st.entries.length >= 30) return;
   st.entries.push(spBlank());
   if (prefix === 'edit') st.dirty = true;
@@ -129,7 +169,7 @@ function spAddRow(prefix) {
 }
 function spRemove(prefix, i) {
   const st = sp[prefix];
-  if (prefix === 'edit' && (!st.ready || st.saving)) return;
+  if (prefix === 'edit' && (!st.ready || st.saving || st.conflict)) return;
   st.entries.splice(i, 1);
   if (prefix === 'edit') st.dirty = true;
   spRender(prefix);
@@ -170,7 +210,7 @@ function spEditChrome() {
   const dirty = document.getElementById('sp-edit-dirty');
   if (save) { save.disabled = !st.ready || st.saving || st.conflict || !st.dirty; save.textContent = st.saving ? 'Saving…' : 'Save Speciality'; }
   if (reload) reload.style.display = st.conflict ? 'inline-block' : 'none';
-  if (dirty) { dirty.textContent = st.dirty ? 'Unsaved Speciality changes (saved separately from Save Changes)' : ''; dirty.className = 'sp-state' + (st.dirty ? ' dirty' : ''); }
+  if (dirty) { dirty.textContent = st.dirty ? 'Unsaved Speciality changes — use Save Speciality or Save Changes.' : ''; dirty.className = 'sp-state' + (st.dirty ? ' dirty' : ''); }
 }
 function spRenderLegacy(legacy) {
   const box = document.getElementById('sp-edit-legacy');
@@ -243,9 +283,9 @@ function spReload() {
 }
 async function spSaveEdit() {
   const st = sp.edit;
-  if (!st.ready || st.saving || st.conflict || st.loadedFor == null) return;
+  if (!st.ready || st.saving || st.conflict || st.loadedFor == null) return false;
   const err = spValidate(st.entries);
-  if (err) { showStatus('sp-edit-status', err, false); return; }
+  if (err) { showStatus('sp-edit-status', err, false); return false; }
   // Capture target before awaiting.
   const id = st.loadedFor, identity = st.identity, revision = st.revision, seq = st.reqSeq;
   const entries = spClean(st.entries);
@@ -262,6 +302,7 @@ async function spSaveEdit() {
     spRender('edit');
     showStatus('sp-edit-status', 'Speciality saved.', true);
     if (typeof bsInvalidate === 'function') bsInvalidate();
+    return true;
   } catch (e) {
     if (seq !== st.reqSeq || st.loadedFor !== id) return;
     st.saving = false;
@@ -272,6 +313,7 @@ async function spSaveEdit() {
       showStatus('sp-edit-status', 'Speciality not saved: ' + e.message, false);
     }
     spRender('edit');
+    return false;
   }
 }
 window.addEventListener('beforeunload', function (ev) {

@@ -22,6 +22,15 @@ export const SpecialityEntryCategory = {
   Cardiac: "Cardiac",
   Cancer: "Cancer",
   HazMat: "HazMat",
+  General_Acute_Care: "General Acute Care",
+  Critical_Access: "Critical Access",
+  Women: "Women",
+  Rehabilitation: "Rehabilitation",
+  "Long-Term_Acute_Care": "Long-Term Acute Care",
+  Orthopedic: "Orthopedic",
+  Neurology: "Neurology",
+  Neonatal: "Neonatal",
+  Transplant: "Transplant",
 } as const;
 
 export type SpecialityEntryPopulation =
@@ -77,6 +86,15 @@ export const SpecialityInputCategory = {
   Cardiac: "Cardiac",
   Cancer: "Cancer",
   HazMat: "HazMat",
+  General_Acute_Care: "General Acute Care",
+  Critical_Access: "Critical Access",
+  Women: "Women",
+  Rehabilitation: "Rehabilitation",
+  "Long-Term_Acute_Care": "Long-Term Acute Care",
+  Orthopedic: "Orthopedic",
+  Neurology: "Neurology",
+  Neonatal: "Neonatal",
+  Transplant: "Transplant",
 } as const;
 
 export type SpecialityInputPopulation =

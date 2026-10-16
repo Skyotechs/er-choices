@@ -33,23 +33,6 @@ const STATE_OPTIONS = US_STATES.map(
   (s) => `<option value="${s}">${s}</option>`,
 ).join("");
 
-const SERVICE_LINES = [
-  "General Acute Care",
-  "Critical Access",
-  "Psychiatric",
-  "Long-Term Care",
-  "Rehabilitation",
-  "Children's",
-  "Cancer",
-  "Women's",
-];
-
-const SERVICE_LINE_OPTIONS = [
-  `<option value="">— none —</option>`,
-  ...SERVICE_LINES.map((s) => `<option value="${s}">${s}</option>`),
-].join("");
-
-
 function buildPage(): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -300,15 +283,10 @@ ${BROWSE_RETURN_BAR}        <div class="empty-state" id="edit-empty">
             </div>
 
             ${specialityEditorHtml("edit")}
-            <div class="field">
-              <label class="field-label">Service Line</label>
-              <select name="serviceLine">
-                ${SERVICE_LINE_OPTIONS}
-              </select>
-            </div>
-            <div class="field">
-              <label class="field-label">PCI / STEMI Capability</label>
-              <input type="text" name="pciCapability" placeholder="e.g. PCI-capable 24/7">
+            <div class="field" id="pci-edit-row" style="display:none" hidden>
+              <label class="field-label" for="pci-edit-input">PCI / STEMI Capability (optional)</label>
+              <input type="text" id="pci-edit-input" name="pciCapability" placeholder="e.g. PCI-capable 24/7" disabled aria-describedby="pci-edit-note">
+              <div class="sp-note" id="pci-edit-note">Enter the confirmed heart-attack treatment capability, if known. Selecting Cardiac does not confirm PCI capability. Saved with Save Changes.</div>
             </div>
             <div class="field">
               <label class="field-label">Staffed Beds</label>
@@ -381,15 +359,10 @@ ${browseContent(STATE_OPTIONS)}
             </div>
 
             ${specialityEditorHtml("add")}
-            <div class="field">
-              <label class="field-label">Service Line</label>
-              <select name="serviceLine">
-                ${SERVICE_LINE_OPTIONS}
-              </select>
-            </div>
-            <div class="field">
-              <label class="field-label">PCI / STEMI Capability</label>
-              <input type="text" name="pciCapability">
+            <div class="field" id="pci-add-row" style="display:none" hidden>
+              <label class="field-label" for="pci-add-input">PCI / STEMI Capability (optional)</label>
+              <input type="text" id="pci-add-input" name="pciCapability" placeholder="e.g. PCI-capable 24/7" disabled aria-describedby="pci-add-note">
+              <div class="sp-note" id="pci-add-note">Enter the confirmed heart-attack treatment capability, if known. Selecting Cardiac does not confirm PCI capability.</div>
             </div>
             <div class="field">
               <label class="field-label">Staffed Beds</label>
@@ -604,7 +577,6 @@ function populateEditForm(h) {
   set('phone', h.phone);
   set('latitude', h.latitude);
   set('longitude', h.longitude);
-  set('serviceLine', h.serviceLine);
   set('pciCapability', h.pciCapability);
   set('helipad', h.helipad);
   set('beds', h.beds);
@@ -743,14 +715,25 @@ async function submitEdit(e) {
   const form = e.target;
   const data = formToPayload(form);
   data.recordIdentity = selectedRecordIdentity;
+  const targetId = selectedHospitalId;
   const btn = form.querySelector('button[type="submit"]');
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
-    await apiFetch('/api/admin/hospitals/' + selectedHospitalId, {
+    if (sp.edit.dirty && sp.edit.loadedFor !== targetId) {
+      showStatus('edit-status', 'Reload the selected hospital before saving Speciality.', false);
+      return;
+    }
+    if (sp.edit.dirty && !(await spSaveEdit())) {
+      showStatus('edit-status', 'Speciality could not be saved. Resolve the Speciality error before saving other changes.', false);
+      return;
+    }
+    if (selectedHospitalId !== targetId) return;
+    await apiFetch('/api/admin/hospitals/' + targetId, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    if (selectedHospitalId !== targetId) return;
     showStatus('edit-status', 'Saved successfully!', true);
     bsInvalidate();
     // Refresh the result in the list
@@ -795,6 +778,7 @@ async function submitAdd(e) {
     if (addSeq === sp.add.seq) showStatus('add-status', 'Error: ' + err.message, false);
   } finally {
     Array.from(form.elements).forEach(el => { el.disabled = false; });
+    spSyncCardiacField('add', false);
     btn.disabled = false;
     btn.textContent = 'Create Hospital';
   }
@@ -807,8 +791,13 @@ function formToPayload(form) {
   // Text/select fields
   [
     'hospitalName','address','city','state','zip','phone',
-    'serviceLine','pciCapability',
   ].forEach(k => { data[k] = fd.get(k) || null; });
+  // Removed and hidden fields are omitted, never turned into destructive nulls.
+  // Deselecting Cardiac hides PCI entry without erasing historical capability data.
+  const prefix = form.id === 'add-form' ? 'add' : 'edit';
+  if (sp[prefix].entries.some(entry => entry.category === 'Cardiac')) {
+    data.pciCapability = fd.get('pciCapability') || null;
+  }
   // Numbers
   const lat = fd.get('latitude'); data.latitude = lat ? Number(lat) : null;
   const lon = fd.get('longitude'); data.longitude = lon ? Number(lon) : null;

@@ -127,7 +127,7 @@ components:
       type: object
       required: [category, classification, population, status, authority, sourceUrl, verifiedOn, officialConfirmed]
       properties:
-        category: { type: [string, "null"], enum: [Trauma, Stroke, Burn, Pediatric, Obstetrics, Psychiatric, Cardiac, Cancer, HazMat, null] }
+        category: { type: [string, "null"], enum: [Trauma, Stroke, Burn, Pediatric, Obstetrics, Psychiatric, Cardiac, Cancer, HazMat, General Acute Care, Critical Access, Women, Rehabilitation, Long-Term Acute Care, Orthopedic, Neurology, Neonatal, Transplant, null] }
         classification: { type: string, minLength: 1, maxLength: 200 }
         population: { type: string, enum: [All, Adult, Pediatric] }
         status: { type: string, enum: [unverified, verified] }
@@ -139,7 +139,7 @@ components:
       type: object
       description: Enter a category/speciality OR a classification/level. Saving as an authenticated administrator confirms the researched entry. Population and supporting metadata are optional; existing details are retained.
       properties:
-        category: { type: [string, "null"], enum: [Trauma, Stroke, Burn, Pediatric, Obstetrics, Psychiatric, Cardiac, Cancer, HazMat, null] }
+        category: { type: [string, "null"], enum: [Trauma, Stroke, Burn, Pediatric, Obstetrics, Psychiatric, Cardiac, Cancer, HazMat, General Acute Care, Critical Access, Women, Rehabilitation, Long-Term Acute Care, Orthopedic, Neurology, Neonatal, Transplant, null] }
         classification: { type: string, maxLength: 200 }
         population: { type: string, enum: [All, Adult, Pediatric] }
         authority: { type: string, maxLength: 200 }

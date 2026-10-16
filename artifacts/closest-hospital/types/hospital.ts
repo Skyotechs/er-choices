@@ -1,4 +1,4 @@
-import type { SpecialityEntry } from "@workspace/speciality";
+import type { SpecialityEntry, SpecialityCategory } from "@workspace/speciality";
 export type HospitalCategory =
   | "All"
   | "Trauma"
@@ -9,7 +9,7 @@ export type HospitalCategory =
   | "Psychiatric"
   | "Cardiac"
   | "Cancer"
-  | "HazMat";
+  | SpecialityCategory;
 // HazMat is kept distinct; it must never be classified as Trauma by proximity.
 
 /**
