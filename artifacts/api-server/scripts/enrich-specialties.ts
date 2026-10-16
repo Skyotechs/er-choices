@@ -34,7 +34,7 @@
  *   pnpm --filter @workspace/api-server run enrich-specialties
  */
 
-import { db, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { haversineMeters, nameScore } from "./import-cms-hospitals.js";
 

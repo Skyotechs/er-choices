@@ -22,7 +22,7 @@
  * already been cleared will simply produce a no-op update.
  */
 
-import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
 import { asc, eq, or } from "drizzle-orm";
 
 function normaliseOsmId(rawId: string): string {

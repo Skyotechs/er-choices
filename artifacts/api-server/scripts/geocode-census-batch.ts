@@ -22,7 +22,7 @@
 
 import fs from "fs";
 import path from "path";
-import { db, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties } from "@workspace/db";
 import { isNotNull, ne, or, isNull, eq } from "drizzle-orm";
 
 // ─── Config ───────────────────────────────────────────────────────────────────

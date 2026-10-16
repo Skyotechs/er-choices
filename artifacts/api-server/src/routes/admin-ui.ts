@@ -446,6 +446,7 @@ ${browseContent(STATE_OPTIONS)}
 <script>
 let TOKEN = '';
 let selectedHospitalId = null;
+let selectedRecordIdentity = null;
 let selectedHospitalActive = true;
 let searchTimer = null;
 
@@ -466,8 +467,10 @@ function doLogin() {
       if (location.hash === '#reports') switchTab('reports');
       else if (location.hash === '#browse') switchTab('browse');
     })
-    .catch(() => {
+    .catch((err) => {
       TOKEN = '';
+      document.getElementById('login-err').textContent = err.message === 'Unauthorized'
+        ? 'Incorrect token — please try again.' : 'Unable to load hospital data: ' + err.message;
       document.getElementById('login-err').style.display = 'block';
     });
 }
@@ -601,6 +604,7 @@ function selectHospital(id, el) {
   el.classList.add('active');
   selectedHospitalId = id;
   const h = JSON.parse(el.dataset.hospital);
+  selectedRecordIdentity = h.recordIdentity;
   populateEditForm(h);
   bsOnSelect(el);
   switchTab('edit');
@@ -668,6 +672,7 @@ function populateEditForm(h) {
 
 function clearEdit() {
   selectedHospitalId = null;
+  selectedRecordIdentity = null;
   selectedHospitalActive = true;
   document.getElementById('edit-form').style.display = 'none';
   document.getElementById('edit-empty').style.display = 'flex';
@@ -700,7 +705,7 @@ async function toggleActiveState() {
 
   try {
     const action = willDeactivate ? 'deactivate' : 'activate';
-    const body = willDeactivate ? JSON.stringify({ reason }) : undefined;
+    const body = JSON.stringify({ reason, recordIdentity: selectedRecordIdentity });
     await apiFetch('/api/admin/hospitals/' + selectedHospitalId + '/' + action, { method: 'PATCH', body });
 
     // Update local state
@@ -767,6 +772,7 @@ async function submitEdit(e) {
   if (!selectedHospitalId) return;
   const form = e.target;
   const data = formToPayload(form);
+  data.recordIdentity = selectedRecordIdentity;
   const btn = form.querySelector('button[type="submit"]');
   btn.disabled = true;
   btn.textContent = 'Saving…';

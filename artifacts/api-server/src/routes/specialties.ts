@@ -1,11 +1,16 @@
 import { Router } from "express";
-import { db, hospitalSpecialties, specialtyDefinitions } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties, specialtyDefinitions } from "@workspace/db";
 import { isNotNull, eq, sql, count } from "drizzle-orm";
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { hospitalRecordIdentity, requireHospitalIdentity, requireHospitalStore } from "../lib/hospital-store";
 
 const router = Router();
+
+router.patch("/admin/specialty-gaps/:id/resolve", requireAdmin, requireHospitalIdentity);
+router.put("/admin/specialty-gaps/:id/resolve-all", requireAdmin, requireHospitalIdentity);
+router.post("/admin/seed", requireAdmin, requireHospitalStore);
 
 function requireAdmin(req: any, res: any, next: any) {
   const secret = process.env.ADMIN_SECRET;
@@ -379,6 +384,7 @@ router.get("/admin/specialty-gaps", requireAdmin, async (_req, res) => {
         id: number;
         osmId: string | null;
         cmsId: string;
+        recordIdentity: string;
         hospitalName: string;
         state: string;
         specialties: string[];
@@ -398,6 +404,7 @@ router.get("/admin/specialty-gaps", requireAdmin, async (_req, res) => {
           id: row.id,
           osmId: row.osmId,
           cmsId: row.cmsId,
+          recordIdentity: hospitalRecordIdentity(row),
           hospitalName: row.hospitalName,
           state: row.state,
           specialties: (row.specialties as string[]) ?? [],

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { writeFileSync } from "fs";
-import { pool } from "@workspace/db";
+import { hospitalPool as pool } from "@workspace/db";
 import { runEnrichment, buildEnrichmentCsv } from "./enrich-specialties.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

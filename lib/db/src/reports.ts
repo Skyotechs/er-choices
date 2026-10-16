@@ -17,7 +17,7 @@ let reportsDatabase: ReturnType<typeof createReportsDatabase> | undefined;
 /**
  * Reports share the Android app's existing Railway database. Do not fall back
  * to DATABASE_URL: the published web API's default database is a different store.
- * Other hospital data continues to use the default database.
+ * Hospital administration has its own Railway connection; report behavior is independent.
  */
 export function getReportsDb() {
   if (reportsDatabase) return reportsDatabase;

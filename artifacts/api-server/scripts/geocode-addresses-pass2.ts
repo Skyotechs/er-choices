@@ -24,7 +24,7 @@
  * target production when running via the admin endpoint).
  */
 
-import { db, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties } from "@workspace/db";
 import { and, isNull, isNotNull, ne, eq, lt, sql } from "drizzle-orm";
 
 // ─── Address cleaning ─────────────────────────────────────────────────────────

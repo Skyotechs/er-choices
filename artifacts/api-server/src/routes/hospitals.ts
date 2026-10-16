@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, hospitalSpecialties, hospitalOverrides } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties, hospitalOverrides } from "@workspace/db";
 import { and, isNotNull, sql, eq } from "drizzle-orm";
 
 const router = Router();
@@ -110,7 +110,10 @@ router.get("/hospitals/nearby", async (req, res) => {
       .from(hospitalSpecialties)
       .leftJoin(
         hospitalOverrides,
-        eq(hospitalSpecialties.osmId, hospitalOverrides.osmId)
+        sql`CASE WHEN ${hospitalSpecialties.osmId} LIKE 'osm-%'
+          THEN ${hospitalSpecialties.osmId}
+          ELSE 'osm-' || replace(${hospitalSpecialties.osmId}, '/', '-')
+          END = ${hospitalOverrides.osmId}`
       )
       .where(
         and(

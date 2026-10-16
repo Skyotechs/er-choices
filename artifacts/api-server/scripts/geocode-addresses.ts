@@ -28,11 +28,10 @@
  * Run via the admin endpoint on the Railway server for production updates.
  */
 
-import { db, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties } from "@workspace/db";
 import { and, isNull, isNotNull, ne, eq } from "drizzle-orm";
 
-// DATABASE_URL is set by the parent process (the admin endpoint overrides it
-// to RAILWAY_DATABASE_URL when triggering this script for production geocoding).
+// Hospital data always uses the dedicated RAILWAY_DATABASE_URL connection.
 
 // ─── Haversine helper ─────────────────────────────────────────────────────────
 

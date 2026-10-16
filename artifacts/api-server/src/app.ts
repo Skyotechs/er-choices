@@ -3,7 +3,6 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { seedSpecialtyDefinitions } from "./routes/specialties";
 
 const app: Express = express();
 
@@ -42,9 +41,5 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: "text/*", limit: "20mb" }));
 
 app.use("/api", router);
-
-seedSpecialtyDefinitions().catch((err) => {
-  logger.error({ err }, "Failed to seed specialty definitions");
-});
 
 export default app;

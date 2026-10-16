@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalOverrides, hospitalSpecialties } from "@workspace/db";
 import { and, count, eq, ilike, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runImport } from "../../scripts/import-cms-hospitals.js";
@@ -8,6 +8,7 @@ import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
 import { parseStateBrowseQuery } from "../lib/state-browse-query";
+import { hospitalRecordIdentity, requireHospitalIdentity, requireHospitalStore } from "../lib/hospital-store";
 
 /** All fields that can be edited via the admin PATCH endpoint. */
 type HospitalUpdateFields = {
@@ -100,6 +101,16 @@ function findTsx(): string {
 }
 
 const router = Router();
+
+// Background actions must fail before acknowledging/starting a job if Railway
+// is missing or unreachable. Child scripts inherit RAILWAY_DATABASE_URL.
+router.post([
+  "/admin/run-enrichment", "/admin/run-coord-update", "/admin/run-geocode",
+  "/admin/run-geocode-pass2", "/admin/run-census-geocode", "/admin/run-import",
+], requireAdmin, requireHospitalStore);
+router.patch([
+  "/admin/hospitals/:id", "/admin/hospitals/:id/deactivate", "/admin/hospitals/:id/activate",
+], requireAdmin, requireHospitalIdentity);
 
 /**
  * Normalise a DB-stored osmId to the app's format.
@@ -278,10 +289,12 @@ router.get(["/admin/hospitals/search", "/admin/hospitals/by-state"], requireAdmi
       : [];
     const overrideMap = new Map(overrideRows.map((o) => [o.osmId, o]));
 
+    res.setHeader("Cache-Control", "no-store");
     const result = unique.map((r) => {
       const ov = r.osmId ? overrideMap.get(r.osmId) : undefined;
       return {
         id: r.id,
+        recordIdentity: hospitalRecordIdentity(r),
         cmsId: r.cmsId,
         osmId: r.osmId ?? null,
         name: r.hospitalName,
@@ -1192,12 +1205,8 @@ router.post("/admin/run-geocode", requireAdmin, async (_req, res) => {
   const tsxBin = findTsx();
   console.log(`[Admin] Forking geocode child process: ${tsxBin} ${GEOCODE_SCRIPT}`);
 
-  // Override DATABASE_URL with RAILWAY_DATABASE_URL if set so the script runs
-  // against the production Railway database rather than the local dev DB.
+  // Hospital scripts use their dedicated Railway connection, not DATABASE_URL.
   const geocodeEnv = { ...process.env };
-  if (process.env.RAILWAY_DATABASE_URL) {
-    geocodeEnv.DATABASE_URL = process.env.RAILWAY_DATABASE_URL;
-  }
 
   execFileAsync(tsxBin, [GEOCODE_SCRIPT], {
     cwd: API_SERVER_DIR,
@@ -1292,9 +1301,6 @@ router.post("/admin/run-geocode-pass2", requireAdmin, async (_req, res) => {
   console.log(`[Admin] Forking geocode-pass2 child: ${tsxBin} ${GEOCODE_PASS2_SCRIPT}`);
 
   const geocodeEnv = { ...process.env };
-  if (process.env.RAILWAY_DATABASE_URL) {
-    geocodeEnv.DATABASE_URL = process.env.RAILWAY_DATABASE_URL;
-  }
 
   execFileAsync(tsxBin, [GEOCODE_PASS2_SCRIPT], {
     cwd: API_SERVER_DIR,
@@ -1407,9 +1413,6 @@ router.post("/admin/run-census-geocode", requireAdmin, async (_req, res) => {
   console.log(`[Admin] Forking census-geocode child: ${tsxBin} ${GEOCODE_CENSUS_SCRIPT}`);
 
   const geocodeEnv = { ...process.env };
-  if (process.env.RAILWAY_DATABASE_URL) {
-    geocodeEnv.DATABASE_URL = process.env.RAILWAY_DATABASE_URL;
-  }
 
   execFileAsync(tsxBin, [GEOCODE_CENSUS_SCRIPT], {
     cwd: API_SERVER_DIR,

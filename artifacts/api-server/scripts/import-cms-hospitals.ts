@@ -46,7 +46,7 @@
  * Idempotent — both phases use ON CONFLICT DO UPDATE and deterministic matching.
  */
 
-import { db, pool, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalPool as pool, hospitalSpecialties } from "@workspace/db";
 import { eq, sql, isNull, isNotNull, and } from "drizzle-orm";
 
 const CMS_API_BASE =

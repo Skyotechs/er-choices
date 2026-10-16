@@ -21,7 +21,7 @@
  *   pnpm --filter @workspace/api-server run update-coords
  */
 
-import { db, hospitalSpecialties } from "@workspace/db";
+import { hospitalDb as db, hospitalSpecialties } from "@workspace/db";
 import { and, isNotNull, eq } from "drizzle-orm";
 
 // ─── Haversine helper ─────────────────────────────────────────────────────────

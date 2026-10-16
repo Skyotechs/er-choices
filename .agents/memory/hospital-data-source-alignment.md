@@ -28,3 +28,17 @@ alignment of admin reads and edits to Railway.
 records. Leave both databases' existing records intact during the change; only
 subsequent intentional admin edits should modify Railway records. Guard against
 stale numeric IDs from the old admin dataset targeting a different hospital.
+
+Treat a hospital connection change as a read-only release operation, including
+its build and startup paths. Existing specialty definitions should not be
+automatically reseeded as part of reconnecting administration.
+
+**Why:** The user authorized changing the source of future intentional admin
+edits, not modifying either store during implementation. Automatic schema
+pushes or seed upserts can violate that constraint even when verification only
+sends GET requests.
+
+**How to apply:** Inspect the actual release/start commands before restarting.
+Verify data preservation with read-only full-row comparisons, and use isolated
+fixtures for mutation checks. Keep migrations and data jobs separate from
+connection-alignment releases.

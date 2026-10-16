@@ -1,4 +1,4 @@
-import { pool } from "@workspace/db";
+import { hospitalPool as pool } from "@workspace/db";
 import { runImport } from "./import-cms-hospitals.js";
 
 runImport()
