@@ -5,6 +5,99 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type AdminHospitalStatePagePageSize =
+  (typeof AdminHospitalStatePagePageSize)[keyof typeof AdminHospitalStatePagePageSize];
+
+export const AdminHospitalStatePagePageSize = {
+  NUMBER_25: 25,
+  NUMBER_50: 50,
+  NUMBER_100: 100,
+} as const;
+
+export interface AdminHospitalRecord {
+  id: number;
+  /** @nullable */
+  cmsId?: string | null;
+  /** @nullable */
+  osmId?: string | null;
+  name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  city?: string | null;
+  state: string;
+  /** @nullable */
+  zip?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  latitude?: number | null;
+  /** @nullable */
+  longitude?: number | null;
+  specialties?: string[];
+  /** @nullable */
+  actualDesignation?: string | null;
+  /** @nullable */
+  serviceLine?: string | null;
+  /** @nullable */
+  strokeDesignation?: string | null;
+  /** @nullable */
+  burnDesignation?: string | null;
+  /** @nullable */
+  pciCapability?: string | null;
+  /** @nullable */
+  helipad?: boolean | null;
+  /** @nullable */
+  beds?: number | null;
+  source?: string;
+  active: boolean;
+  /** @nullable */
+  deactivatedReason?: string | null;
+}
+
+export interface AdminHospitalStatePage {
+  hospitals: AdminHospitalRecord[];
+  /** @minimum 0 */
+  total: number;
+  /** @minimum 1 */
+  page: number;
+  pageSize: AdminHospitalStatePagePageSize;
+  /** @minimum 0 */
+  totalPages: number;
+}
+
 export interface HealthStatus {
   status: string;
 }
+
+export type BrowseAdminHospitalsByStateParams = {
+  /**
+   * @pattern ^[A-Za-z]{2}$
+   */
+  state: string;
+  /**
+   * @minimum 1
+   * @maximum 1000000
+   */
+  page?: number;
+  pageSize?: BrowseAdminHospitalsByStatePageSize;
+  status?: BrowseAdminHospitalsByStateStatus;
+};
+
+export type BrowseAdminHospitalsByStatePageSize =
+  (typeof BrowseAdminHospitalsByStatePageSize)[keyof typeof BrowseAdminHospitalsByStatePageSize];
+
+export const BrowseAdminHospitalsByStatePageSize = {
+  NUMBER_25: 25,
+  NUMBER_50: 50,
+  NUMBER_100: 100,
+} as const;
+
+export type BrowseAdminHospitalsByStateStatus =
+  (typeof BrowseAdminHospitalsByStateStatus)[keyof typeof BrowseAdminHospitalsByStateStatus];
+
+export const BrowseAdminHospitalsByStateStatus = {
+  all: "all",
+  active: "active",
+  inactive: "inactive",
+} as const;

@@ -6,6 +6,14 @@ import {
   REPORTS_CONTENT,
   REPORTS_SCRIPT,
 } from "./admin-reports-ui";
+import {
+  BROWSE_STYLE,
+  BROWSE_HEADER_BUTTON,
+  BROWSE_TAB,
+  browseContent,
+  BROWSE_RETURN_BAR,
+  BROWSE_SCRIPT,
+} from "./admin-state-browse-ui";
 
 const router = Router();
 
@@ -145,6 +153,7 @@ function buildPage(): string {
 
   /* ── Scrollbar ── */
 ${REPORTS_STYLE}
+${BROWSE_STYLE}
   ::-webkit-scrollbar{width:6px}
   ::-webkit-scrollbar-track{background:#09121f}
   ::-webkit-scrollbar-thumb{background:#1e3352;border-radius:3px}
@@ -176,6 +185,7 @@ ${REPORTS_STYLE}
       <div class="header-sub">Hospital Database Manager</div>
     </div>
     <div class="header-right">
+      ${BROWSE_HEADER_BUTTON}
       ${REPORTS_HEADER_BUTTON}
       <button class="btn btn-outline btn-sm" onclick="switchTab('add')">+ Add Hospital</button>
       <button class="btn btn-outline btn-sm" onclick="doLogout()">Sign Out</button>
@@ -228,12 +238,13 @@ ${REPORTS_STYLE}
       <div class="tabs">
         <div class="tab active" id="tab-edit" onclick="switchTab('edit')">Edit Hospital</div>
         <div class="tab" id="tab-add" onclick="switchTab('add')">Add Hospital</div>
+        ${BROWSE_TAB}
         ${REPORTS_TAB}
       </div>
 
       <!-- EDIT TAB -->
       <div class="tab-content active" id="content-edit">
-        <div class="empty-state" id="edit-empty">
+${BROWSE_RETURN_BAR}        <div class="empty-state" id="edit-empty">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
             <polyline points="17 21 17 13 7 13 7 21"/>
@@ -337,6 +348,7 @@ ${REPORTS_STYLE}
       </div>
 
 ${REPORTS_CONTENT}
+${browseContent(STATE_OPTIONS)}
       <!-- ADD TAB -->
       <div class="tab-content" id="content-add">
         <form id="add-form" onsubmit="submitAdd(event)">
@@ -450,7 +462,9 @@ function doLogin() {
       document.getElementById('login-err').style.display = 'none';
       loadDeactivatedCount();
       reportsStart();
+      bsStart();
       if (location.hash === '#reports') switchTab('reports');
+      else if (location.hash === '#browse') switchTab('browse');
     })
     .catch(() => {
       TOKEN = '';
@@ -459,6 +473,7 @@ function doLogin() {
 }
 function doLogout() {
   reportsStop();
+  bsStop();
   TOKEN = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
@@ -587,6 +602,7 @@ function selectHospital(id, el) {
   selectedHospitalId = id;
   const h = JSON.parse(el.dataset.hospital);
   populateEditForm(h);
+  bsOnSelect(el);
   switchTab('edit');
 }
 
@@ -658,6 +674,7 @@ function clearEdit() {
   document.getElementById('deactivated-reason-row').style.display = 'none';
   document.getElementById('deactivated-reason-text').textContent = '';
   document.querySelectorAll('.result-item').forEach(i => i.classList.remove('active'));
+  bsOnClearEdit();
 }
 
 // ── Deactivate / Reactivate ───────────────────────────────────────────────────
@@ -735,6 +752,7 @@ async function toggleActiveState() {
 
     showStatus('edit-status', willDeactivate ? 'Hospital deactivated.' : 'Hospital reactivated.', true);
     loadDeactivatedCount();
+    bsInvalidate();
   } catch (err) {
     btn.textContent = origText;
     showStatus('edit-status', 'Error: ' + err.message, false);
@@ -758,6 +776,7 @@ async function submitEdit(e) {
       body: JSON.stringify(data),
     });
     showStatus('edit-status', 'Saved successfully!', true);
+    bsInvalidate();
     // Refresh the result in the list
     const active = document.querySelector('.result-item.active');
     if (active) {
@@ -788,6 +807,7 @@ async function submitAdd(e) {
     });
     showStatus('add-status', 'Hospital created! CMS ID: ' + result.hospital.cmsId, true);
     form.reset();
+    bsInvalidate();
   } catch (err) {
     showStatus('add-status', 'Error: ' + err.message, false);
   } finally {
@@ -831,13 +851,17 @@ function hideStatus(id) {
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(name) {
   document.body.classList.toggle('admin-reports-mode', name === 'reports');
+  document.body.classList.toggle('admin-browse-mode', name === 'browse' || (name === 'edit' && bsState.fromBrowse));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('content-' + name).classList.add('active');
   if (name === 'reports') reportsOnShow();
+  if (name === 'browse') bsOnShow();
+  if (name === 'edit') bsUpdateReturnBar();
 }
 ${REPORTS_SCRIPT}
+${BROWSE_SCRIPT}
 </script>
 </body>
 </html>`;

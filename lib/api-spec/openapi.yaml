@@ -24,8 +24,86 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /admin/hospitals/by-state:
+    get:
+      operationId: browseAdminHospitalsByState
+      summary: Browse every editable hospital record in a state
+      description: Alphabetical, paginated records including deactivated hospitals by default. Requires the admin bearer token.
+      security:
+        - adminBearer: []
+      parameters:
+        - in: query
+          name: state
+          required: true
+          schema: { type: string, pattern: "^[A-Za-z]{2}$" }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, maximum: 1000000, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, enum: [25, 50, 100], default: 50 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [all, active, inactive], default: all }
+      responses:
+        "200":
+          description: Hospital records and the total matching the selected state and status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminHospitalStatePage"
+        "400":
+          description: Invalid state, page, page size, or status
+        "401":
+          description: Missing or invalid admin token
+        "500":
+          description: Could not load hospitals
 components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
   schemas:
+    AdminHospitalStatePage:
+      type: object
+      required: [hospitals, total, page, pageSize, totalPages]
+      properties:
+        hospitals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminHospitalRecord"
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, enum: [25, 50, 100] }
+        totalPages: { type: integer, minimum: 0 }
+    AdminHospitalRecord:
+      type: object
+      required: [id, name, state, active]
+      properties:
+        id: { type: integer }
+        cmsId: { type: ["string", "null"] }
+        osmId: { type: ["string", "null"] }
+        name: { type: string }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        state: { type: string }
+        zip: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        latitude: { type: ["number", "null"] }
+        longitude: { type: ["number", "null"] }
+        specialties:
+          type: array
+          items: { type: string }
+        actualDesignation: { type: ["string", "null"] }
+        serviceLine: { type: ["string", "null"] }
+        strokeDesignation: { type: ["string", "null"] }
+        burnDesignation: { type: ["string", "null"] }
+        pciCapability: { type: ["string", "null"] }
+        helipad: { type: ["boolean", "null"] }
+        beds: { type: ["integer", "null"] }
+        source: { type: string }
+        active: { type: boolean }
+        deactivatedReason: { type: ["string", "null"] }
     HealthStatus:
       type: object
       properties:

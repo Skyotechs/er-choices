@@ -14,3 +14,70 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Alphabetical, paginated records including deactivated hospitals by default. Requires the admin bearer token.
+ * @summary Browse every editable hospital record in a state
+ */
+export const browseAdminHospitalsByStateQueryStateRegExp = new RegExp(
+  "^[A-Za-z]{2}$",
+);
+export const browseAdminHospitalsByStateQueryPageDefault = 1;
+export const browseAdminHospitalsByStateQueryPageMax = 1000000;
+
+export const browseAdminHospitalsByStateQueryPageSizeDefault = 50;
+export const browseAdminHospitalsByStateQueryStatusDefault = `all`;
+
+export const BrowseAdminHospitalsByStateQueryParams = zod.object({
+  state: zod.coerce.string().regex(browseAdminHospitalsByStateQueryStateRegExp),
+  page: zod.coerce
+    .number()
+    .min(1)
+    .max(browseAdminHospitalsByStateQueryPageMax)
+    .default(browseAdminHospitalsByStateQueryPageDefault),
+  pageSize: zod
+    .union([zod.literal(25), zod.literal(50), zod.literal(100)])
+    .default(browseAdminHospitalsByStateQueryPageSizeDefault),
+  status: zod
+    .enum(["all", "active", "inactive"])
+    .default(browseAdminHospitalsByStateQueryStatusDefault),
+});
+
+export const browseAdminHospitalsByStateResponseTotalMin = 0;
+
+export const browseAdminHospitalsByStateResponseTotalPagesMin = 0;
+
+export const BrowseAdminHospitalsByStateResponse = zod.object({
+  hospitals: zod.array(
+    zod.object({
+      id: zod.number(),
+      cmsId: zod.string().nullish(),
+      osmId: zod.string().nullish(),
+      name: zod.string(),
+      address: zod.string().nullish(),
+      city: zod.string().nullish(),
+      state: zod.string(),
+      zip: zod.string().nullish(),
+      phone: zod.string().nullish(),
+      latitude: zod.number().nullish(),
+      longitude: zod.number().nullish(),
+      specialties: zod.array(zod.string()).optional(),
+      actualDesignation: zod.string().nullish(),
+      serviceLine: zod.string().nullish(),
+      strokeDesignation: zod.string().nullish(),
+      burnDesignation: zod.string().nullish(),
+      pciCapability: zod.string().nullish(),
+      helipad: zod.boolean().nullish(),
+      beds: zod.number().nullish(),
+      source: zod.string().optional(),
+      active: zod.boolean(),
+      deactivatedReason: zod.string().nullish(),
+    }),
+  ),
+  total: zod.number().min(browseAdminHospitalsByStateResponseTotalMin),
+  page: zod.number().min(1),
+  pageSize: zod.union([zod.literal(25), zod.literal(50), zod.literal(100)]),
+  totalPages: zod
+    .number()
+    .min(browseAdminHospitalsByStateResponseTotalPagesMin),
+});

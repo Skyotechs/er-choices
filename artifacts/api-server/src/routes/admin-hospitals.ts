@@ -7,6 +7,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
+import { parseStateBrowseQuery } from "../lib/state-browse-query";
 
 /** All fields that can be edited via the admin PATCH endpoint. */
 type HospitalUpdateFields = {
@@ -170,9 +171,19 @@ router.get("/admin/hospitals/deactivated-count", requireAdmin, async (_req, res)
  * osmIds are normalized to app format (osm-*) before looking up overrides to ensure
  * correct matching regardless of how the raw id is stored in hospital_specialties.
  */
-router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
-  const q = ((req.query.q as string) ?? "").trim();
-  const stateFilter = ((req.query.state as string) ?? "").trim().toUpperCase();
+router.get(["/admin/hospitals/search", "/admin/hospitals/by-state"], requireAdmin, async (req, res) => {
+  const isStateBrowse = req.path.endsWith("/by-state");
+  let browse: ReturnType<typeof parseStateBrowseQuery> | undefined;
+  if (isStateBrowse) {
+    try {
+      browse = parseStateBrowseQuery(req.query);
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+      return;
+    }
+  }
+  const q = isStateBrowse ? "" : (typeof req.query.q === "string" ? req.query.q.trim() : "");
+  const stateFilter = browse?.state ?? (typeof req.query.state === "string" ? req.query.state.trim().toUpperCase() : "");
   const showInactive = req.query.showInactive === "true";
 
   const hasNameQuery = q.length >= 2;
@@ -188,11 +199,19 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
     const whereClause = and(
       hasNameQuery ? ilike(hospitalSpecialties.hospitalName, `%${q}%`) : undefined,
       hasStateFilter ? eq(hospitalSpecialties.state, stateFilter) : undefined,
-      showInactive ? undefined : eq(hospitalSpecialties.active, true),
+      browse
+        ? (browse.status === "all" ? undefined : eq(hospitalSpecialties.active, browse.status === "active"))
+        : (showInactive ? undefined : eq(hospitalSpecialties.active, true)),
     );
 
-    // Allow more results when browsing by state (no name query)
-    const fetchLimit = hasStateFilter && !hasNameQuery ? 300 : 50;
+    const fetchLimit = browse?.pageSize ?? (hasStateFilter && !hasNameQuery ? 300 : 50);
+    let total = 0;
+    if (browse) {
+      const [summary] = await db.select({ total: count() })
+        .from(hospitalSpecialties).where(whereClause);
+      total = summary.total;
+      res.setHeader("Cache-Control", "no-store");
+    }
 
     // Step 1: fetch hospitals from hospital_specialties
     const rows = await db
@@ -222,15 +241,19 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
       })
       .from(hospitalSpecialties)
       .where(whereClause)
-      .orderBy(hospitalSpecialties.hospitalName)
-      .limit(fetchLimit);
+      .orderBy(hospitalSpecialties.hospitalName, hospitalSpecialties.id)
+      .limit(fetchLimit)
+      .offset(browse ? (browse.page - 1) * browse.pageSize : 0);
 
     // Step 2: normalize osmIds and deduplicate, then look up any legacy overrides
-    const displayLimit = hasStateFilter && !hasNameQuery ? 300 : 20;
+    const displayLimit = browse?.pageSize ?? (hasStateFilter && !hasNameQuery ? 300 : 20);
     const seenKeys = new Set<string>();
     const unique = rows
       .map((r) => ({ ...r, osmId: r.osmId ? normaliseOsmId(r.osmId) : null }))
       .filter((r) => {
+        // State browsing covers every editable database record. Search keeps
+        // its existing deduplication; paginated browsing must not hide rows.
+        if (browse) return true;
         const key = r.osmId ?? r.cmsId;
         if (seenKeys.has(key)) return false;
         seenKeys.add(key);
@@ -284,9 +307,15 @@ router.get("/admin/hospitals/search", requireAdmin, async (req, res) => {
       };
     });
 
-    res.json(result);
+    res.json(browse ? {
+      hospitals: result,
+      total,
+      page: browse.page,
+      pageSize: browse.pageSize,
+      totalPages: Math.ceil(total / browse.pageSize),
+    } : result);
   } catch (err) {
-    console.error("GET /api/admin/hospitals/search error:", err);
+    req.log.error({ err }, "Admin hospital list failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });

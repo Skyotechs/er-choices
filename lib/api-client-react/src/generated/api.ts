@@ -13,7 +13,11 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AdminHospitalStatePage,
+  BrowseAdminHospitalsByStateParams,
+  HealthStatus,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
 import type { ErrorType } from "../custom-fetch";
@@ -92,6 +96,116 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Alphabetical, paginated records including deactivated hospitals by default. Requires the admin bearer token.
+ * @summary Browse every editable hospital record in a state
+ */
+export const getBrowseAdminHospitalsByStateUrl = (
+  params: BrowseAdminHospitalsByStateParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/hospitals/by-state?${stringifiedParams}`
+    : `/api/admin/hospitals/by-state`;
+};
+
+export const browseAdminHospitalsByState = async (
+  params: BrowseAdminHospitalsByStateParams,
+  options?: RequestInit,
+): Promise<AdminHospitalStatePage> => {
+  return customFetch<AdminHospitalStatePage>(
+    getBrowseAdminHospitalsByStateUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getBrowseAdminHospitalsByStateQueryKey = (
+  params?: BrowseAdminHospitalsByStateParams,
+) => {
+  return [
+    `/api/admin/hospitals/by-state`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getBrowseAdminHospitalsByStateQueryOptions = <
+  TData = Awaited<ReturnType<typeof browseAdminHospitalsByState>>,
+  TError = ErrorType<void>,
+>(
+  params: BrowseAdminHospitalsByStateParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof browseAdminHospitalsByState>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getBrowseAdminHospitalsByStateQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof browseAdminHospitalsByState>>
+  > = ({ signal }) =>
+    browseAdminHospitalsByState(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof browseAdminHospitalsByState>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type BrowseAdminHospitalsByStateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof browseAdminHospitalsByState>>
+>;
+export type BrowseAdminHospitalsByStateQueryError = ErrorType<void>;
+
+/**
+ * @summary Browse every editable hospital record in a state
+ */
+
+export function useBrowseAdminHospitalsByState<
+  TData = Awaited<ReturnType<typeof browseAdminHospitalsByState>>,
+  TError = ErrorType<void>,
+>(
+  params: BrowseAdminHospitalsByStateParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof browseAdminHospitalsByState>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getBrowseAdminHospitalsByStateQueryOptions(
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

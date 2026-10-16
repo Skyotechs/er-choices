@@ -1,3 +1,5 @@
 - [Android Maps release safety](android-maps-release-safety.md) — avoid initializing the native map in a standalone Android build until a Google Maps key is configured.
 - [Cloud frozen installs](cloud-frozen-installs.md) — check pnpm compatibility before regenerating a valid lockfile after an external build fails.
 - [Hospital report visibility](hospital-report-visibility.md) — admins must be able to see submitted reports and when they were made, not rely only on email alerts.
+- [Admin state-wide review](admin-state-review.md) — admins need all hospitals reachable by state, independently of name search, for large-scale editing.
+- [Hospital data sources](hospital-data-source-alignment.md) — public clients and same-origin admin routes can use different databases; verify both reads and writes.

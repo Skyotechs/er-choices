@@ -6,4 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./adminHospitalRecord";
+export * from "./adminHospitalStatePage";
+export * from "./adminHospitalStatePagePageSize";
+export * from "./browseAdminHospitalsByStatePageSize";
+export * from "./browseAdminHospitalsByStateParams";
+export * from "./browseAdminHospitalsByStateStatus";
 export * from "./healthStatus";
