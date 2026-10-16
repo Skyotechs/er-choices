@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "release:api": "node ./src/release-api.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

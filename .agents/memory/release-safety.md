@@ -25,3 +25,21 @@ are independent release operations.
 **How to apply:** Explain GitHub autodeploy as a push-triggered release, not as an
 automatic consequence of Replit republishing. Do not claim external automation
 is enabled without checking or configuring it with approval.
+
+The user chose an intentional one-click release (checks, GitHub push, then
+Railway autodeploy), not unattended pushes of every change.
+
+**Why:** Pushing to the production branch can release unfinished code. Setting
+up the release action is separate from executing a production release.
+
+**How to apply:** Keep releases user-initiated. Do not start release automation
+as part of app startup, health checks, routine editing, or verification.
+
+Keep production push commands out of Replit workflows used for normal app runs.
+
+**Why:** Configuring a custom workflow can attach it to the default Project run
+action even with `autoStart: false`; this can turn a normal Run into a release.
+
+**How to apply:** Use an explicit Shell release command. If adding manual
+automation later, inspect the default Run dependency graph before leaving it
+configured; do not rely on `autoStart: false` alone.

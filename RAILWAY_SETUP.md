@@ -62,6 +62,62 @@ being silently created, replaced, or populated during startup.
 
 ## 3. Automatic code releases through GitHub
 
+### Single-command release from Replit
+
+Run this explicitly in the Replit Shell from the repository root:
+
+```sh
+pnpm release:api
+```
+
+Starting this command is approval to push the committed `main` branch to
+`Skyotechs/er-choices`, which can trigger a live Railway deployment. Save and
+commit the intended changes first. The command never stages or commits files
+for you; pending tracked or untracked files block release.
+The ordinary Run button and app startup never invoke the release command.
+
+The command also blocks tracked credentials in `.replit`. Before the first
+release, move the plaintext admin credential out of source control and into
+Secrets, and rotate it with explicit approval. Removing it from the latest file
+does not erase earlier Git history. Do not rewrite history or rotate credentials
+as part of the release command.
+
+It runs the Speciality, hospital/report store, startup-safety, and release-script
+regressions, then builds the API. It checks for concurrent local changes and
+fetches current GitHub history before pushing only the exact tested commit.
+It never force-pushes, bypasses Git hooks, merges, rebases, resets, or runs
+database maintenance. Divergent history or failed checks stop the release.
+
+The command uses a clean, fixed HTTPS repository URL instead of a potentially
+credential-bearing `origin`. If the existing `GITHUB_PAT` secret is available,
+a process-scoped credential helper supplies it to Git without putting it in
+the URL or saving it in Git configuration. Otherwise existing Git credential
+helpers are used. The credential needs write access to this repository; any
+Git LFS hook must also authenticate successfully. No Git/LFS safety checks
+are disabled.
+
+Safe checks that do **not** push:
+
+```sh
+pnpm release:api:check
+pnpm release:api --check-connection
+```
+
+The first runs tests and builds the current working files (even if uncommitted).
+Passing this check-only mode does not establish that credential cleanup, a clean
+committed branch, or GitHub write access is ready.
+The second only checks whether GitHub's `main` is readable; read access alone
+does not establish push permission. This focused API gate does not claim a
+passing whole-workspace typecheck, website/mobile build, or native store build.
+Existing unrelated workspace typecheck failures remain separate work.
+
+A successful push is not confirmation of a completed Railway deployment.
+Verify the pushed commit and deployment status in Railway. This command does
+not configure external Railway settings, publish Replit, or build/upload apps
+to Google Play or the Apple App Store.
+
+### Railway configuration (required once)
+
 1. In the API service's Settings → Source, confirm the connected repository and
    branch.
 2. Enable automatic deployments for that branch if they are disabled.
