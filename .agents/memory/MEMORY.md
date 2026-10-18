@@ -5,3 +5,4 @@
 - [Hospital data sources](hospital-data-source-alignment.md) — public clients and same-origin admin routes can use different databases; verify both reads and writes.
 - [Speciality classification policy](speciality-classification-policy.md) — use one term for official verified classifications, without overlapping designation edits.
 - [Release safety](release-safety.md) — keep database maintenance out of routine releases; use source-control triggers, not API startup, for deployment automation.
+- [Git provider authorization](git-provider-authorization.md) — native source-control connection health does not prove CLI authentication or push permission.
