@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { hospitalDb as db, hospitalSpecialties, hospitalOverrides } from "@workspace/db";
-import { and, isNotNull, sql, eq } from "drizzle-orm";
+import { and, isNotNull, sql, eq, or } from "drizzle-orm";
 import { publicSpeciality } from "../lib/speciality-store";
 
 const router = Router();
@@ -53,8 +53,29 @@ function toMobileCategories(rawSpecialties: string[]): string[] {
  * (default 50, max 300) sorted by distance. Admin lat/lon/phone overrides
  * are applied automatically via a LEFT JOIN on hospital_overrides.
  *
+ * The CMS emergency_services filter stays on. When
+ * SHOW_VERIFIED_TRAUMA_WHEN_CMS_ER_NO is true/1/yes/on, hospitals that have
+ * a verified Trauma specialty entry are also included. The flag defaults to off.
+ *
  * Response: { hospitals: HospitalNearby[] }
  */
+
+function showVerifiedTraumaWhenCmsErNo(): boolean {
+  const v = (process.env.SHOW_VERIFIED_TRAUMA_WHEN_CMS_ER_NO ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
+const hasVerifiedTraumaSpecialty = sql`
+  EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(
+      COALESCE(${hospitalSpecialties.designationSources}->'_specialityV1'->'entries', '[]'::jsonb)
+    ) AS speciality_entry
+    WHERE speciality_entry->>'category' = 'Trauma'
+      AND speciality_entry->>'status' = 'verified'
+  )
+`;
+
 router.get("/hospitals/nearby", async (req, res) => {
   const lat = parseFloat(req.query.lat as string);
   const lon = parseFloat(req.query.lon as string);
@@ -119,7 +140,12 @@ router.get("/hospitals/nearby", async (req, res) => {
       )
       .where(
         and(
-          eq(hospitalSpecialties.emergencyServices, true),
+          showVerifiedTraumaWhenCmsErNo()
+            ? or(
+                eq(hospitalSpecialties.emergencyServices, true),
+                hasVerifiedTraumaSpecialty,
+              )
+            : eq(hospitalSpecialties.emergencyServices, true),
           eq(hospitalSpecialties.active, true),
           isNotNull(hospitalSpecialties.latitude),
           isNotNull(hospitalSpecialties.longitude),

@@ -34,6 +34,7 @@ const operators = {
   ilike: (col, value) => ({ op: "ilike", col, value }),
   inArray: (col, value) => ({ op: "in", col, value }),
   and: (...parts) => ({ op: "and", parts: parts.filter(Boolean) }),
+  or: (...parts) => ({ op: "or", parts: parts.filter(Boolean) }),
   count: () => ({ op: "count" }),
   isNotNull: (col) => ({ op: "notNull", col }),
   sql: (strings, ...params) => ({ op: "sql", text: strings.join("?"), params }),
@@ -41,8 +42,13 @@ const operators = {
 function matches(row, clause) {
   if (!clause) return true;
   if (clause.op === "and") return clause.parts.every((part) => matches(row, part));
+  if (clause.op === "or") return clause.parts.some((part) => matches(row, part));
   if (clause.op === "sql" && clause.text.includes("->>'revision'")) {
     return (row.designationSources?._specialityV1?.revision ?? "") === clause.params.at(-1);
+  }
+  if (clause.op === "sql" && clause.text.includes("speciality_entry->>'category' = 'Trauma'")) {
+    const entries = row.designationSources?._specialityV1?.entries ?? [];
+    return entries.some((entry) => entry.category === "Trauma" && entry.status === "verified");
   }
   const val = row[clause.col?.key];
   if (clause.op === "eq") return val === clause.value;
@@ -52,7 +58,11 @@ function matches(row, clause) {
   return true;
 }
 
-function fixture() {
+function fixture(envOverrides = {}) {
+  const env = {
+    ADMIN_SECRET: "fixture-admin", RAILWAY_DATABASE_URL: "railway-fixture", DATABASE_URL: "unrelated-fixture",
+    ...envOverrides,
+  };
   const records = [
     { id: 1, cmsId: "CMS-A", osmId: "node/42", hospitalName: "Alpha Hospital", address: "12 Existing Street", city: "Town", state: "TX", active: true, emergencyServices: true, specialties: ["Stroke"], phone: "base", latitude: 1, longitude: 2, needsAdminReview: ["Obstetrics"], designationSources: {}, source: "cms" },
     { id: 2, cmsId: "CMS-B", osmId: null, hospitalName: "Beta Hospital", address: null, state: "TX", active: false, specialties: [], source: "cms" },
@@ -170,10 +180,10 @@ function fixture() {
       zod: require(require("node:module").createRequire(path.resolve(__dirname, "../../../lib/api-zod/package.json")).resolve("zod")),
     }),
   });
-  compile("../src/routes/admin-hospitals.ts", dependencies);
-  compile("../src/routes/specialties.ts", dependencies);
-  compile("../src/routes/hospitals.ts", dependencies);
-  compile("../src/routes/admin-speciality.ts", dependencies);
+  compile("../src/routes/admin-hospitals.ts", dependencies, env);
+  compile("../src/routes/specialties.ts", dependencies, env);
+  compile("../src/routes/hospitals.ts", dependencies, env);
+  compile("../src/routes/admin-speciality.ts", dependencies, env);
   async function request(method, url, body = {}, authorized = true) {
     const u = new URL(url, "http://fixture");
     let status = 200, payload, done = false;
@@ -205,7 +215,7 @@ function fixture() {
     }
     throw new Error("Unmatched fixture request " + url);
   }
-  return { request, records, data, operations, jobs, identity, setUnavailable: () => { unavailable = true; } };
+  return { request, records, data, operations, jobs, identity, env, setUnavailable: () => { unavailable = true; } };
 }
 
 test("search and state browse retain Railway addresses, nulls, effective overrides and signed identities", async () => {
@@ -721,4 +731,55 @@ test("the rendered admin editor sends the loaded identity for save and both stat
   assert.equal(elements.get("pci-edit-row").hidden, false, "Cardiac persists and restores the optional PCI field");
   toggle("edit", "Cardiac", false);
   assert.equal(elements.get("pci-edit-row").hidden, true);
+});
+
+test("nearby keeps the CMS emergency_services filter and only adds verified Trauma when the flag is on", async () => {
+  const verifiedTrauma = {
+    category: "Trauma", classification: "Level I", population: "All",
+    status: "verified", authority: "Fixture trauma authority",
+    sourceUrl: "https://authority.example/trauma", verifiedOn: "2026-01-01", officialConfirmed: true,
+  };
+  const unverifiedTrauma = { ...verifiedTrauma, status: "unverified", officialConfirmed: false };
+  const verifiedBurn = { ...verifiedTrauma, category: "Burn", classification: "Burn Center" };
+  function add(f, row) { f.records.push(row); return row; }
+  const extra = (id, name, { emergencyServices, entries }) => ({
+    id, cmsId: "CMS-" + id, osmId: null, hospitalName: name, address: null, city: "Town", state: "TX",
+    active: true, emergencyServices, specialties: [], phone: null, latitude: 1, longitude: 2,
+    designationSources: { _specialityV1: { revision: "r" + id, entries } }, source: "cms",
+  });
+
+  const off = fixture();
+  add(off, extra(10, "Verified Trauma CMS No", { emergencyServices: false, entries: [verifiedTrauma] }));
+  add(off, extra(11, "Verified Burn CMS No", { emergencyServices: false, entries: [verifiedBurn] }));
+  add(off, extra(12, "Unverified Trauma CMS No", { emergencyServices: false, entries: [unverifiedTrauma] }));
+  const offResult = await off.request("get", "/hospitals/nearby?lat=1&lon=2");
+  assert.equal(offResult.status, 200);
+  const offNames = offResult.payload.hospitals.map((h) => h.name);
+  assert.deepEqual(offNames, ["Alpha Hospital"]);
+  const offShape = Object.keys(offResult.payload.hospitals[0]).sort();
+
+  const on = fixture({ SHOW_VERIFIED_TRAUMA_WHEN_CMS_ER_NO: "true" });
+  add(on, extra(10, "Verified Trauma CMS No", { emergencyServices: false, entries: [verifiedTrauma] }));
+  add(on, extra(11, "Verified Burn CMS No", { emergencyServices: false, entries: [verifiedBurn] }));
+  add(on, extra(12, "Unverified Trauma CMS No", { emergencyServices: false, entries: [unverifiedTrauma] }));
+  const onResult = await on.request("get", "/hospitals/nearby?lat=1&lon=2");
+  assert.equal(onResult.status, 200);
+  const onNames = onResult.payload.hospitals.map((h) => h.name).sort();
+  assert.deepEqual(onNames, ["Alpha Hospital", "Verified Trauma CMS No"]);
+  const traumaRow = onResult.payload.hospitals.find((h) => h.name === "Verified Trauma CMS No");
+  assert.equal(traumaRow.id, "cms-CMS-10");
+  assert.deepEqual(Object.keys(traumaRow).sort(), offShape);
+
+  for (const value of ["TRUE", "1", "yes", "on"]) {
+    const f = fixture({ SHOW_VERIFIED_TRAUMA_WHEN_CMS_ER_NO: value });
+    add(f, extra(10, "Verified Trauma CMS No", { emergencyServices: false, entries: [verifiedTrauma] }));
+    const names = (await f.request("get", "/hospitals/nearby?lat=1&lon=2")).payload.hospitals.map((h) => h.name);
+    assert.equal(names.includes("Verified Trauma CMS No"), true, value);
+  }
+  for (const value of ["false", "0", "off", "", undefined]) {
+    const f = value === undefined ? fixture() : fixture({ SHOW_VERIFIED_TRAUMA_WHEN_CMS_ER_NO: value });
+    add(f, extra(10, "Verified Trauma CMS No", { emergencyServices: false, entries: [verifiedTrauma] }));
+    const names = (await f.request("get", "/hospitals/nearby?lat=1&lon=2")).payload.hospitals.map((h) => h.name);
+    assert.equal(names.includes("Verified Trauma CMS No"), false, String(value));
+  }
 });
